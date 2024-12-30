@@ -1,8 +1,9 @@
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
-const result = document.getElementById('result');
 const registerForm = document.getElementById('registerForm');
+const result = document.getElementById('result');
 
+// Access the user's camera
 navigator.mediaDevices
   .getUserMedia({ video: true })
   .then((stream) => {
@@ -10,13 +11,19 @@ navigator.mediaDevices
   })
   .catch((err) => {
     console.error('Camera access denied:', err);
+    result.textContent = 'Error: Camera access denied. Please enable camera permissions.';
   });
 
-registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+// Capture and register student face
+registerForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const studentName = document.getElementById('studentName').value.trim();
+  const studentId = document.getElementById('studentId').value.trim();
 
-  const studentName = document.getElementById('studentName').value;
-  const studentId = document.getElementById('studentId').value;
+  if (!studentName || !studentId) {
+    result.textContent = 'Please enter student details.';
+    return;
+  }
 
   const context = canvas.getContext('2d');
   canvas.width = video.videoWidth;
@@ -25,17 +32,21 @@ registerForm.addEventListener('submit', async (e) => {
 
   const image = canvas.toDataURL('image/png');
 
-  const response = await fetch('/register', {
+  fetch('/register-student', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ studentName, studentId, image })
-  });
-
-  const data = await response.json();
-
-  if (data.success) {
-    result.textContent = `Registration successful for ${studentName}`;
-  } else {
-    result.textContent = `Registration failed: ${data.message}`;
-  }
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        result.textContent = 'Student registered successfully!';
+      } else {
+        result.textContent = `Error: ${data.message}`;
+      }
+    })
+    .catch((err) => {
+      console.error('Error registering student:', err);
+      result.textContent = 'Error registering student.';
+    });
 });

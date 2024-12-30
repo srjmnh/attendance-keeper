@@ -4,6 +4,7 @@ const result = document.getElementById('result');
 const subjectCodeInput = document.getElementById('subjectCode');
 const captureButton = document.getElementById('capture');
 
+// Access the user's camera
 navigator.mediaDevices
   .getUserMedia({ video: true })
   .then((stream) => {
@@ -11,8 +12,10 @@ navigator.mediaDevices
   })
   .catch((err) => {
     console.error('Camera access denied:', err);
+    result.textContent = 'Error: Camera access denied. Please enable camera permissions.';
   });
 
+// Capture image and send it to the backend for attendance recording
 captureButton.addEventListener('click', () => {
   const subjectCode = subjectCodeInput.value.trim();
   if (!subjectCode) {
@@ -42,5 +45,6 @@ captureButton.addEventListener('click', () => {
     })
     .catch((err) => {
       console.error('Error recording attendance:', err);
+      result.textContent = 'Error recording attendance.';
     });
 });
