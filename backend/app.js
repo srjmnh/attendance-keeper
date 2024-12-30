@@ -3,7 +3,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
 const path = require('path');
-const { saveAttendance, getAttendance, registerStudent } = require('./firebase');
+const { saveAttendance, getAttendance, registerStudent, addSubject, getSubjects } = require('./firebase');
 
 const app = express();
 app.use(bodyParser.json());
@@ -24,6 +24,11 @@ app.get('/view', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/view.html'));
 });
 
+// Serve the add subject page
+app.get('/add-subject', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/add-subject.html'));
+});
+
 // Register student
 app.post('/register-student', async (req, res) => {
   const { studentName, studentId, image } = req.body;
@@ -42,6 +47,27 @@ app.post('/record-attendance', async (req, res) => {
     const timestamp = new Date().toISOString();
     const result = await saveAttendance(studentId, subjectCode, image, timestamp);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Add subject
+app.post('/add-subject', async (req, res) => {
+  const { subjectCode, subjectName } = req.body;
+  try {
+    const result = await addSubject(subjectCode, subjectName);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get subjects
+app.get('/get-subjects', async (req, res) => {
+  try {
+    const subjects = await getSubjects();
+    res.json(subjects);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
