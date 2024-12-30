@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
     const subjectDropdown = document.getElementById('subject');
     const form = document.getElementById('registerForm');
     const result = document.getElementById('result');
@@ -24,6 +27,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     populateSubjects();
 
+    // Request camera access
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then((stream) => {
+                video.srcObject = stream;
+            })
+            .catch((err) => {
+                console.error('Error accessing camera:', err);
+                result.textContent = 'Error accessing camera. Please check permissions.';
+            });
+    }
+
+    startCamera();
+
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         const studentName = document.getElementById('studentName').value.trim();
@@ -35,7 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const faceData = "base64-face-data-placeholder";
+        // Capture image from the video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const faceData = canvas.toDataURL('image/png');
 
         fetch('/register-student', {
             method: 'POST',
