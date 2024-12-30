@@ -1,64 +1,54 @@
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
 const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
-const { saveAttendance } = require('./firebase');
-const { registerFace } = require('./face-training');
+const path = require('path');
+const { saveAttendance, getAttendance, registerStudent } = require('./firebase');
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Serve static files from the frontend folder
-const frontendPath = path.join(__dirname, '../frontend');
-app.use(express.static(frontendPath));
-
-// Root route to serve the frontend
+// Serve the main page
 app.get('/', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// Recognize Face
-const VISION_API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${process.env.VISION_API_KEY}`;
-app.post('/recognize', async (req, res) => {
+// Register student
+app.post('/register-student', async (req, res) => {
+  const { studentName, studentId, image } = req.body;
   try {
-    const { image } = req.body;
-    const response = await fetch(VISION_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requests: [
-          {
-            image: { content: image.split(',')[1] },
-            features: [{ type: 'FACE_DETECTION' }]
-          }
-        ]
-      })
-    });
-    const result = await response.json();
-    const faces = result.responses[0].faceAnnotations;
-    if (faces && faces.length > 0) {
-      const studentName = 'Detected Face'; // Logic to match with database
-      const timestamp = new Date().toISOString();
-      await saveAttendance(studentName, timestamp);
-      res.json({ success: true, studentName });
-    } else {
-      res.json({ success: false, message: 'No face detected' });
-    }
+    const result = await registerStudent(studentName, studentId, image);
+    res.json(result);
   } catch (error) {
-    console.error('Error processing request:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Register Face
-app.post('/register', async (req, res) => {
-  const { studentName, studentId, image } = req.body;
-  const result = await registerFace(studentName, studentId, image);
-  res.json(result);
+// Record attendance
+app.post('/record-attendance', async (req, res) => {
+  const { studentId, subjectCode, image } = req.body;
+  try {
+    const timestamp = new Date().toISOString();
+    const result = await saveAttendance(studentId, subjectCode, image, timestamp);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get attendance records
+app.get('/get-attendance', async (req, res) => {
+  const { subjectCode } = req.query;
+  try {
+    const records = await getAttendance(subjectCode);
+    res.json(records);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });

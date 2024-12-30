@@ -15,16 +15,47 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-async function saveAttendance(studentName, timestamp) {
+// Save attendance record
+async function saveAttendance(studentId, subjectCode, image, timestamp) {
   try {
-    await db.collection('attendance').add({
-      studentName,
+    const attendanceDoc = db.collection('attendance').doc(subjectCode).collection('records').doc(timestamp);
+    await attendanceDoc.set({
+      studentId,
+      image,
       timestamp
     });
-    console.log(`Attendance saved for ${studentName}`);
+    return { success: true };
   } catch (error) {
-    console.error('Error saving attendance:', error);
+    throw new Error('Error saving attendance');
   }
 }
 
-module.exports = { saveAttendance, db };
+// Get attendance records
+async function getAttendance(subjectCode) {
+  try {
+    const records = [];
+    const snapshot = await db.collection('attendance').doc(subjectCode).collection('records').get();
+    snapshot.forEach(doc => {
+      records.push(doc.data());
+    });
+    return records;
+  } catch (error) {
+    throw new Error('Error fetching attendance');
+  }
+}
+
+// Register a student
+async function registerStudent(studentName, studentId, image) {
+  try {
+    const studentDoc = db.collection('students').doc(studentId);
+    await studentDoc.set({
+      name: studentName,
+      faceData: image
+    });
+    return { success: true };
+  } catch (error) {
+    throw new Error('Error registering student');
+  }
+}
+
+module.exports = { saveAttendance, getAttendance, registerStudent };
