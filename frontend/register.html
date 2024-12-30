@@ -7,10 +7,18 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <nav>
+        <a href="/">Student Attendance</a> |
+        <a href="/register">Register Students</a> |
+        <a href="/view">View Attendance</a> |
+        <a href="/add-subject">Add Subjects</a>
+    </nav>
     <h1>Register Students</h1>
     <form id="registerForm">
         <input type="text" id="studentName" placeholder="Student Name" required>
         <input type="text" id="studentId" placeholder="Student ID" required>
+        <label for="subject">Select Subject:</label>
+        <select id="subject" required></select>
         <video id="video" autoplay></video>
         <button id="capture">Capture Face</button>
         <canvas id="canvas" style="display: none;"></canvas>
