@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
 const { saveAttendance } = require('./firebase');
@@ -8,9 +9,13 @@ const { registerFace } = require('./face-training');
 const app = express();
 app.use(bodyParser.json());
 
-// Root route to handle 'Cannot GET' error
+// Serve static files from the frontend folder
+const frontendPath = path.join(__dirname, '../frontend');
+app.use(express.static(frontendPath));
+
+// Root route to serve the frontend
 app.get('/', (req, res) => {
-  res.send('Backend is running!');
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Recognize Face
