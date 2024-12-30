@@ -14,6 +14,16 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// Serve the teacher register page
+app.get('/register', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/register.html'));
+});
+
+// Serve the teacher view attendance page
+app.get('/view', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/view.html'));
+});
+
 // Register student
 app.post('/register-student', async (req, res) => {
   const { studentName, studentId, image } = req.body;
