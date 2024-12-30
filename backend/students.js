@@ -3,6 +3,9 @@ const db = require('./db');
 async function registerStudent(req, res) {
   const { studentName, studentId, image } = req.body;
   try {
+    if (!studentName || !studentId || !image) {
+      throw new Error('Missing required fields');
+    }
     const studentDoc = db.collection('students').doc(studentId);
     await studentDoc.set({ name: studentName, faceData: image });
     res.json({ success: true });

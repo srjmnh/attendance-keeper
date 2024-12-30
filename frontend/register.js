@@ -1,52 +1,60 @@
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const registerForm = document.getElementById('registerForm');
-const result = document.getElementById('result');
+document.addEventListener('DOMContentLoaded', () => {
+    const subjectDropdown = document.getElementById('subject');
+    const form = document.getElementById('registerForm');
+    const result = document.getElementById('result');
 
-// Access the user's camera
-navigator.mediaDevices
-  .getUserMedia({ video: true })
-  .then((stream) => {
-    video.srcObject = stream;
-  })
-  .catch((err) => {
-    console.error('Camera access denied:', err);
-    result.textContent = 'Error: Camera access denied. Please enable camera permissions.';
-  });
+    // Fetch subjects from the backend
+    function populateSubjects() {
+        fetch('/get-subjects')
+            .then(response => response.json())
+            .then(data => {
+                subjectDropdown.innerHTML = '';
+                data.forEach(subject => {
+                    const option = document.createElement('option');
+                    option.value = subject.code;
+                    option.textContent = `${subject.name} (${subject.code})`;
+                    subjectDropdown.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.error('Error fetching subjects:', err);
+                result.textContent = 'Error fetching subjects. Try again later.';
+            });
+    }
 
-// Capture and register student face
-registerForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const studentName = document.getElementById('studentName').value.trim();
-  const studentId = document.getElementById('studentId').value.trim();
+    populateSubjects();
 
-  if (!studentName || !studentId) {
-    result.textContent = 'Please enter student details.';
-    return;
-  }
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const studentName = document.getElementById('studentName').value.trim();
+        const studentId = document.getElementById('studentId').value.trim();
+        const subject = subjectDropdown.value;
 
-  const context = canvas.getContext('2d');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        if (!studentName || !studentId || !subject) {
+            result.textContent = 'Please fill in all fields.';
+            return;
+        }
 
-  const image = canvas.toDataURL('image/png');
+        const faceData = "base64-face-data-placeholder";
 
-  fetch('/register-student', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ studentName, studentId, image })
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.success) {
-        result.textContent = 'Student registered successfully!';
-      } else {
-        result.textContent = `Error: ${data.message}`;
-      }
-    })
-    .catch((err) => {
-      console.error('Error registering student:', err);
-      result.textContent = 'Error registering student.';
+        fetch('/register-student', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ studentName, studentId, image: faceData })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    result.textContent = 'Student registered successfully!';
+                    form.reset();
+                    populateSubjects();
+                } else {
+                    result.textContent = `Error: ${data.message}`;
+                }
+            })
+            .catch(err => {
+                console.error('Error registering student:', err);
+                result.textContent = 'Error registering student.';
+            });
     });
 });
