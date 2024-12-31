@@ -1,22 +1,34 @@
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const path = require('path');
-const { registerStudent, recognizeFace } = require('./students');
+const axios = require('axios');
 
-const app = express();
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, '../frontend')));
+// Use the variables as per your environment setup
+const AZURE_ENDPOINT = process.env.AZURE_FACE_ENDPOINT;
+const AZURE_API_KEY = process.env.AZURE_API_KEY; // Updated key name
 
-// Serve the register.html file on /register route
-app.get('/register', (req, res) => res.sendFile(path.join(__dirname, '../frontend/register.html')));
+// Detect faces using Azure Face API
+async function detectFaces(imageBase64) {
+    const url = `${AZURE_ENDPOINT}/face/v1.0/detect`;
+    const params = {
+        recognitionModel: 'recognition_04',
+        returnFaceLandmarks: true, // Request face landmarks (basic detection)
+    };
 
-// Serve the recognize.html file on /recognize route
-app.get('/recognize', (req, res) => res.sendFile(path.join(__dirname, '../frontend/recognize.html')));
+    try {
+        const response = await axios.post(
+            url,
+            Buffer.from(imageBase64, 'base64'),
+            {
+                headers: {
+                    'Ocp-Apim-Subscription-Key': AZURE_API_KEY, // Updated key name
+                    'Content-Type': 'application/octet-stream',
+                },
+                params,
+            }
+        );
+        return response.data; // List of detected faces with landmarks
+    } catch (error) {
+        console.error('Error detecting faces:', error.response?.data || error.message);
+        throw new Error('Azure Face API face detection failed');
+    }
+}
 
-// API routes
-app.post('/register-student', registerStudent);
-app.post('/recognize-face', recognizeFace);
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+module.exports = { detectFaces };
