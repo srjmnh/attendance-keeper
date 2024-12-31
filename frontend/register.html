@@ -4,35 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register Students</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="register.js" defer></script>
+    <script src="script.js" defer></script>
 </head>
 <body>
-    <h1>Register Students</h1>
+    <h1>Register Student</h1>
     <form id="registerForm">
-        <div>
-            <label for="studentName">Student Name:</label>
-            <input type="text" id="studentName" placeholder="Enter student name" required>
-        </div>
-        <div>
-            <label for="studentId">Student ID:</label>
-            <input type="text" id="studentId" placeholder="Enter student ID" required>
-        </div>
-        <div>
-            <label for="subjectDropdown">Select Subject:</label>
-            <select id="subjectDropdown" required>
-                <option value="">Loading subjects...</option>
-            </select>
-        </div>
-        <div>
-            <label>Camera:</label>
-            <video id="camera" autoplay></video>
-        </div>
-        <button type="button" id="captureButton">Capture Image</button>
-        <canvas id="canvas" style="display: none;"></canvas>
-        <div>
-            <button type="submit">Register Student</button>
-        </div>
+        <input type="text" id="studentName" placeholder="Student Name" required>
+        <input type="text" id="studentId" placeholder="Student ID" required>
+        <video id="camera" autoplay></video>
+        <button type="submit">Register</button>
     </form>
 </body>
 </html>
