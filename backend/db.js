@@ -1,14 +1,16 @@
 const admin = require('firebase-admin');
 
-const firebaseKeyBase64 = process.env.FIREBASE_KEY_BASE64;
-if (!firebaseKeyBase64) {
-  throw new Error('FIREBASE_KEY_BASE64 environment variable is not set');
+// Decode the Base64 string from the environment variable
+const serviceAccountBase64 = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64;
+if (!serviceAccountBase64) {
+    throw new Error('Environment variable GOOGLE_APPLICATION_CREDENTIALS_BASE64 is not set');
 }
-const firebaseKey = JSON.parse(Buffer.from(firebaseKeyBase64, 'base64').toString('utf8'));
+const serviceAccount = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf-8'));
 
+// Initialize Firebase Admin SDK
 admin.initializeApp({
-  credential: admin.credential.cert(firebaseKey),
-  databaseURL: 'https://facial-f5096.firebaseio.com',
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: 'https://your-database-name.firebaseio.com', // Replace with your Firestore URL
 });
 
 const db = admin.firestore();

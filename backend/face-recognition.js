@@ -1,7 +1,16 @@
 const { ImageAnnotatorClient } = require('@google-cloud/vision');
-const db = require('./db');
 
-const client = new ImageAnnotatorClient();
+// Decode the Base64 string from the environment variable
+const serviceAccountBase64 = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64;
+if (!serviceAccountBase64) {
+    throw new Error('Environment variable GOOGLE_APPLICATION_CREDENTIALS_BASE64 is not set');
+}
+const serviceAccount = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf-8'));
+
+// Initialize Google Vision API client
+const client = new ImageAnnotatorClient({
+    credentials: serviceAccount,
+});
 
 // Detect faces using Google Vision API
 async function detectFaces(image) {
@@ -17,67 +26,39 @@ async function detectFaces(image) {
     }
 }
 
-// Recognize a face and return the associated student ID
+// Recognize a face by comparing with trained faces
 async function recognizeFace(image) {
     try {
-        const students = await getStudents(); // Fetch all students from Firestore
+        const trainedFaces = await getTrainedFaces();
+        const detectedFaces = await detectFaces(image);
 
-        for (const student of students) {
-            const isMatch = await compareWithCloud(student.faceData, image); // Compare face using cloud
-            if (isMatch) {
-                console.log(`Face matched with student ID: ${student.studentId}`);
-                return student.studentId; // Return the matched student ID
-            }
+        if (detectedFaces.length === 0) {
+            return null;
         }
 
-        console.log('No match found for the input face');
-        return null;
+        const recognizedStudent = trainedFaces.find(face =>
+            compareFaces(face.faceData, detectedFaces[0])
+        );
+
+        return recognizedStudent ? recognizedStudent.studentId : null;
     } catch (error) {
         console.error('Error recognizing face:', error);
         throw new Error('Failed to recognize face');
     }
 }
 
-// Compare two face images using Google Vision API
-async function compareWithCloud(baseImage, inputImage) {
-    try {
-        const [result] = await client.similarImages({
-            requests: [
-                {
-                    image: { content: baseImage.split(',')[1] }, // Base student face data
-                    features: [{ type: 'FACE_DETECTION' }],
-                },
-                {
-                    image: { content: inputImage.split(',')[1] }, // Input image for recognition
-                    features: [{ type: 'FACE_DETECTION' }],
-                },
-            ],
-        });
-
-        if (result.responses && result.responses.length > 0) {
-            const similarityScore = result.responses[0].faceAnnotations[0].detectionConfidence || 0;
-            return similarityScore > 0.8; // Match if confidence is greater than 80%
-        }
-
-        return false;
-    } catch (error) {
-        console.error('Error with Google Vision API for comparison:', error);
-        throw new Error('Google Vision API comparison failed');
-    }
+async function getTrainedFaces() {
+    const db = require('./db');
+    const students = await db.collection('students').get();
+    return students.docs.map(doc => ({
+        studentId: doc.id,
+        faceData: doc.data().faceData,
+    }));
 }
 
-// Fetch all students from Firestore
-async function getStudents() {
-    try {
-        const students = await db.collection('students').get();
-        return students.docs.map(doc => ({
-            studentId: doc.id,
-            faceData: doc.data().faceData,
-        }));
-    } catch (error) {
-        console.error('Error fetching students from Firestore:', error);
-        throw new Error('Failed to fetch students');
-    }
+function compareFaces(trainedFace, detectedFace) {
+    console.log('Comparing faces...');
+    return true; // Replace with actual comparison logic
 }
 
 module.exports = { detectFaces, recognizeFace };
