@@ -8,8 +8,8 @@ const { registerStudent } = require('./students');
 
 const app = express();
 
-// Increase payload size limit
-app.use(bodyParser.json({ limit: '10mb' })); // Adjust the limit as needed
+// Increase payload size for large image data
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 app.use(express.static(path.join(__dirname, '../frontend')));
