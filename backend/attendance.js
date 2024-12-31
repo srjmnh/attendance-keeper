@@ -1,18 +1,21 @@
 const db = require('./db');
-const { processFace } = require('./google-vision');
+const { recognizeFace } = require('./face-recognition'); // Implement recognition logic here
 
 async function saveAttendance(req, res) {
-    const { studentId, subjectCode, image } = req.body;
+    const { image, subjectCode } = req.body;
     const timestamp = new Date().toISOString();
 
     try {
-        const faces = await processFace(image);
-        if (faces.length === 0) {
-            return res.status(400).json({ success: false, message: 'No face detected in the image' });
+        // Recognize face and get student ID
+        const studentId = await recognizeFace(image);
+        if (!studentId) {
+            return res.status(400).json({ success: false, message: 'Face not recognized' });
         }
 
+        // Mark attendance in Firestore
         const attendanceDoc = db.collection('attendance').doc(subjectCode).collection('records').doc(timestamp);
         await attendanceDoc.set({ studentId, timestamp });
+
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving attendance:', error);
