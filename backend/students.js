@@ -11,7 +11,7 @@ async function registerStudent(req, res) {
             return res.status(400).json({ success: false, message: 'No face detected' });
         }
 
-        const faceId = faces[0].faceId; // Save the FaceId for later recognition
+        const faceId = faces[0].faceId; // Save the FaceId for recognition
 
         await db.collection('students').doc(studentId).set({
             name: studentName,
@@ -25,7 +25,7 @@ async function registerStudent(req, res) {
     }
 }
 
-// Recognize a student by comparing FaceIds
+// Recognize a face by comparing FaceIds
 async function recognizeFace(req, res) {
     const { image } = req.body;
 
