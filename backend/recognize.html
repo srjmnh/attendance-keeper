@@ -3,20 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register Student</title>
-    <script src="register.js" defer></script>
+    <title>Recognize Face</title>
+    <script src="recognize.js" defer></script>
 </head>
 <body>
-    <h1>Register Student</h1>
-    <form id="registerForm">
-        <div>
-            <label for="studentName">Name:</label>
-            <input type="text" id="studentName" required>
-        </div>
-        <div>
-            <label for="studentId">ID:</label>
-            <input type="text" id="studentId" required>
-        </div>
+    <h1>Recognize Face</h1>
+    <form id="recognizeForm">
         <div>
             <label>Choose Image Source:</label>
             <select id="imageSource">
@@ -32,7 +24,7 @@
             <label for="fileUpload">Upload Image:</label>
             <input type="file" id="fileUpload">
         </div>
-        <button type="submit">Register</button>
+        <button type="submit">Recognize</button>
     </form>
 </body>
 </html>
