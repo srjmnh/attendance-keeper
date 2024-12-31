@@ -1,33 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const captureButton = document.getElementById('captureButton');
-    const form = document.getElementById('registerForm');
-    const result = document.getElementById('result');
     const subjectDropdown = document.getElementById('subject');
+    const result = document.getElementById('result');
 
-    let capturedImage = null;
-
-    // Start the video stream
-    navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-            video.srcObject = stream;
-        })
-        .catch(err => {
-            console.error('Error accessing camera:', err);
-            result.textContent = 'Error accessing camera. Please ensure your browser has permission.';
-        });
-
-    // Capture the image
-    captureButton.addEventListener('click', () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        capturedImage = canvas.toDataURL('image/png'); // Base64-encoded image
-        result.textContent = 'Image captured successfully!';
-    });
-
-    // Populate subjects dynamically
+    // Function to fetch and populate subjects
     function populateSubjects() {
         fetch('/get-subjects')
             .then(response => {
@@ -54,28 +29,23 @@ document.addEventListener('DOMContentLoaded', () => {
     populateSubjects();
 
     // Submit form data
-    form.addEventListener('submit', (event) => {
+    document.getElementById('registerForm').addEventListener('submit', (event) => {
         event.preventDefault();
 
         const studentName = document.getElementById('studentName').value.trim();
         const studentId = document.getElementById('studentId').value.trim();
         const subject = subjectDropdown.value;
 
-        if (!capturedImage) {
-            result.textContent = 'Please capture an image before submitting.';
-            return;
-        }
-
         fetch('/register-student', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ studentName, studentId, image: capturedImage }),
+            body: JSON.stringify({ studentName, studentId, subject }),
         })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     result.textContent = 'Student registered successfully!';
-                    form.reset();
+                    document.getElementById('registerForm').reset();
                 } else {
                     result.textContent = `Error: ${data.message}`;
                 }
