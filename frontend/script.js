@@ -1,50 +1,49 @@
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const result = document.getElementById('result');
-const subjectCodeInput = document.getElementById('subjectCode');
-const captureButton = document.getElementById('capture');
+document.addEventListener('DOMContentLoaded', async () => {
+    const video = document.getElementById('camera');
+    const registerForm = document.getElementById('registerForm');
 
-// Access the user's camera
-navigator.mediaDevices
-  .getUserMedia({ video: true })
-  .then((stream) => {
-    video.srcObject = stream;
-  })
-  .catch((err) => {
-    console.error('Camera access denied:', err);
-    result.textContent = 'Error: Camera access denied. Please enable camera permissions.';
-  });
+    // Start the camera
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (error) {
+            console.error('Error accessing camera:', error);
+        }
+    }
 
-// Capture image and send it to the backend for attendance recording
-captureButton.addEventListener('click', () => {
-  const subjectCode = subjectCodeInput.value.trim();
-  if (!subjectCode) {
-    result.textContent = 'Please enter a subject code.';
-    return;
-  }
+    // Register student
+    registerForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
 
-  const context = canvas.getContext('2d');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const studentName = document.getElementById('studentName').value;
+        const studentId = document.getElementById('studentId').value;
 
-  const image = canvas.toDataURL('image/png');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const image = canvas.toDataURL().split(',')[1]; // Get Base64 image data
 
-  fetch('/record-attendance', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subjectCode, image })
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.success) {
-        result.textContent = 'Attendance recorded successfully!';
-      } else {
-        result.textContent = `Error: ${data.message}`;
-      }
-    })
-    .catch((err) => {
-      console.error('Error recording attendance:', err);
-      result.textContent = 'Error recording attendance.';
+        try {
+            const response = await fetch('/register-student', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ studentName, studentId, image }),
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert('Student registered successfully!');
+                registerForm.reset();
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        } catch (error) {
+            console.error('Error registering student:', error);
+            alert('Failed to register student. Please try again.');
+        }
     });
+
+    await startCamera();
 });

@@ -5,23 +5,16 @@ async function registerStudent(req, res) {
     const { studentName, studentId, image } = req.body;
 
     try {
-        if (!studentName || !studentId || !image) {
-            throw new Error('Missing required fields');
-        }
-
         const faces = await detectFaces(image);
         if (faces.length === 0) {
-            return res.status(400).json({ success: false, message: 'No face detected in the image' });
+            return res.status(400).json({ success: false, message: 'No face detected' });
         }
 
-        const faceId = faces[0].faceId; // Store the face ID for later recognition
+        const faceId = faces[0].faceId;
 
-        // Save student data in Firestore
-        const studentDoc = db.collection('students').doc(studentId);
-        await studentDoc.set({
+        await db.collection('students').doc(studentId).set({
             name: studentName,
             faceId,
-            image,
         });
 
         res.json({ success: true, message: 'Student registered successfully' });
