@@ -3,24 +3,23 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const saveAttendance = require('./attendance');
-const { addSubject, getSubjects } = require('./subjects');
 const { registerStudent } = require('./students');
+const { addSubject, getSubjects } = require('./subjects');
 
 const app = express();
 
-// Increase payload size for large image data
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serve static frontend files
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Serve pages
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
 app.get('/register', (req, res) => res.sendFile(path.join(__dirname, '../frontend/register.html')));
-app.get('/add-subject', (req, res) => res.sendFile(path.join(__dirname, '../frontend/add-subject.html')));
 app.get('/view', (req, res) => res.sendFile(path.join(__dirname, '../frontend/view.html')));
+app.get('/add-subject', (req, res) => res.sendFile(path.join(__dirname, '../frontend/add-subject.html')));
 
-// APIs
+// API routes
 app.post('/register-student', registerStudent);
 app.post('/record-attendance', saveAttendance);
 app.post('/add-subject', addSubject);
