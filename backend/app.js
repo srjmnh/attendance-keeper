@@ -18,6 +18,11 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/index.html')); // Serve the main page
 });
 
+// Route to serve the register page
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/register.html')); // Serve the register page
+});
+
 // API Endpoint for registering a student
 app.post('/register-student', async (req, res) => {
     try {
