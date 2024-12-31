@@ -1,5 +1,6 @@
 const axios = require('axios');
 
+// Azure Face API environment variables
 const AZURE_ENDPOINT = process.env.AZURE_FACE_ENDPOINT;
 const AZURE_API_KEY = process.env.AZURE_API_KEY;
 
@@ -8,7 +9,8 @@ async function detectFaces(imageBase64) {
     const url = `${AZURE_ENDPOINT}/face/v1.0/detect`;
     const params = {
         recognitionModel: 'recognition_04',
-        returnFaceId: true, // Only request faceId
+        returnFaceId: true, // Only request FaceId (basic detection)
+        detectionModel: 'detection_03', // Use the detection model
     };
 
     try {
@@ -23,7 +25,7 @@ async function detectFaces(imageBase64) {
                 params,
             }
         );
-        return response.data; // List of detected faces
+        return response.data; // List of detected faces with FaceId
     } catch (error) {
         console.error('Error detecting faces:', error.response?.data || error.message);
         throw new Error('Azure Face API face detection failed');

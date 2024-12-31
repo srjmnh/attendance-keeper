@@ -1,7 +1,7 @@
 const db = require('./db');
 const { detectFaces } = require('./azure-face');
 
-// Register a student with face data
+// Register a student with FaceId
 async function registerStudent(req, res) {
     const { studentName, studentId, image } = req.body;
 
@@ -11,11 +11,11 @@ async function registerStudent(req, res) {
             return res.status(400).json({ success: false, message: 'No face detected' });
         }
 
-        // Save face rectangle in Firebase
-        const faceData = faces[0].faceRectangle;
+        const faceId = faces[0].faceId; // Save the FaceId for later recognition
+
         await db.collection('students').doc(studentId).set({
             name: studentName,
-            faceData, // Store face rectangle data
+            faceId, // Save the FaceId in Firebase
         });
 
         res.json({ success: true, message: 'Student registered successfully' });
@@ -25,7 +25,7 @@ async function registerStudent(req, res) {
     }
 }
 
-// Recognize a student by comparing face rectangles
+// Recognize a student by comparing FaceIds
 async function recognizeFace(req, res) {
     const { image } = req.body;
 
@@ -35,7 +35,7 @@ async function recognizeFace(req, res) {
             return res.status(400).json({ success: false, message: 'No face detected' });
         }
 
-        const detectedFaceRectangle = faces[0].faceRectangle;
+        const detectedFaceId = faces[0].faceId;
 
         // Retrieve all students from Firebase
         const studentsSnapshot = await db.collection('students').get();
@@ -44,14 +44,8 @@ async function recognizeFace(req, res) {
             ...doc.data(),
         }));
 
-        // Compare the detected face rectangle with stored rectangles
-        const recognizedStudent = students.find(student => {
-            const storedRectangle = student.faceData;
-            return (
-                Math.abs(storedRectangle.width - detectedFaceRectangle.width) < 10 &&
-                Math.abs(storedRectangle.height - detectedFaceRectangle.height) < 10
-            );
-        });
+        // Compare the detected FaceId with stored FaceIds
+        const recognizedStudent = students.find(student => student.faceId === detectedFaceId);
 
         if (!recognizedStudent) {
             return res.status(400).json({ success: false, message: 'Face not recognized' });
