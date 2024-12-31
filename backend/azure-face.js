@@ -3,11 +3,12 @@ const axios = require('axios');
 const AZURE_ENDPOINT = process.env.AZURE_FACE_ENDPOINT;
 const AZURE_API_KEY = process.env.AZURE_API_KEY;
 
+// Detect faces using Azure Face API
 async function detectFaces(imageBase64) {
     const url = `${AZURE_ENDPOINT}/face/v1.0/detect`;
     const params = {
         recognitionModel: 'recognition_04',
-        returnFaceId: true,
+        returnFaceId: true, // Only request faceId
     };
 
     try {
@@ -22,7 +23,7 @@ async function detectFaces(imageBase64) {
                 params,
             }
         );
-        return response.data;
+        return response.data; // List of detected faces
     } catch (error) {
         console.error('Error detecting faces:', error.response?.data || error.message);
         throw new Error('Azure Face API face detection failed');

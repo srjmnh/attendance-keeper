@@ -11,8 +11,9 @@ async function saveAttendance(req, res) {
         }
 
         const detectedFaceId = faces[0].faceId;
-        const studentsSnapshot = await db.collection('students').get();
 
+        // Fetch all stored students
+        const studentsSnapshot = await db.collection('students').get();
         const students = studentsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
@@ -24,6 +25,7 @@ async function saveAttendance(req, res) {
             return res.status(400).json({ success: false, message: 'Face not recognized' });
         }
 
+        // Mark attendance
         await db.collection('attendance').add({
             studentId: recognizedStudent.id,
             timestamp: new Date().toISOString(),
@@ -36,4 +38,4 @@ async function saveAttendance(req, res) {
     }
 }
 
-module.exports = saveAttendance;
+module.exports = { saveAttendance };
