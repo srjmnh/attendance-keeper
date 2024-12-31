@@ -5,35 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register Students</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="register.js" defer></script>
 </head>
 <body>
-    <h1>Student Registration</h1>
+    <h1>Register Students</h1>
     <form id="registerForm">
         <div>
             <label for="studentName">Student Name:</label>
-            <input type="text" id="studentName" placeholder="Enter Student Name" required>
+            <input type="text" id="studentName" placeholder="Enter student name" required>
         </div>
         <div>
             <label for="studentId">Student ID:</label>
-            <input type="text" id="studentId" placeholder="Enter Student ID" required>
+            <input type="text" id="studentId" placeholder="Enter student ID" required>
         </div>
         <div>
-            <label for="subject">Select Subject:</label>
-            <select id="subject" required>
-                <option value="" disabled selected>Loading subjects...</option>
+            <label for="subjectDropdown">Select Subject:</label>
+            <select id="subjectDropdown" required>
+                <option value="">Loading subjects...</option>
             </select>
         </div>
         <div>
-            <label for="capture">Capture Student Image:</label>
-            <video id="video" autoplay></video>
-            <button type="button" id="captureButton">Capture Image</button>
-            <canvas id="canvas" style="display:none;"></canvas>
+            <label>Camera:</label>
+            <video id="camera" autoplay></video>
         </div>
+        <button type="button" id="captureButton">Capture Image</button>
+        <canvas id="canvas" style="display: none;"></canvas>
         <div>
             <button type="submit">Register Student</button>
         </div>
     </form>
-    <p id="result"></p>
-    <script src="register.js"></script>
 </body>
 </html>

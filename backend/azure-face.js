@@ -8,15 +8,16 @@ const AZURE_API_KEY = process.env.AZURE_FACE_API_KEY;
 async function detectFaces(imageBase64) {
     const url = `${AZURE_ENDPOINT}/face/v1.0/detect`;
     const params = {
-        returnFaceAttributes: 'age,gender,emotion',
+        // Use only supported parameters
         recognitionModel: 'recognition_04',
-        returnRecognitionModel: true,
+        detectionModel: 'detection_01', // Optional, use detection_01 for single faces
+        returnFaceId: true, // Include face IDs for further operations
     };
 
     try {
         const response = await axios.post(
             url,
-            { url: `data:image/png;base64,${imageBase64}` }, // Base64 encoded image
+            Buffer.from(imageBase64, 'base64'), // Pass the Base64 image buffer
             {
                 headers: {
                     'Ocp-Apim-Subscription-Key': AZURE_API_KEY,
