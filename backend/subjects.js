@@ -16,10 +16,11 @@ async function addSubject(req, res) {
 // Get all subjects
 async function getSubjects(req, res) {
     try {
-        console.log('Fetching subjects...');
         const snapshot = await db.collection('subjects').get();
-        const subjects = snapshot.docs.map(doc => doc.data());
-        console.log('Subjects fetched:', subjects); // Debugging log
+        const subjects = snapshot.docs.map(doc => ({
+            code: doc.id,
+            name: doc.data().name,
+        }));
         res.json(subjects);
     } catch (error) {
         console.error('Error fetching subjects:', error);
