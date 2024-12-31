@@ -14,7 +14,7 @@ async function registerStudent(req, res) {
             return res.status(400).json({ success: false, message: 'No face detected in the image' });
         }
 
-        // Save student data and face image in Firestore
+        // Save student data in Firestore
         const studentDoc = db.collection('students').doc(studentId);
         await studentDoc.set({ name: studentName, faceData: image });
 
