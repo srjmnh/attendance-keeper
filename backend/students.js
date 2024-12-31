@@ -1,4 +1,5 @@
 const db = require('./db');
+const { detectFaces } = require('./face-recognition');
 
 async function registerStudent(req, res) {
     const { studentName, studentId, image } = req.body;
@@ -7,36 +8,21 @@ async function registerStudent(req, res) {
             throw new Error('Missing required fields');
         }
 
-        // Store student details in Firestore
+        // Detect face using Google Vision API
+        const faces = await detectFaces(image);
+        if (faces.length === 0) {
+            return res.status(400).json({ success: false, message: 'No face detected in the image' });
+        }
+
+        // Save student data and face image in Firestore
         const studentDoc = db.collection('students').doc(studentId);
         await studentDoc.set({ name: studentName, faceData: image });
 
-        // Optionally trigger training (can be asynchronous)
-        await trainModel();
-
-        res.json({ success: true });
+        res.json({ success: true, message: 'Student registered successfully' });
     } catch (error) {
         console.error('Error registering student:', error);
         res.status(500).json({ success: false, message: 'Error registering student' });
     }
 }
 
-async function trainModel() {
-    try {
-        const students = await db.collection('students').get();
-        const faces = [];
-
-        students.forEach(doc => {
-            const data = doc.data();
-            faces.push({ studentId: doc.id, faceData: data.faceData });
-        });
-
-        // Perform training logic here (e.g., save face data for recognition)
-        console.log('Training model with faces:', faces);
-        // Train your model with `faces` here
-    } catch (error) {
-        console.error('Error training model:', error);
-    }
-}
-
-module.exports = { registerStudent, trainModel };
+module.exports = { registerStudent };
