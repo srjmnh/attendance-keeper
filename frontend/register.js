@@ -1,58 +1,32 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const subjectDropdown = document.getElementById('subject');
-    const result = document.getElementById('result');
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('canvas');
+    const captureButton = document.getElementById('captureButton');
 
-    // Function to fetch and populate subjects
-    function populateSubjects() {
-        fetch('/get-subjects')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch subjects');
-                }
-                return response.json();
-            })
-            .then(subjects => {
-                subjectDropdown.innerHTML = ''; // Clear existing options
-                subjects.forEach(subject => {
-                    const option = document.createElement('option');
-                    option.value = subject.code;
-                    option.textContent = `${subject.name} (${subject.code})`;
-                    subjectDropdown.appendChild(option);
-                });
-            })
-            .catch(err => {
-                console.error('Error fetching subjects:', err);
-                result.textContent = 'Error loading subjects. Please try again later.';
-            });
-    }
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+            video.srcObject = stream;
+        })
+        .catch((err) => console.error('Camera error:', err));
 
-    populateSubjects();
+    captureButton.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    });
 
-    // Submit form data
-    document.getElementById('registerForm').addEventListener('submit', (event) => {
-        event.preventDefault();
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const studentName = document.getElementById('studentName').value;
+        const studentId = document.getElementById('studentId').value;
+        const image = canvas.toDataURL().split(',')[1];
 
-        const studentName = document.getElementById('studentName').value.trim();
-        const studentId = document.getElementById('studentId').value.trim();
-        const subject = subjectDropdown.value;
-
-        fetch('/register-student', {
+        const response = await fetch('/register-student', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ studentName, studentId, subject }),
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    result.textContent = 'Student registered successfully!';
-                    document.getElementById('registerForm').reset();
-                } else {
-                    result.textContent = `Error: ${data.message}`;
-                }
-            })
-            .catch(err => {
-                console.error('Error registering student:', err);
-                result.textContent = 'Error registering student.';
-            });
+            body: JSON.stringify({ studentName, studentId, image }),
+        });
+        const data = await response.json();
+        document.getElementById('result').textContent = data.message;
     });
 });
