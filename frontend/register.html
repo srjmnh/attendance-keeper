@@ -3,15 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register Students</title>
-    <script src="script.js" defer></script>
+    <title>Register Student</title>
+    <script src="register.js" defer></script>
 </head>
 <body>
     <h1>Register Student</h1>
     <form id="registerForm">
-        <input type="text" id="studentName" placeholder="Student Name" required>
-        <input type="text" id="studentId" placeholder="Student ID" required>
-        <video id="camera" autoplay></video>
+        <div>
+            <label for="studentName">Name:</label>
+            <input type="text" id="studentName" required>
+        </div>
+        <div>
+            <label for="studentId">ID:</label>
+            <input type="text" id="studentId" required>
+        </div>
+        <div>
+            <label>Camera:</label>
+            <video id="camera" autoplay></video>
+        </div>
         <button type="submit">Register</button>
     </form>
 </body>
