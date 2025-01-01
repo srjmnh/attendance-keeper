@@ -1,18 +1,14 @@
 #!/bin/bash
 
-# Install Python dependencies
-echo "Installing dependencies from requirements.txt..."
+# Install dependencies
 pip install -r requirements.txt
 
-# Download Real-ESRGAN pre-trained weights
-echo "Downloading Real-ESRGAN pre-trained weights..."
-curl -L -o RealESRGAN_x4.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.4/RealESRGAN_x4.pth
+# Download realesrgan-ncnn-vulkan binary
+echo "Downloading realesrgan-ncnn-vulkan binary..."
+curl -L -o realesrgan-ncnn-vulkan.zip https://github.com/xinntao/realesrgan-ncnn-vulkan/releases/download/v1.3.0/realesrgan-ncnn-vulkan-20220424-linux.zip
 
-if [ -f "RealESRGAN_x4.pth" ]; then
-    echo "Real-ESRGAN weights downloaded successfully."
-else
-    echo "Failed to download Real-ESRGAN weights. Exiting..."
-    exit 1
-fi
+# Unzip the binary
+unzip realesrgan-ncnn-vulkan.zip -d realesrgan-ncnn-vulkan
+chmod +x realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan
 
-echo "Build script completed successfully."
+echo "Real-ESRGAN binary setup completed."
