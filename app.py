@@ -4,12 +4,11 @@ import os
 from flask import Flask, request, jsonify, render_template
 from PIL import Image, ImageEnhance
 from realesrgan import RealESRGAN
-import numpy as np
 import io
 
 app = Flask(__name__)
 
-# Fetch AWS credentials and configuration from environment variables
+# AWS credentials and configuration
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
@@ -34,38 +33,17 @@ create_collection(COLLECTION_ID)
 
 # Enhance image with Real-ESRGAN (super-resolution)
 def enhance_image_with_esrgan(image_bytes):
+    weights_path = "RealESRGAN_x4.pth"
+    if not os.path.exists(weights_path):
+        raise FileNotFoundError(f"Pre-trained weights file not found: {weights_path}")
+    
     image = Image.open(io.BytesIO(image_bytes))
     model = RealESRGAN("cuda", scale=4)  # Ensure GPU support
-    model.load_weights("RealESRGAN_x4.pth")  # Download weights from Real-ESRGAN
+    model.load_weights(weights_path)
     enhanced_image = model.predict(image)
     enhanced_image_bytes = io.BytesIO()
     enhanced_image.save(enhanced_image_bytes, format="JPEG")
     return enhanced_image_bytes.getvalue()
-
-# Reduce noise in the image
-def denoise_image(image_bytes):
-    image = Image.open(io.BytesIO(image_bytes))
-    denoised_image = image.filter(Image.ImageFilter.MedianFilter(size=3))
-    denoised_image_bytes = io.BytesIO()
-    denoised_image.save(denoised_image_bytes, format="JPEG")
-    return denoised_image_bytes.getvalue()
-
-# Split image into smaller regions
-def split_image(image, grid_size=3):
-    width, height = image.size
-    region_width = width // grid_size
-    region_height = height // grid_size
-
-    regions = []
-    for row in range(grid_size):
-        for col in range(grid_size):
-            left = col * region_width
-            top = row * region_height
-            right = (col + 1) * region_width
-            bottom = (row + 1) * region_height
-            regions.append(image.crop((left, top, right, bottom)))
-
-    return regions
 
 @app.route('/')
 def index():
@@ -96,7 +74,7 @@ def register():
             Image={'Bytes': image_bytes},
             ExternalImageId=external_image_id,
             DetectionAttributes=['ALL'],
-            QualityFilter='AUTO'  # Automatically handle low-quality images
+            QualityFilter='AUTO'
         )
 
         if not response['FaceRecords']:
@@ -120,9 +98,8 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Step 1: Enhance image (super-resolution and denoising)
-        image_bytes = enhance_image_with_esrgan(image_bytes)  # Super-resolution
-        image_bytes = denoise_image(image_bytes)  # Noise reduction
+        # Step 1: Enhance image with Real-ESRGAN
+        image_bytes = enhance_image_with_esrgan(image_bytes)
 
         # Enhance image for brightness and contrast
         image = Image.open(io.BytesIO(image_bytes))
@@ -136,67 +113,61 @@ def recognize():
         image.save(enhanced_image_bytes, format="JPEG")
         enhanced_image_bytes = enhanced_image_bytes.getvalue()
 
-        # Step 2: Split image into smaller regions
-        regions = split_image(image, grid_size=3)
+        # Detect faces
+        detect_response = rekognition_client.detect_faces(
+            Image={'Bytes': enhanced_image_bytes},
+            Attributes=['ALL']
+        )
+
+        face_details = detect_response.get('FaceDetails', [])
+        face_count = len(face_details)
+
+        if not face_details:
+            return jsonify({"message": "No faces detected", "total_faces": 0}), 200
 
         identified_people = []
-        face_count = 0
 
-        for region in regions:
-            region_bytes = io.BytesIO()
-            region.save(region_bytes, format="JPEG")
-            region_bytes = region_bytes.getvalue()
+        for face in face_details:
+            bounding_box = face['BoundingBox']
+            width, height = image.size
+            left = int(bounding_box['Left'] * width)
+            top = int(bounding_box['Top'] * height)
+            right = int((bounding_box['Left'] + bounding_box['Width']) * width)
+            bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-            # Detect faces in the region
-            detect_response = rekognition_client.detect_faces(
-                Image={'Bytes': region_bytes},
-                Attributes=['ALL']
+            cropped_face = image.crop((left, top, right, bottom))
+            cropped_face_bytes = io.BytesIO()
+            cropped_face.save(cropped_face_bytes, format="JPEG")
+            cropped_face_bytes = cropped_face_bytes.getvalue()
+
+            # Perform face search
+            search_response = rekognition_client.search_faces_by_image(
+                CollectionId=COLLECTION_ID,
+                Image={'Bytes': cropped_face_bytes},
+                MaxFaces=1,
+                FaceMatchThreshold=60
             )
 
-            face_details = detect_response.get('FaceDetails', [])
-            face_count += len(face_details)
-
-            for face in face_details:
-                bounding_box = face['BoundingBox']
-                width, height = region.size
-                left = int(bounding_box['Left'] * width)
-                top = int(bounding_box['Top'] * height)
-                right = int((bounding_box['Left'] + bounding_box['Width']) * width)
-                bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
-
-                cropped_face = region.crop((left, top, right, bottom))
-                cropped_face_bytes = io.BytesIO()
-                cropped_face.save(cropped_face_bytes, format="JPEG")
-                cropped_face_bytes = cropped_face_bytes.getvalue()
-
-                # Perform face search with lower FaceMatchThreshold
-                search_response = rekognition_client.search_faces_by_image(
-                    CollectionId=COLLECTION_ID,
-                    Image={'Bytes': cropped_face_bytes},
-                    MaxFaces=1,
-                    FaceMatchThreshold=60  # Adjusted for better sensitivity
-                )
-
-                face_matches = search_response.get('FaceMatches', [])
-                if not face_matches:
-                    identified_people.append({
-                        "message": "Face not recognized",
-                        "confidence": "N/A"
-                    })
-                    continue
-
-                match = face_matches[0]
-                external_image_id = match['Face']['ExternalImageId']
-                confidence = match['Face']['Confidence']
-
-                parts = external_image_id.split("_")
-                name, student_id = parts if len(parts) == 2 else (external_image_id, "Unknown")
-
+            face_matches = search_response.get('FaceMatches', [])
+            if not face_matches:
                 identified_people.append({
-                    "name": name,
-                    "student_id": student_id,
-                    "confidence": confidence
+                    "message": "Face not recognized",
+                    "confidence": "N/A"
                 })
+                continue
+
+            match = face_matches[0]
+            external_image_id = match['Face']['ExternalImageId']
+            confidence = match['Face']['Confidence']
+
+            parts = external_image_id.split("_")
+            name, student_id = parts if len(parts) == 2 else (external_image_id, "Unknown")
+
+            identified_people.append({
+                "name": name,
+                "student_id": student_id,
+                "confidence": confidence
+            })
 
         return jsonify({
             "message": f"{face_count} face(s) detected in the photo.",
@@ -208,5 +179,5 @@ def recognize():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))  # Use PORT from environment or default to 5000
+    port = int(os.getenv('PORT', 5000))  # Default port for Flask
     app.run(host='0.0.0.0', port=port)
