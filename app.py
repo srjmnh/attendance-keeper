@@ -1,7 +1,8 @@
+import cv2
+import numpy as np
 import boto3
 import base64
 import os
-import subprocess
 from flask import Flask, request, jsonify, render_template
 from PIL import Image
 import io
@@ -31,34 +32,23 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-# Enhance image using realesrgan-ncnn-vulkan binary
-def enhance_image_with_binary(image_bytes):
-    # Path to the realesrgan-ncnn-vulkan binary
-    binary_path = "./realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan"
+# Enhance image using OpenCV and EDSR
+def enhance_image_with_opencv(image_bytes):
+    # Load pretrained super-resolution model
+    sr = cv2.dnn_superres.DnnSuperResImpl_create()
+    sr.readModel("models/super_resolution/EDSR_x4.pb")  # Path to the downloaded model
+    sr.setModel("edsr", 4)  # Model name and scale factor
 
-    if not os.path.isfile(binary_path):
-        raise FileNotFoundError(f"Real-ESRGAN binary not found at {binary_path}")
+    # Read image with OpenCV
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Save input image to file
-    input_path = "input.jpg"
-    output_path = "output.png"
+    # Apply super-resolution
+    enhanced_img = sr.upsample(img)
 
-    with open(input_path, "wb") as f:
-        f.write(image_bytes)
-
-    # Run the realesrgan-ncnn-vulkan binary
-    command = [binary_path, "-i", input_path, "-o", output_path]
-    subprocess.run(command, check=True)
-
-    # Read the enhanced image
-    with open(output_path, "rb") as f:
-        enhanced_image_bytes = f.read()
-
-    # Cleanup
-    os.remove(input_path)
-    os.remove(output_path)
-
-    return enhanced_image_bytes
+    # Encode image back to bytes
+    _, buffer = cv2.imencode('.jpg', enhanced_img)
+    return buffer.tobytes()
 
 @app.route('/')
 def index():
@@ -113,8 +103,8 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Enhance image using realesrgan-ncnn-vulkan
-        image_bytes = enhance_image_with_binary(image_bytes)
+        # Enhance image using EDSR
+        image_bytes = enhance_image_with_opencv(image_bytes)
 
         # Detect faces in the image
         detect_response = rekognition_client.detect_faces(
