@@ -27,13 +27,15 @@ unzip -o realesrgan-ncnn-vulkan.zip
 echo "Contents of the current directory after extraction:"
 ls -l
 
-# Verify the binary exists in the correct directory
-if [ ! -f "./realesrgan-ncnn-vulkan-v0.2.0-ubuntu/realesrgan-ncnn-vulkan" ]; then
+# Dynamically find the directory containing the binary
+BINARY_PATH=$(find . -type f -name "realesrgan-ncnn-vulkan" | head -n 1)
+
+if [ -z "$BINARY_PATH" ]; then
     echo "Error: realesrgan-ncnn-vulkan binary not found in the extracted directory."
     exit 1
 fi
 
 # Make the binary executable
-chmod +x realesrgan-ncnn-vulkan-v0.2.0-ubuntu/realesrgan-ncnn-vulkan
+chmod +x "$BINARY_PATH"
 
-echo "Real-ESRGAN binary setup completed successfully."
+echo "Real-ESRGAN binary setup completed successfully. Binary located at: $BINARY_PATH"
