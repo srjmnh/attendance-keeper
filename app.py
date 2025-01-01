@@ -43,15 +43,19 @@ def register():
         if not name or not student_id or not image:
             return jsonify({"message": "Missing name, student_id, or image"}), 400
 
+        # Replace invalid characters in the name
+        sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
+
         # Decode base64 image
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
         # Index the face in the Rekognition collection
+        external_image_id = f"{sanitized_name}_{student_id}"
         response = rekognition_client.index_faces(
             CollectionId=COLLECTION_ID,
             Image={'Bytes': image_bytes},
-            ExternalImageId=f"{name}_{student_id}",
+            ExternalImageId=external_image_id,
             DetectionAttributes=['ALL']
         )
 
