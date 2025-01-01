@@ -22,12 +22,18 @@ fi
 # Extract the ZIP file
 echo "Extracting realesrgan-ncnn-vulkan binary..."
 unzip -o realesrgan-ncnn-vulkan.zip -d realesrgan-ncnn-vulkan
-chmod +x realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan
 
-# Verify the binary
+# Debugging: List the extracted contents
+echo "Contents of realesrgan-ncnn-vulkan directory:"
+ls -l realesrgan-ncnn-vulkan
+
+# Verify the binary exists
 if [ ! -f "./realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan" ]; then
     echo "Error: realesrgan-ncnn-vulkan binary not found after extraction."
     exit 1
 fi
+
+# Make the binary executable
+chmod +x realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan
 
 echo "Real-ESRGAN binary setup completed successfully."
