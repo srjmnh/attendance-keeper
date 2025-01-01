@@ -87,6 +87,7 @@ def recognize():
     try:
         print("Incoming request to /recognize")
 
+        # Retrieve the image
         image = request.files.get('image')
         if not image:
             print("No image provided in the request.")
