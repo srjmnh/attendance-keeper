@@ -9,7 +9,6 @@ async function detectFaces(imageBase64) {
     const url = `${AZURE_ENDPOINT}/face/v1.0/detect`;
     const params = {
         detectionModel: 'detection_03', // Lightweight detection model
-        recognitionModel: 'recognition_04', // For basic detection
         returnFaceId: true, // Only request FaceId
     };
 

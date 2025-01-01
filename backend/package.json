@@ -1,15 +1,21 @@
 {
   "name": "attendance-system-backend",
   "version": "1.0.0",
+  "description": "A student attendance system using Azure Face API for face detection",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.4.0",
     "body-parser": "^1.20.2",
-    "firebase-admin": "^11.6.0",
-    "dotenv": "^10.0.0",
-    "axios": "^1.4.0"
-  }
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "firebase-admin": "^11.5.0",
+    "image-similarity": "^1.0.1",
+    "jimp": "^0.22.9"
+  },
+  "devDependencies": {},
+  "author": "Your Name",
+  "license": "MIT"
 }
