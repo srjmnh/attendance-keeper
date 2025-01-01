@@ -53,9 +53,9 @@ function recognize() {
             document.getElementById('recognize_result').innerText = resultText;
 
             if (data.identified_people) {
-                let resultHTML = "<ul>";
+                let resultHTML = `<p>Total Faces Detected: ${data.total_faces}</p><ul>`;
                 data.identified_people.forEach(person => {
-                    resultHTML += `<li><strong>Name:</strong> ${person.name}, <strong>ID:</strong> ${person.student_id}, <strong>Confidence:</strong> ${person.confidence.toFixed(2)}%</li>`;
+                    resultHTML += `<li><strong>Face ${person.face_number}:</strong> Name: ${person.name || "Unknown"}, ID: ${person.student_id || "N/A"}, Confidence: ${person.confidence || "N/A"}%</li>`;
                 });
                 resultHTML += "</ul>";
                 document.getElementById('recognize_result').innerHTML = resultHTML;
