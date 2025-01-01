@@ -6,7 +6,7 @@ navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
     video.srcObject = stream;
 });
 
-// Capture image from webcam
+// Capture image
 function captureImage() {
     const context = canvas.getContext('2d');
     canvas.width = video.videoWidth;
@@ -41,7 +41,11 @@ document.querySelectorAll('form').forEach(form => {
 async function sendData(formId, imageBase64) {
     const endpoint = formId === 'register-form' ? '/register-student' : '/recognize-student';
     const payload = formId === 'register-form'
-        ? { studentId: document.getElementById('studentId').value, image: imageBase64 }
+        ? {
+              studentId: document.getElementById('studentId').value,
+              name: document.getElementById('name').value,
+              image: imageBase64,
+          }
         : { image: imageBase64 };
 
     try {
