@@ -14,23 +14,24 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/attendance.html'));
 });
 
-// Serve other pages
+// Serve Register Students Page
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/register.html'));
 });
 
+// Serve Add Subjects Page
 app.get('/add-subject', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/add-subject.html'));
 });
 
+// Serve View Attendance Page
 app.get('/view', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/view.html'));
 });
 
-// Dynamic Subject Loading Endpoint
+// Endpoint to Load Subjects
 app.get('/subjects', async (req, res) => {
     try {
-        // Mock response - Replace with Firestore or database logic
         const subjects = [
             { subjectName: 'Mathematics', subjectCode: 'MATH101' },
             { subjectName: 'Science', subjectCode: 'SCI101' },
@@ -42,16 +43,15 @@ app.get('/subjects', async (req, res) => {
     }
 });
 
-// Mark Attendance Endpoint
+// Endpoint to Mark Attendance
 app.post('/mark-attendance', async (req, res) => {
     try {
         const { subjectCode, image } = req.body;
 
-        // Mock recognition logic - Replace with actual implementation
+        // Mock student recognition logic
         const recognizedStudent = { studentId: '12345', name: 'John Doe' };
 
         if (recognizedStudent) {
-            // Log attendance - Replace with Firestore or database logic
             console.log(`Attendance marked for ${recognizedStudent.name} in ${subjectCode}`);
             res.json({ success: true, student: recognizedStudent });
         } else {
@@ -64,4 +64,6 @@ app.post('/mark-attendance', async (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
