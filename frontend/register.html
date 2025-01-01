@@ -13,10 +13,23 @@
         <input type="text" id="studentName" name="studentName" required>
         <label for="studentId">ID:</label>
         <input type="text" id="studentId" name="studentId" required>
-        <div id="camera">
+        
+        <h3>Choose Registration Method</h3>
+        <input type="radio" id="webcamOption" name="method" value="webcam" checked>
+        <label for="webcamOption">Use Webcam</label>
+        <input type="radio" id="fileOption" name="method" value="file">
+        <label for="fileOption">Upload File</label>
+
+        <div id="camera-section">
             <video id="video" autoplay></video>
             <button id="capture">Capture</button>
         </div>
+
+        <div id="file-section" style="display: none;">
+            <label for="imageFile">Upload Image:</label>
+            <input type="file" id="imageFile" name="imageFile" accept="image/*">
+        </div>
+
         <canvas id="canvas" style="display: none;"></canvas>
         <button type="submit">Register</button>
     </form>
@@ -26,6 +39,21 @@
         const captureButton = document.getElementById('capture');
         const canvas = document.getElementById('canvas');
         const form = document.getElementById('register-form');
+        const fileSection = document.getElementById('file-section');
+        const cameraSection = document.getElementById('camera-section');
+
+        // Switch between webcam and file upload
+        document.querySelectorAll('input[name="method"]').forEach(option => {
+            option.addEventListener('change', () => {
+                if (option.value === 'webcam') {
+                    cameraSection.style.display = 'block';
+                    fileSection.style.display = 'none';
+                } else {
+                    cameraSection.style.display = 'none';
+                    fileSection.style.display = 'block';
+                }
+            });
+        });
 
         // Access webcam
         navigator.mediaDevices.getUserMedia({ video: true })
@@ -46,20 +74,35 @@
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
         });
 
-        // Submit form with captured image
+        // Submit form
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const formData = new FormData(form);
             const studentName = formData.get('studentName');
             const studentId = formData.get('studentId');
-            const image = canvas.toDataURL('image/png');
+            let imageBase64;
 
-            const payload = {
-                studentName,
-                studentId,
-                image: image.split(',')[1], // Remove base64 prefix
-            };
+            if (formData.get('method') === 'webcam') {
+                imageBase64 = canvas.toDataURL('image/png').split(',')[1];
+            } else {
+                const file = formData.get('imageFile');
+                const reader = new FileReader();
+
+                reader.onload = async () => {
+                    imageBase64 = reader.result.split(',')[1];
+                    await registerStudent(studentName, studentId, imageBase64);
+                };
+
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            await registerStudent(studentName, studentId, imageBase64);
+        });
+
+        async function registerStudent(studentName, studentId, imageBase64) {
+            const payload = { studentName, studentId, image: imageBase64 };
 
             try {
                 const response = await fetch('/register-student', {
@@ -74,7 +117,7 @@
                 console.error('Error registering student:', error);
                 alert('Failed to register student.');
             }
-        });
+        }
     </script>
 </body>
 </html>
