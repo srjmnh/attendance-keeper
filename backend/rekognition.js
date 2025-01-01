@@ -9,24 +9,24 @@ AWS.config.update({
 
 const rekognition = new AWS.Rekognition();
 
-// Register a face
+// Register Face
 async function registerFace(imageBase64, studentId) {
     const params = {
-        CollectionId: 'students',
+        CollectionId: 'students', // Make sure this collection exists
         Image: { Bytes: Buffer.from(imageBase64, 'base64') },
         ExternalImageId: studentId,
     };
 
     try {
         const response = await rekognition.indexFaces(params).promise();
-        return response.FaceRecords;
+        console.log('Face registered successfully:', response.FaceRecords);
     } catch (error) {
-        console.error('Error indexing face:', error);
+        console.error('Error registering face:', error);
         throw new Error('Failed to register face');
     }
 }
 
-// Recognize a face
+// Recognize Face
 async function recognizeFace(imageBase64) {
     const params = {
         CollectionId: 'students',

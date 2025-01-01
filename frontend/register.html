@@ -12,18 +12,19 @@
         <input type="text" id="name" required>
         <label for="studentId">Student ID:</label>
         <input type="text" id="studentId" required>
-        <h3>Choose Image Upload Method</h3>
+        <h3>Upload Method</h3>
         <input type="radio" id="webcamOption" name="method" value="webcam" checked>
-        <label for="webcamOption">Use Webcam</label>
+        <label for="webcamOption">Webcam</label>
         <input type="radio" id="fileOption" name="method" value="file">
-        <label for="fileOption">Upload File</label>
+        <label for="fileOption">File</label>
         <div id="camera-section">
             <video id="video" autoplay></video>
+            <button type="button" id="capture">Capture Image</button>
         </div>
         <div id="file-section" style="display: none;">
-            <label for="imageFile">Upload Image:</label>
             <input type="file" id="imageFile" accept="image/*">
         </div>
+        <canvas id="canvas" style="display: none;"></canvas>
         <button type="submit">Register</button>
     </form>
     <script src="register.js"></script>

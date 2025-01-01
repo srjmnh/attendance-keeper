@@ -1,6 +1,7 @@
 const video = document.getElementById('video');
-const canvas = document.createElement('canvas');
-const form = document.getElementById('recognize-form');
+const canvas = document.getElementById('canvas');
+const form = document.getElementById('register-form');
+const captureButton = document.getElementById('capture');
 const fileSection = document.getElementById('file-section');
 const cameraSection = document.getElementById('camera-section');
 
@@ -25,21 +26,32 @@ document.querySelectorAll('input[name="method"]').forEach(option => {
     });
 });
 
+// Capture image from webcam
+captureButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    const context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+});
+
 // Handle form submission
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const name = document.getElementById('name').value.trim();
+    const studentId = document.getElementById('studentId').value.trim();
     const method = document.querySelector('input[name="method"]:checked').value;
     let imageBase64;
 
+    if (!name || !studentId) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
     if (method === 'webcam') {
-        // Capture image from webcam
         const context = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
         imageBase64 = canvas.toDataURL('image/png').split(',')[1]; // Remove base64 prefix
     } else {
-        // Capture image from file upload
         const file = document.getElementById('imageFile').files[0];
         if (!file) {
             alert('Please select an image file.');
@@ -48,34 +60,30 @@ form.addEventListener('submit', async (e) => {
         const reader = new FileReader();
         reader.onload = async function () {
             imageBase64 = reader.result.split(',')[1]; // Remove base64 prefix
-            await recognizeStudent(imageBase64);
+            await registerStudent(name, studentId, imageBase64);
         };
         reader.readAsDataURL(file);
         return;
     }
 
-    await recognizeStudent(imageBase64);
+    await registerStudent(name, studentId, imageBase64);
 });
 
-// Recognize student
-async function recognizeStudent(imageBase64) {
-    const payload = { image: imageBase64 };
+// Register student
+async function registerStudent(name, studentId, imageBase64) {
+    const payload = { name, studentId, image: imageBase64 };
 
     try {
-        const response = await fetch('/recognize-student', {
+        const response = await fetch('/register-student', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
 
         const result = await response.json();
-        if (result.success) {
-            alert(`Recognized student ID: ${result.studentId}`);
-        } else {
-            alert('Face not recognized.');
-        }
+        alert(result.message);
     } catch (error) {
-        console.error('Error recognizing student:', error);
-        alert('Failed to recognize face.');
+        console.error('Error registering student:', error);
+        alert('Failed to register student.');
     }
 }
