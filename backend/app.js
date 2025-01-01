@@ -16,7 +16,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// API Endpoint to register a student
+// Serve the Register page
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/register.html'));
+});
+
+// Register Student Endpoint
 app.post('/register-student', async (req, res) => {
     try {
         await registerStudent(req, res);
@@ -26,17 +31,7 @@ app.post('/register-student', async (req, res) => {
     }
 });
 
-// API Endpoint to recognize a student
-app.post('/recognize-student', async (req, res) => {
-    try {
-        await recognizeStudent(req, res);
-    } catch (error) {
-        console.error('Error in /recognize-student:', error);
-        res.status(500).json({ success: false, message: 'Failed to recognize student' });
-    }
-});
-
-// Start the server
+// Start server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
