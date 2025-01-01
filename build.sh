@@ -21,19 +21,19 @@ fi
 
 # Extract the ZIP file
 echo "Extracting realesrgan-ncnn-vulkan binary..."
-unzip -o realesrgan-ncnn-vulkan.zip -d realesrgan-ncnn-vulkan
+unzip -o realesrgan-ncnn-vulkan.zip
 
-# Debugging: List the extracted contents
-echo "Contents of realesrgan-ncnn-vulkan directory:"
-ls -l realesrgan-ncnn-vulkan
+# Debugging: List the contents of the current directory
+echo "Contents of the current directory after extraction:"
+ls -l
 
 # Verify the binary exists
-if [ ! -f "./realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan" ]; then
-    echo "Error: realesrgan-ncnn-vulkan binary not found after extraction."
+if [ ! -f "./realesrgan-ncnn-vulkan-v0.2.0-ubuntu/realesrgan-ncnn-vulkan" ]; then
+    echo "Error: realesrgan-ncnn-vulkan binary not found in the extracted directory."
     exit 1
 fi
 
 # Make the binary executable
-chmod +x realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan
+chmod +x realesrgan-ncnn-vulkan-v0.2.0-ubuntu/realesrgan-ncnn-vulkan
 
 echo "Real-ESRGAN binary setup completed successfully."
