@@ -4,35 +4,77 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register Student</title>
-    <script src="register.js" defer></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <h1>Register Student</h1>
-    <form id="registerForm">
-        <div>
-            <label for="studentName">Name:</label>
-            <input type="text" id="studentName" required>
+    <form id="register-form">
+        <label for="studentName">Name:</label>
+        <input type="text" id="studentName" name="studentName" required>
+        <label for="studentId">ID:</label>
+        <input type="text" id="studentId" name="studentId" required>
+        <div id="camera">
+            <video id="video" autoplay></video>
+            <button id="capture">Capture</button>
         </div>
-        <div>
-            <label for="studentId">ID:</label>
-            <input type="text" id="studentId" required>
-        </div>
-        <div>
-            <label>Choose Image Source:</label>
-            <select id="imageSource">
-                <option value="webcam">Webcam</option>
-                <option value="file">File Upload</option>
-            </select>
-        </div>
-        <div id="webcamContainer">
-            <label>Camera:</label>
-            <video id="camera" autoplay></video>
-        </div>
-        <div id="fileContainer" style="display: none;">
-            <label for="fileUpload">Upload Image:</label>
-            <input type="file" id="fileUpload">
-        </div>
+        <canvas id="canvas" style="display: none;"></canvas>
         <button type="submit">Register</button>
     </form>
+
+    <script>
+        const video = document.getElementById('video');
+        const captureButton = document.getElementById('capture');
+        const canvas = document.getElementById('canvas');
+        const form = document.getElementById('register-form');
+
+        // Access webcam
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(error => {
+                console.error('Error accessing webcam:', error);
+                alert('Unable to access the webcam.');
+            });
+
+        // Capture image from webcam
+        captureButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        });
+
+        // Submit form with captured image
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const studentName = formData.get('studentName');
+            const studentId = formData.get('studentId');
+            const image = canvas.toDataURL('image/png');
+
+            const payload = {
+                studentName,
+                studentId,
+                image: image.split(',')[1], // Remove base64 prefix
+            };
+
+            try {
+                const response = await fetch('/register-student', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+                alert(result.message);
+            } catch (error) {
+                console.error('Error registering student:', error);
+                alert('Failed to register student.');
+            }
+        });
+    </script>
 </body>
 </html>
