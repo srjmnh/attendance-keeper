@@ -1,25 +1,22 @@
-const registerForm = document.getElementById('register-form');
-const recognizeForm = document.getElementById('recognize-form');
 const video = document.getElementById('video');
 const canvas = document.createElement('canvas');
-const fileInput = document.getElementById('imageFile');
 
-// Webcam access
+// Webcam setup
 navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
     video.srcObject = stream;
 });
 
-// Capture image
+// Capture image from webcam
 function captureImage() {
     const context = canvas.getContext('2d');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/png').split(',')[1]; // Remove base64 prefix
+    return canvas.toDataURL('image/png').split(',')[1];
 }
 
-// Submit forms
-[registerForm, recognizeForm].forEach(form => {
+// Form submission
+document.querySelectorAll('form').forEach(form => {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const method = form.querySelector('input[name="method"]:checked').value;
@@ -28,7 +25,7 @@ function captureImage() {
         if (method === 'webcam') {
             imageBase64 = captureImage();
         } else {
-            const file = fileInput.files[0];
+            const file = document.querySelector('input[type="file"]').files[0];
             const reader = new FileReader();
             reader.onload = () => {
                 imageBase64 = reader.result.split(',')[1];
@@ -41,7 +38,6 @@ function captureImage() {
     });
 });
 
-// Send data to backend
 async function sendData(formId, imageBase64) {
     const endpoint = formId === 'register-form' ? '/register-student' : '/recognize-student';
     const payload = formId === 'register-form'
