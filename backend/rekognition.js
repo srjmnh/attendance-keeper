@@ -1,45 +1,59 @@
 const AWS = require('aws-sdk');
-const { Buffer } = require('buffer');
+const db = require('./db'); // Firebase database integration
 
 // Configure AWS Rekognition
 AWS.config.update({
-    region: 'us-east-1', // Replace with your AWS region
+    region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
 
 const rekognition = new AWS.Rekognition();
 
-// Register a face into a collection
+// Register a student's face
 async function registerFace(imageBase64, studentId) {
     const params = {
-        CollectionId: 'students', // Replace with your collection name
+        CollectionId: 'students',
         Image: { Bytes: Buffer.from(imageBase64, 'base64') },
-        ExternalImageId: studentId,
+        ExternalImageId: studentId, // Use student ID as unique identifier
     };
 
     try {
         const response = await rekognition.indexFaces(params).promise();
-        console.log('Face indexed:', response);
-        return response; // Contains FaceId and metadata
+
+        // Store face metadata in Firebase
+        const faceRecord = response.FaceRecords[0];
+        if (faceRecord) {
+            await db.collection('students').doc(studentId).set({
+                faceId: faceRecord.Face.FaceId,
+                name: studentId,
+            });
+            return faceRecord.Face.FaceId;
+        } else {
+            throw new Error('No face detected.');
+        }
     } catch (error) {
-        console.error('Error indexing face:', error);
+        console.error('Error registering face:', error);
         throw new Error('Failed to register face');
     }
 }
 
-// Recognize a face in the collection
+// Recognize a face
 async function recognizeFace(imageBase64) {
     const params = {
-        CollectionId: 'students', // Replace with your collection name
+        CollectionId: 'students',
         Image: { Bytes: Buffer.from(imageBase64, 'base64') },
-        MaxFaces: 1, // Return the best match
+        MaxFaces: 1,
+        FaceMatchThreshold: 90, // Confidence threshold
     };
 
     try {
         const response = await rekognition.searchFacesByImage(params).promise();
-        console.log('Face recognized:', response);
-        return response.FaceMatches[0] || null; // Return the best match or null
+        if (response.FaceMatches.length > 0) {
+            return response.FaceMatches[0].Face.FaceId; // Return matched face ID
+        } else {
+            return null;
+        }
     } catch (error) {
         console.error('Error recognizing face:', error);
         throw new Error('Failed to recognize face');
