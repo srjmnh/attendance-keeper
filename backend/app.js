@@ -1,8 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
-const { registerStudent, recognizeStudent, addSubject, getSubjects, getAttendance } = require('./students');
-
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -11,82 +9,59 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Routes
-// Serve index.html as the default page
+// Serve the Record Attendance page as the default
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    res.sendFile(path.join(__dirname, '../frontend/attendance.html'));
 });
 
-// Route for the Register Student page
+// Serve other pages
 app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/register.html'));
 });
 
-// Route for the Record Attendance page
-app.get('/record-attendance', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/attendance.html'));
-});
-
-// Route for the Add Subject page
 app.get('/add-subject', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/add-subject.html'));
 });
 
-// Route for the View Attendance page
 app.get('/view', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/view.html'));
 });
 
-// API Endpoints
-app.post('/register-student', async (req, res) => {
-    try {
-        await registerStudent(req, res);
-    } catch (error) {
-        console.error('Error in /register-student:', error);
-        res.status(500).json({ success: false, message: 'Failed to register student' });
-    }
-});
-
-app.post('/mark-attendance', async (req, res) => {
-    try {
-        await recognizeStudent(req, res);
-    } catch (error) {
-        console.error('Error in /mark-attendance:', error);
-        res.status(500).json({ success: false, message: 'Failed to mark attendance' });
-    }
-});
-
-app.post('/add-subject', async (req, res) => {
-    try {
-        await addSubject(req, res);
-    } catch (error) {
-        console.error('Error in /add-subject:', error);
-        res.status(500).json({ success: false, message: 'Failed to add subject' });
-    }
-});
-
+// Dynamic Subject Loading Endpoint
 app.get('/subjects', async (req, res) => {
     try {
-        await getSubjects(req, res);
+        // Mock response - Replace with Firestore or database logic
+        const subjects = [
+            { subjectName: 'Mathematics', subjectCode: 'MATH101' },
+            { subjectName: 'Science', subjectCode: 'SCI101' },
+        ];
+        res.json(subjects);
     } catch (error) {
-        console.error('Error in /subjects:', error);
+        console.error('Error fetching subjects:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch subjects' });
     }
 });
 
-app.get('/attendance', async (req, res) => {
+// Mark Attendance Endpoint
+app.post('/mark-attendance', async (req, res) => {
     try {
-        await getAttendance(req, res);
+        const { subjectCode, image } = req.body;
+
+        // Mock recognition logic - Replace with actual implementation
+        const recognizedStudent = { studentId: '12345', name: 'John Doe' };
+
+        if (recognizedStudent) {
+            // Log attendance - Replace with Firestore or database logic
+            console.log(`Attendance marked for ${recognizedStudent.name} in ${subjectCode}`);
+            res.json({ success: true, student: recognizedStudent });
+        } else {
+            res.json({ success: false, message: 'Face not recognized' });
+        }
     } catch (error) {
-        console.error('Error in /attendance:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch attendance records' });
+        console.error('Error marking attendance:', error);
+        res.status(500).json({ success: false, message: 'Failed to mark attendance' });
     }
 });
 
-// Catch-All Route (404 Fallback)
-app.use((req, res) => {
-    res.status(404).send('Page not found');
-});
-
-// Start Server
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+// Start the server
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
