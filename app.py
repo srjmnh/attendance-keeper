@@ -2,26 +2,28 @@ import boto3
 import base64
 import os
 from flask import Flask, request, jsonify, render_template
-from PIL import Image, ImageEnhance
-import cv2
-import numpy as np
+import requests
+from PIL import Image
 import io
 
 app = Flask(__name__)
 
-# Fetch AWS credentials and configuration from environment variables
+# AWS Rekognition configuration
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
-COLLECTION_ID = "students"  # Rekognition Collection name
+COLLECTION_ID = "students"
 
-# Initialize AWS Rekognition client
 rekognition_client = boto3.client(
     'rekognition',
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
+
+# Hugging Face API configuration
+HF_API_KEY = os.getenv('HF_API_KEY')
+HF_API_URL = "https://api-inference.huggingface.co/models/xinntao/ESRGAN"
 
 # Ensure the collection exists
 def create_collection(collection_id):
@@ -32,30 +34,15 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-# Upscale image resolution using OpenCV
-def upscale_image(image_bytes, upscale_factor=2):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    upscaled_image = cv2.resize(image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC)
-    _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
-    return upscaled_image_bytes.tobytes()
+def enhance_face_with_huggingface(face_image_bytes):
+    """Enhance a cropped face using the Hugging Face API."""
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    response = requests.post(HF_API_URL, headers=headers, files={"image": ("face.jpg", face_image_bytes, "image/jpeg")})
 
-# Split image into smaller regions for better face detection
-def split_image(image, grid_size=2):
-    width, height = image.size
-    region_width = width // grid_size
-    region_height = height // grid_size
+    if response.status_code != 200:
+        raise Exception(f"Hugging Face API error: {response.status_code}, {response.text}")
 
-    regions = []
-    for row in range(grid_size):
-        for col in range(grid_size):
-            left = col * region_width
-            top = row * region_height
-            right = (col + 1) * region_width
-            bottom = (row + 1) * region_height
-            regions.append(image.crop((left, top, right, bottom)))
-
-    return regions
+    return response.content
 
 @app.route('/')
 def index():
@@ -64,10 +51,10 @@ def index():
 @app.route('/register', methods=['POST'])
 def register():
     try:
-        data = request.json
+        data = request.form
         name = data.get('name')
         student_id = data.get('student_id')
-        image = data.get('image')
+        image = request.files.get('image')
 
         if not name or not student_id or not image:
             return jsonify({"message": "Missing name, student_id, or image"}), 400
@@ -75,9 +62,8 @@ def register():
         # Sanitize name
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
 
-        # Decode base64 image
-        image_data = image.split(",")[1]
-        image_bytes = base64.b64decode(image_data)
+        # Convert image to bytes
+        image_bytes = image.read()
 
         # Index the face in the Rekognition collection
         external_image_id = f"{sanitized_name}_{student_id}"
@@ -86,7 +72,7 @@ def register():
             Image={'Bytes': image_bytes},
             ExternalImageId=external_image_id,
             DetectionAttributes=['ALL'],
-            QualityFilter='AUTO'  # Automatically handle low-quality images
+            QualityFilter='AUTO'
         )
 
         if not response['FaceRecords']:
@@ -100,109 +86,81 @@ def register():
 @app.route('/recognize', methods=['POST'])
 def recognize():
     try:
-        data = request.json
-        image = data.get('image')
-
+        image = request.files.get('image')
         if not image:
             return jsonify({"message": "No image provided"}), 400
 
-        # Decode base64 image
-        image_data = image.split(",")[1]
-        image_bytes = base64.b64decode(image_data)
+        # Read image bytes
+        image_bytes = image.read()
 
-        # Step 1: Upscale image resolution
-        image_bytes = upscale_image(image_bytes)
+        # Detect faces using AWS Rekognition
+        detect_response = rekognition_client.detect_faces(
+            Image={'Bytes': image_bytes},
+            Attributes=['ALL']
+        )
 
-        # Enhance image (brightness and contrast)
-        image = Image.open(io.BytesIO(image_bytes))
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.5)  # Increase contrast
-        enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.2)  # Increase brightness
-
-        # Convert enhanced image back to bytes
-        enhanced_image_bytes = io.BytesIO()
-        image.save(enhanced_image_bytes, format="JPEG")
-        enhanced_image_bytes = enhanced_image_bytes.getvalue()
-
-        # Step 2: Split image into smaller regions
-        regions = split_image(image, grid_size=2)
+        face_details = detect_response.get('FaceDetails', [])
+        if not face_details:
+            return jsonify({"message": "No faces detected", "total_faces": 0}), 200
 
         identified_people = []
-        face_count = 0
 
-        for region in regions:
-            region_bytes = io.BytesIO()
-            region.save(region_bytes, format="JPEG")
-            region_bytes = region_bytes.getvalue()
+        for face in face_details:
+            # Crop face using bounding box
+            bounding_box = face['BoundingBox']
+            width, height = Image.open(io.BytesIO(image_bytes)).size
+            left = int(bounding_box['Left'] * width)
+            top = int(bounding_box['Top'] * height)
+            right = int((bounding_box['Left'] + bounding_box['Width']) * width)
+            bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-            # Detect faces in the region
-            detect_response = rekognition_client.detect_faces(
-                Image={'Bytes': region_bytes},
-                Attributes=['DEFAULT']
+            cropped_face = Image.open(io.BytesIO(image_bytes)).crop((left, top, right, bottom))
+            cropped_face_bytes = io.BytesIO()
+            cropped_face.save(cropped_face_bytes, format="JPEG")
+            cropped_face_bytes = cropped_face_bytes.getvalue()
+
+            # Enhance the cropped face
+            try:
+                enhanced_face_bytes = enhance_face_with_huggingface(cropped_face_bytes)
+            except Exception as e:
+                print(f"Face enhancement failed: {e}")
+                continue
+
+            # Recognize the enhanced face
+            search_response = rekognition_client.search_faces_by_image(
+                CollectionId=COLLECTION_ID,
+                Image={'Bytes': enhanced_face_bytes},
+                MaxFaces=1,
+                FaceMatchThreshold=60
             )
 
-            face_details = detect_response.get('FaceDetails', [])
-            face_count += len(face_details)
+            face_matches = search_response.get('FaceMatches', [])
+            if not face_matches:
+                identified_people.append({"message": "Face not recognized"})
+                continue
 
-            # Process each detected face
-            for face in face_details:
-                bounding_box = face['BoundingBox']
-                width, height = region.size
-                left = int(bounding_box['Left'] * width)
-                top = int(bounding_box['Top'] * height)
-                right = int((bounding_box['Left'] + bounding_box['Width']) * width)
-                bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
+            match = face_matches[0]
+            external_image_id = match['Face']['ExternalImageId']
+            confidence = match['Face']['Confidence']
 
-                # Crop the face region
-                cropped_face = region.crop((left, top, right, bottom))
-                cropped_face_bytes = io.BytesIO()
-                cropped_face.save(cropped_face_bytes, format="JPEG")
-                cropped_face_bytes = cropped_face_bytes.getvalue()
+            parts = external_image_id.split("_")
+            name, student_id = parts if len(parts) == 2 else (external_image_id, "Unknown")
 
-                # Perform face search with lower FaceMatchThreshold
-                search_response = rekognition_client.search_faces_by_image(
-                    CollectionId=COLLECTION_ID,
-                    Image={'Bytes': cropped_face_bytes},
-                    MaxFaces=1,
-                    FaceMatchThreshold=60  # Adjusted for better sensitivity
-                )
-
-                face_matches = search_response.get('FaceMatches', [])
-                if not face_matches:
-                    identified_people.append({
-                        "message": "Face not recognized",
-                        "confidence": "N/A"
-                    })
-                    continue
-
-                # Extract the best match
-                match = face_matches[0]
-                external_image_id = match['Face']['ExternalImageId']
-                confidence = match['Face']['Confidence']
-
-                # Safely parse the external_image_id
-                parts = external_image_id.split("_")
-                if len(parts) == 2:
-                    name, student_id = parts
-                else:
-                    name, student_id = external_image_id, "Unknown"
-
-                identified_people.append({
-                    "name": name,
-                    "student_id": student_id,
-                    "confidence": confidence
-                })
+            identified_people.append({
+                "name": name,
+                "student_id": student_id,
+                "confidence": confidence
+            })
 
         return jsonify({
-            "message": f"{face_count} face(s) detected in the photo.",
-            "total_faces": face_count,
+            "message": f"{len(face_details)} face(s) detected in the photo.",
             "identified_people": identified_people
         }), 200
 
     except Exception as e:
+        print(f"Error during recognition: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))  # Use PORT from environment or default to 5000
+    port = int(os.getenv('PORT', 5000))  # Default port for Flask
     app.run(host='0.0.0.0', port=port)
