@@ -5,7 +5,7 @@ pip install -r requirements.txt
 
 # Download realesrgan-ncnn-vulkan binary
 echo "Downloading realesrgan-ncnn-vulkan binary..."
-curl -L -o realesrgan-ncnn-vulkan.zip https://github.com/xinntao/realesrgan-ncnn-vulkan/releases/download/v1.3.0/realesrgan-ncnn-vulkan-20220424-linux.zip
+curl -L -o realesrgan-ncnn-vulkan.zip https://github.com/xinntao/realesrgan-ncnn-vulkan/releases/download/v1.3.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
 
 # Check if the ZIP file exists and is valid
 if [ ! -f "realesrgan-ncnn-vulkan.zip" ]; then
