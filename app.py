@@ -3,7 +3,7 @@ import base64
 import os
 from flask import Flask, request, jsonify, render_template
 from PIL import Image, ImageEnhance
-import cv2
+from realesrgan import RealESRGAN
 import numpy as np
 import io
 
@@ -32,33 +32,23 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-# Enhance image with super-resolution
-def upscale_image(image_bytes, upscale_factor=2):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    upscaled_image = cv2.resize(image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC)
-    _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
-    return upscaled_image_bytes.tobytes()
+# Enhance image with Real-ESRGAN (super-resolution)
+def enhance_image_with_esrgan(image_bytes):
+    image = Image.open(io.BytesIO(image_bytes))
+    model = RealESRGAN("cuda", scale=4)  # Ensure GPU support
+    model.load_weights("RealESRGAN_x4.pth")  # Download weights from Real-ESRGAN
+    enhanced_image = model.predict(image)
+    enhanced_image_bytes = io.BytesIO()
+    enhanced_image.save(enhanced_image_bytes, format="JPEG")
+    return enhanced_image_bytes.getvalue()
 
 # Reduce noise in the image
 def denoise_image(image_bytes):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    denoised_image = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
-    _, denoised_image_bytes = cv2.imencode('.jpg', denoised_image)
-    return denoised_image_bytes.tobytes()
-
-# Enhance image contrast
-def equalize_image(image_bytes):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    l = cv2.equalizeHist(l)
-    lab = cv2.merge((l, a, b))
-    enhanced_image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-    _, enhanced_image_bytes = cv2.imencode('.jpg', enhanced_image)
-    return enhanced_image_bytes.tobytes()
+    image = Image.open(io.BytesIO(image_bytes))
+    denoised_image = image.filter(Image.ImageFilter.MedianFilter(size=3))
+    denoised_image_bytes = io.BytesIO()
+    denoised_image.save(denoised_image_bytes, format="JPEG")
+    return denoised_image_bytes.getvalue()
 
 # Split image into smaller regions
 def split_image(image, grid_size=3):
@@ -130,10 +120,9 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Step 1: Enhance image (super-resolution, denoising, and contrast)
-        image_bytes = upscale_image(image_bytes)  # Super-resolution
+        # Step 1: Enhance image (super-resolution and denoising)
+        image_bytes = enhance_image_with_esrgan(image_bytes)  # Super-resolution
         image_bytes = denoise_image(image_bytes)  # Noise reduction
-        image_bytes = equalize_image(image_bytes)  # Contrast enhancement
 
         # Enhance image for brightness and contrast
         image = Image.open(io.BytesIO(image_bytes))
@@ -185,7 +174,7 @@ def recognize():
                     CollectionId=COLLECTION_ID,
                     Image={'Bytes': cropped_face_bytes},
                     MaxFaces=1,
-                    FaceMatchThreshold=60
+                    FaceMatchThreshold=60  # Adjusted for better sensitivity
                 )
 
                 face_matches = search_response.get('FaceMatches', [])
