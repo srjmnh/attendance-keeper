@@ -3,12 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mark Attendance</title>
+    <title>Record Attendance</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Mark Attendance</h1>
+    <h1>Record Attendance</h1>
     <form id="attendance-form">
+        <label for="subject">Select Subject:</label>
+        <select id="subject" name="subject" required>
+            <option value="">Loading subjects...</option>
+        </select>
+
         <h3>Choose Recognition Method</h3>
         <input type="radio" id="webcamOption" name="method" value="webcam" checked>
         <label for="webcamOption">Use Webcam</label>
@@ -30,7 +35,124 @@
     </form>
 
     <script>
-        // Same JavaScript logic as in register.html, but POST to '/mark-attendance' instead of '/register-student'.
+        const video = document.getElementById('video');
+        const captureButton = document.getElementById('capture');
+        const canvas = document.getElementById('canvas');
+        const form = document.getElementById('attendance-form');
+        const fileSection = document.getElementById('file-section');
+        const cameraSection = document.getElementById('camera-section');
+        const subjectSelect = document.getElementById('subject');
+
+        // Switch between webcam and file upload
+        document.querySelectorAll('input[name="method"]').forEach(option => {
+            option.addEventListener('change', () => {
+                if (option.value === 'webcam') {
+                    cameraSection.style.display = 'block';
+                    fileSection.style.display = 'none';
+                } else {
+                    cameraSection.style.display = 'none';
+                    fileSection.style.display = 'block';
+                }
+            });
+        });
+
+        // Access webcam
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(error => {
+                console.error('Error accessing webcam:', error);
+                alert('Unable to access the webcam.');
+            });
+
+        // Capture image from webcam
+        captureButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        });
+
+        // Load subjects dynamically
+        async function loadSubjects() {
+            try {
+                const response = await fetch('/subjects');
+                const subjects = await response.json();
+                subjectSelect.innerHTML = ''; // Clear existing options
+
+                subjects.forEach(subject => {
+                    const option = document.createElement('option');
+                    option.value = subject.subjectCode;
+                    option.textContent = `${subject.subjectName} (${subject.subjectCode})`;
+                    subjectSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading subjects:', error);
+                alert('Failed to load subjects.');
+            }
+        }
+
+        // Call loadSubjects on page load
+        loadSubjects();
+
+        // Submit attendance form
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const selectedSubject = subjectSelect.value;
+            if (!selectedSubject) {
+                alert('Please select a subject.');
+                return;
+            }
+
+            let imageBase64;
+            if (form.method.value === 'webcam') {
+                imageBase64 = canvas.toDataURL('image/png').split(',')[1]; // Remove base64 prefix
+            } else {
+                const file = document.getElementById('imageFile').files[0];
+                if (!file) {
+                    alert('Please select an image file.');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = async function () {
+                    imageBase64 = reader.result.split(',')[1]; // Remove base64 prefix
+                    await markAttendance(selectedSubject, imageBase64);
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            await markAttendance(selectedSubject, imageBase64);
+        });
+
+        // Mark attendance
+        async function markAttendance(subjectCode, imageBase64) {
+            const payload = {
+                subjectCode,
+                image: imageBase64,
+            };
+
+            try {
+                const response = await fetch('/mark-attendance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert(`Attendance marked for: ${result.student.name}`);
+                } else {
+                    alert('Face not recognized.');
+                }
+            } catch (error) {
+                console.error('Error marking attendance:', error);
+                alert('Failed to mark attendance.');
+            }
+        }
     </script>
 </body>
 </html>
