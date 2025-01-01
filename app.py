@@ -32,7 +32,7 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-# Upscale image resolution using OpenCV
+# Enhance image with super-resolution
 def upscale_image(image_bytes, upscale_factor=2):
     image_array = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
@@ -40,8 +40,28 @@ def upscale_image(image_bytes, upscale_factor=2):
     _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
     return upscaled_image_bytes.tobytes()
 
-# Split image into smaller regions for better face detection
-def split_image(image, grid_size=2):
+# Reduce noise in the image
+def denoise_image(image_bytes):
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    denoised_image = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
+    _, denoised_image_bytes = cv2.imencode('.jpg', denoised_image)
+    return denoised_image_bytes.tobytes()
+
+# Enhance image contrast
+def equalize_image(image_bytes):
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    l = cv2.equalizeHist(l)
+    lab = cv2.merge((l, a, b))
+    enhanced_image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    _, enhanced_image_bytes = cv2.imencode('.jpg', enhanced_image)
+    return enhanced_image_bytes.tobytes()
+
+# Split image into smaller regions
+def split_image(image, grid_size=3):
     width, height = image.size
     region_width = width // grid_size
     region_height = height // grid_size
@@ -110,15 +130,17 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Step 1: Upscale image resolution
-        image_bytes = upscale_image(image_bytes)
+        # Step 1: Enhance image (super-resolution, denoising, and contrast)
+        image_bytes = upscale_image(image_bytes)  # Super-resolution
+        image_bytes = denoise_image(image_bytes)  # Noise reduction
+        image_bytes = equalize_image(image_bytes)  # Contrast enhancement
 
-        # Enhance image (brightness and contrast)
+        # Enhance image for brightness and contrast
         image = Image.open(io.BytesIO(image_bytes))
         enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.5)  # Increase contrast
+        image = enhancer.enhance(1.5)
         enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.2)  # Increase brightness
+        image = enhancer.enhance(1.2)
 
         # Convert enhanced image back to bytes
         enhanced_image_bytes = io.BytesIO()
@@ -126,7 +148,7 @@ def recognize():
         enhanced_image_bytes = enhanced_image_bytes.getvalue()
 
         # Step 2: Split image into smaller regions
-        regions = split_image(image, grid_size=2)
+        regions = split_image(image, grid_size=3)
 
         identified_people = []
         face_count = 0
@@ -139,13 +161,12 @@ def recognize():
             # Detect faces in the region
             detect_response = rekognition_client.detect_faces(
                 Image={'Bytes': region_bytes},
-                Attributes=['DEFAULT']
+                Attributes=['ALL']
             )
 
             face_details = detect_response.get('FaceDetails', [])
             face_count += len(face_details)
 
-            # Process each detected face
             for face in face_details:
                 bounding_box = face['BoundingBox']
                 width, height = region.size
@@ -154,7 +175,6 @@ def recognize():
                 right = int((bounding_box['Left'] + bounding_box['Width']) * width)
                 bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-                # Crop the face region
                 cropped_face = region.crop((left, top, right, bottom))
                 cropped_face_bytes = io.BytesIO()
                 cropped_face.save(cropped_face_bytes, format="JPEG")
@@ -165,7 +185,7 @@ def recognize():
                     CollectionId=COLLECTION_ID,
                     Image={'Bytes': cropped_face_bytes},
                     MaxFaces=1,
-                    FaceMatchThreshold=60  # Adjusted for better sensitivity
+                    FaceMatchThreshold=60
                 )
 
                 face_matches = search_response.get('FaceMatches', [])
@@ -176,17 +196,12 @@ def recognize():
                     })
                     continue
 
-                # Extract the best match
                 match = face_matches[0]
                 external_image_id = match['Face']['ExternalImageId']
                 confidence = match['Face']['Confidence']
 
-                # Safely parse the external_image_id
                 parts = external_image_id.split("_")
-                if len(parts) == 2:
-                    name, student_id = parts
-                else:
-                    name, student_id = external_image_id, "Unknown"
+                name, student_id = parts if len(parts) == 2 else (external_image_id, "Unknown")
 
                 identified_people.append({
                     "name": name,
