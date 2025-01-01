@@ -80,21 +80,44 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Search for all faces in the Rekognition collection
-        response = rekognition_client.search_faces_by_image(
-            CollectionId=COLLECTION_ID,
+        # Step 1: Detect all faces in the image
+        detect_response = rekognition_client.detect_faces(
             Image={'Bytes': image_bytes},
-            MaxFaces=10,  # Allow up to 10 faces to be detected
-            FaceMatchThreshold=80
+            Attributes=['DEFAULT']
         )
 
-        face_matches = response.get('FaceMatches', [])
-        if not face_matches:
-            return jsonify({"message": "No matching faces found"}), 200
+        face_details = detect_response.get('FaceDetails', [])
+        face_count = len(face_details)
 
-        # Prepare a list of identified people
+        if not face_details:
+            return jsonify({"message": "No faces detected", "total_faces": 0, "identified_people": []}), 200
+
+        # Step 2: Process each detected face individually
         identified_people = []
-        for match in face_matches:
+        for i, face in enumerate(face_details):
+            # Extract bounding box (Optional, can use for debugging or cropping)
+            bounding_box = face['BoundingBox']
+            print(f"Processing face {i + 1}: {bounding_box}")
+
+            # Perform face search for the detected face
+            search_response = rekognition_client.search_faces_by_image(
+                CollectionId=COLLECTION_ID,
+                Image={'Bytes': image_bytes},
+                MaxFaces=1,
+                FaceMatchThreshold=80
+            )
+
+            face_matches = search_response.get('FaceMatches', [])
+            if not face_matches:
+                identified_people.append({
+                    "face_number": i + 1,
+                    "message": f"Face {i + 1} not recognized",
+                    "confidence": "N/A"
+                })
+                continue
+
+            # Extract the best match
+            match = face_matches[0]
             external_image_id = match['Face']['ExternalImageId']
             confidence = match['Face']['Confidence']
 
@@ -105,13 +128,15 @@ def recognize():
                 name, student_id = external_image_id, "Unknown"
 
             identified_people.append({
+                "face_number": i + 1,
                 "name": name,
                 "student_id": student_id,
                 "confidence": confidence
             })
 
         return jsonify({
-            "message": "Faces recognized",
+            "message": f"{face_count} face(s) detected in the photo.",
+            "total_faces": face_count,
             "identified_people": identified_people
         }), 200
 
