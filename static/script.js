@@ -23,11 +23,11 @@ function register() {
             },
             body: JSON.stringify({ name, student_id: studentId, image: imageData }),
         })
-            .then((response) => response.json())
-            .then((data) => {
-                document.getElementById('register_result').innerText = data.message || data.error;
-            })
-            .catch((error) => console.error('Error:', error));
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('register_result').innerText = data.message || data.error;
+        })
+        .catch(error => console.error('Error:', error));
     });
 }
 
@@ -47,10 +47,14 @@ function recognize() {
             },
             body: JSON.stringify({ image: imageData }),
         })
-            .then((response) => response.json())
-            .then((data) => {
-                document.getElementById('recognize_result').innerText = data.message || data.error;
-            })
-            .catch((error) => console.error('Error:', error));
+        .then(response => response.json())
+        .then(data => {
+            const resultText = data.message || data.error;
+            document.getElementById('recognize_result').innerText = resultText;
+            if (data.name) {
+                document.getElementById('recognize_result').innerText += ` - Name: ${data.name}, Confidence: ${data.confidence}%`;
+            }
+        })
+        .catch(error => console.error('Error:', error));
     });
 }
