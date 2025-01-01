@@ -43,7 +43,7 @@ def register():
         if not name or not student_id or not image:
             return jsonify({"message": "Missing name, student_id, or image"}), 400
 
-        # Replace invalid characters in the name
+        # Sanitize name
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
 
         # Decode base64 image
@@ -61,9 +61,6 @@ def register():
 
         if not response['FaceRecords']:
             return jsonify({"message": "No face detected in the image"}), 400
-
-        # Debugging logs to ensure the ExternalImageId is stored
-        print(f"Stored ExternalImageId: {external_image_id}")
 
         return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
@@ -99,9 +96,6 @@ def recognize():
         match = face_matches[0]
         external_image_id = match['Face']['ExternalImageId']
         confidence = match['Face']['Confidence']
-
-        # Debugging logs for the retrieved ExternalImageId
-        print(f"Retrieved ExternalImageId: {external_image_id}")
 
         # Parse name and student ID from ExternalImageId
         if "_" in external_image_id:
