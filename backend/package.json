@@ -12,8 +12,8 @@
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "firebase-admin": "^11.5.0",
-    "image-similarity": "^1.0.1",
-    "jimp": "^0.22.9"
+    "jimp": "^0.22.9",
+    "image-hash": "^2.1.0"
   },
   "devDependencies": {},
   "author": "Your Name",
