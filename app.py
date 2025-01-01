@@ -52,7 +52,7 @@ def register():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Index the face in the Rekognition collection with quality filtering
+        # Index the face in the Rekognition collection
         external_image_id = f"{sanitized_name}_{student_id}"
         response = rekognition_client.index_faces(
             CollectionId=COLLECTION_ID,
@@ -95,11 +95,10 @@ def recognize():
         image.save(enhanced_image_bytes, format="JPEG")
         enhanced_image_bytes = enhanced_image_bytes.getvalue()
 
-        # Step 1: Detect all faces in the image with lower MinConfidence
+        # Step 1: Detect all faces in the image
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': enhanced_image_bytes},
-            Attributes=['DEFAULT'],
-            MinConfidence=50  # Lower confidence for better detection
+            Attributes=['DEFAULT']
         )
 
         face_details = detect_response.get('FaceDetails', [])
