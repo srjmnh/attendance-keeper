@@ -33,6 +33,12 @@ create_collection(COLLECTION_ID)
 
 # Enhance image using realesrgan-ncnn-vulkan binary
 def enhance_image_with_binary(image_bytes):
+    # Path to the realesrgan-ncnn-vulkan binary
+    binary_path = "./realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan"
+
+    if not os.path.isfile(binary_path):
+        raise FileNotFoundError(f"Real-ESRGAN binary not found at {binary_path}")
+
     # Save input image to file
     input_path = "input.jpg"
     output_path = "output.png"
@@ -41,11 +47,7 @@ def enhance_image_with_binary(image_bytes):
         f.write(image_bytes)
 
     # Run the realesrgan-ncnn-vulkan binary
-    command = [
-        "./realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan",
-        "-i", input_path,
-        "-o", output_path
-    ]
+    command = [binary_path, "-i", input_path, "-o", output_path]
     subprocess.run(command, check=True)
 
     # Read the enhanced image
@@ -114,9 +116,6 @@ def recognize():
         # Enhance image using realesrgan-ncnn-vulkan
         image_bytes = enhance_image_with_binary(image_bytes)
 
-        # Enhance image for brightness and contrast
-        image = Image.open(io.BytesIO(image_bytes))
-
         # Detect faces in the image
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': image_bytes},
@@ -133,13 +132,13 @@ def recognize():
 
         for face in face_details:
             bounding_box = face['BoundingBox']
-            width, height = image.size
+            width, height = Image.open(io.BytesIO(image_bytes)).size
             left = int(bounding_box['Left'] * width)
             top = int(bounding_box['Top'] * height)
             right = int((bounding_box['Left'] + bounding_box['Width']) * width)
             bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-            cropped_face = image.crop((left, top, right, bottom))
+            cropped_face = Image.open(io.BytesIO(image_bytes)).crop((left, top, right, bottom))
             cropped_face_bytes = io.BytesIO()
             cropped_face.save(cropped_face_bytes, format="JPEG")
             cropped_face_bytes = cropped_face_bytes.getvalue()
