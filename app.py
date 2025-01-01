@@ -58,6 +58,7 @@ def enhance_image_with_huggingface(image_bytes):
     if not response.content:
         raise Exception("No content in the response from Hugging Face API")
 
+    print("Enhancement successful. Returning enhanced image.")
     return response.content
 
 @app.route('/')
@@ -67,12 +68,18 @@ def index():
 @app.route('/recognize', methods=['POST'])
 def recognize():
     try:
+        print("Incoming request to /recognize")
+        print(f"Request Files: {request.files}")
+
+        # Check if image is provided
         image = request.files.get('image')
         if not image:
+            print("No image provided in request.files")
             return jsonify({"message": "No image provided"}), 400
 
         # Read image bytes
         image_bytes = image.read()
+        print(f"Image received. Size: {len(image_bytes)} bytes")
 
         # Enhance the entire image
         try:
@@ -82,11 +89,17 @@ def recognize():
             print(f"Image enhancement failed: {e}")
             return jsonify({"message": "Image enhancement failed"}), 500
 
+        # Save enhanced image for debugging
+        with open("debug_enhanced_image.jpg", "wb") as f:
+            f.write(enhanced_image_bytes)
+
         # Detect faces using AWS Rekognition
+        print("Detecting faces with AWS Rekognition...")
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
+        print(f"Rekognition response: {detect_response}")
 
         face_details = detect_response.get('FaceDetails', [])
         if not face_details:
@@ -94,8 +107,7 @@ def recognize():
 
         identified_people = []
 
-        for face in face_details:
-            # Crop face using bounding box
+        for idx, face in enumerate(face_details):
             bounding_box = face['BoundingBox']
             width, height = Image.open(io.BytesIO(enhanced_image_bytes)).size
             left = int(bounding_box['Left'] * width)
@@ -103,22 +115,31 @@ def recognize():
             right = int((bounding_box['Left'] + bounding_box['Width']) * width)
             bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
+            # Crop face and save for debugging
             cropped_face = Image.open(io.BytesIO(enhanced_image_bytes)).crop((left, top, right, bottom))
             cropped_face_bytes = io.BytesIO()
             cropped_face.save(cropped_face_bytes, format="JPEG")
             cropped_face_bytes = cropped_face_bytes.getvalue()
 
+            # Save cropped face for debugging
+            with open(f"debug_cropped_face_{idx}.jpg", "wb") as f:
+                f.write(cropped_face_bytes)
+
             # Recognize the cropped face
-            search_response = rekognition_client.search_faces_by_image(
-                CollectionId=COLLECTION_ID,
-                Image={'Bytes': cropped_face_bytes},
-                MaxFaces=1,
-                FaceMatchThreshold=60
-            )
+            try:
+                search_response = rekognition_client.search_faces_by_image(
+                    CollectionId=COLLECTION_ID,
+                    Image={'Bytes': cropped_face_bytes},
+                    MaxFaces=1,
+                    FaceMatchThreshold=60
+                )
+            except Exception as e:
+                print(f"Face recognition failed for face {idx}: {e}")
+                continue
 
             face_matches = search_response.get('FaceMatches', [])
             if not face_matches:
-                identified_people.append({"message": "Face not recognized"})
+                identified_people.append({"message": f"Face {idx + 1} not recognized"})
                 continue
 
             match = face_matches[0]
