@@ -1,63 +1,84 @@
 const video = document.getElementById('video');
 const canvas = document.createElement('canvas');
+const form = document.getElementById('register-form');
+const fileSection = document.getElementById('file-section');
+const cameraSection = document.getElementById('camera-section');
 
-// Webcam setup
+// Initialize webcam
 navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
     video.srcObject = stream;
+}).catch(error => {
+    console.error('Error accessing webcam:', error);
+    alert('Unable to access the webcam. Ensure you’re using HTTPS.');
 });
 
-// Capture image
-function captureImage() {
-    const context = canvas.getContext('2d');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/png').split(',')[1];
-}
-
-// Form submission
-document.querySelectorAll('form').forEach(form => {
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const method = form.querySelector('input[name="method"]:checked').value;
-        let imageBase64;
-
-        if (method === 'webcam') {
-            imageBase64 = captureImage();
+// Switch between webcam and file upload
+document.querySelectorAll('input[name="method"]').forEach(option => {
+    option.addEventListener('change', () => {
+        if (option.value === 'webcam') {
+            cameraSection.style.display = 'block';
+            fileSection.style.display = 'none';
         } else {
-            const file = document.querySelector('input[type="file"]').files[0];
-            const reader = new FileReader();
-            reader.onload = () => {
-                imageBase64 = reader.result.split(',')[1];
-                sendData(form.id, imageBase64);
-            };
-            reader.readAsDataURL(file);
-            return;
+            cameraSection.style.display = 'none';
+            fileSection.style.display = 'block';
         }
-        sendData(form.id, imageBase64);
     });
 });
 
-async function sendData(formId, imageBase64) {
-    const endpoint = formId === 'register-form' ? '/register-student' : '/recognize-student';
-    const payload = formId === 'register-form'
-        ? {
-              studentId: document.getElementById('studentId').value,
-              name: document.getElementById('name').value,
-              image: imageBase64,
-          }
-        : { image: imageBase64 };
+// Handle form submission
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('name').value;
+    const studentId = document.getElementById('studentId').value;
+    const method = document.querySelector('input[name="method"]:checked').value;
+    let imageBase64;
+
+    if (!name || !studentId) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    if (method === 'webcam') {
+        // Capture image from webcam
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        imageBase64 = canvas.toDataURL('image/png').split(',')[1]; // Remove base64 prefix
+    } else {
+        // Capture image from file upload
+        const file = document.getElementById('imageFile').files[0];
+        if (!file) {
+            alert('Please select an image file.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = async function () {
+            imageBase64 = reader.result.split(',')[1]; // Remove base64 prefix
+            await registerStudent(name, studentId, imageBase64);
+        };
+        reader.readAsDataURL(file);
+        return;
+    }
+
+    await registerStudent(name, studentId, imageBase64);
+});
+
+// Register student
+async function registerStudent(name, studentId, imageBase64) {
+    const payload = { name, studentId, image: imageBase64 };
 
     try {
-        const response = await fetch(endpoint, {
+        const response = await fetch('/register-student', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
+
         const result = await response.json();
         alert(result.message);
     } catch (error) {
-        console.error(error);
-        alert('Operation failed.');
+        console.error('Error registering student:', error);
+        alert('Failed to register student.');
     }
 }
