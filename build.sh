@@ -5,7 +5,7 @@ pip install -r requirements.txt
 
 # Download realesrgan-ncnn-vulkan binary
 echo "Downloading realesrgan-ncnn-vulkan binary..."
-curl -L -o realesrgan-ncnn-vulkan.zip https://github.com/xinntao/realesrgan-ncnn-vulkan/releases/download/v1.3.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
+curl -L -o realesrgan-ncnn-vulkan.zip https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan/releases/download/v0.2.0/realesrgan-ncnn-vulkan-v0.2.0-ubuntu.zip
 
 # Check if the ZIP file exists
 if [ ! -f "realesrgan-ncnn-vulkan.zip" ]; then
@@ -13,19 +13,10 @@ if [ ! -f "realesrgan-ncnn-vulkan.zip" ]; then
     exit 1
 fi
 
-# Debugging: Check the size of the downloaded file
-echo "Downloaded file size:"
-ls -lh realesrgan-ncnn-vulkan.zip
-
 # Validate the ZIP file
 if ! unzip -t realesrgan-ncnn-vulkan.zip > /dev/null 2>&1; then
     echo "Error: realesrgan-ncnn-vulkan.zip is invalid or corrupt."
-    echo "Attempting to download again..."
-    curl -L -o realesrgan-ncnn-vulkan.zip https://github.com/xinntao/realesrgan-ncnn-vulkan/releases/download/v1.3.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
-    if ! unzip -t realesrgan-ncnn-vulkan.zip > /dev/null 2>&1; then
-        echo "Error: File is still corrupt after retrying."
-        exit 1
-    fi
+    exit 1
 fi
 
 # Extract the ZIP file
