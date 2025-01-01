@@ -1,3 +1,6 @@
 flask
 boto3
 pillow
+opencv-python
+opencv-contrib-python
+numpy
