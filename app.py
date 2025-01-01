@@ -108,6 +108,10 @@ def recognize():
             right = int((bounding_box['Left'] + bounding_box['Width']) * width)
             bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
+            # Ensure bounding box is valid
+            if left < 0 or top < 0 or right > width or bottom > height:
+                continue
+
             # Crop the face region
             cropped_face = image.crop((left, top, right, bottom))
             cropped_face_bytes = io.BytesIO()
