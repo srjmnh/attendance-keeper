@@ -12,11 +12,30 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Routes
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
-app.get('/register', (req, res) => res.sendFile(path.join(__dirname, '../frontend/register.html')));
-app.get('/add-subject', (req, res) => res.sendFile(path.join(__dirname, '../frontend/add-subject.html')));
-app.get('/view', (req, res) => res.sendFile(path.join(__dirname, '../frontend/view.html')));
-app.get('/record-attendance', (req, res) => res.sendFile(path.join(__dirname, '../frontend/attendance.html')));
+// Serve index.html as the default page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+// Route for the Register Student page
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/register.html'));
+});
+
+// Route for the Record Attendance page
+app.get('/record-attendance', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/attendance.html'));
+});
+
+// Route for the Add Subject page
+app.get('/add-subject', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/add-subject.html'));
+});
+
+// Route for the View Attendance page
+app.get('/view', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/view.html'));
+});
 
 // API Endpoints
 app.post('/register-student', async (req, res) => {
@@ -62,6 +81,11 @@ app.get('/attendance', async (req, res) => {
         console.error('Error in /attendance:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch attendance records' });
     }
+});
+
+// Catch-All Route (404 Fallback)
+app.use((req, res) => {
+    res.status(404).send('Page not found');
 });
 
 // Start Server
