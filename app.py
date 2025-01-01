@@ -80,34 +80,39 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Search for the face in the Rekognition collection
+        # Search for all faces in the Rekognition collection
         response = rekognition_client.search_faces_by_image(
             CollectionId=COLLECTION_ID,
             Image={'Bytes': image_bytes},
-            MaxFaces=1,
+            MaxFaces=10,  # Allow up to 10 faces to be detected
             FaceMatchThreshold=80
         )
 
         face_matches = response.get('FaceMatches', [])
         if not face_matches:
-            return jsonify({"message": "No matching face found"}), 200
+            return jsonify({"message": "No matching faces found"}), 200
 
-        # Extract matched face information
-        match = face_matches[0]
-        external_image_id = match['Face']['ExternalImageId']
-        confidence = match['Face']['Confidence']
+        # Prepare a list of identified people
+        identified_people = []
+        for match in face_matches:
+            external_image_id = match['Face']['ExternalImageId']
+            confidence = match['Face']['Confidence']
 
-        # Parse name and student ID from ExternalImageId
-        if "_" in external_image_id:
-            name, student_id = external_image_id.split("_")
-        else:
-            name, student_id = external_image_id, "Unknown"
+            # Parse name and student ID from ExternalImageId
+            if "_" in external_image_id:
+                name, student_id = external_image_id.split("_")
+            else:
+                name, student_id = external_image_id, "Unknown"
+
+            identified_people.append({
+                "name": name,
+                "student_id": student_id,
+                "confidence": confidence
+            })
 
         return jsonify({
-            "message": "Face recognized",
-            "name": name,
-            "student_id": student_id,
-            "confidence": confidence
+            "message": "Faces recognized",
+            "identified_people": identified_people
         }), 200
 
     except Exception as e:
