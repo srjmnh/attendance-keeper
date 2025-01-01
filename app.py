@@ -2,7 +2,7 @@ import boto3
 import base64
 import os
 from flask import Flask, request, jsonify, render_template
-from PIL import Image
+from PIL import Image, ImageEnhance
 import io
 
 app = Flask(__name__)
@@ -52,13 +52,14 @@ def register():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Index the face in the Rekognition collection
+        # Index the face in the Rekognition collection with quality filtering
         external_image_id = f"{sanitized_name}_{student_id}"
         response = rekognition_client.index_faces(
             CollectionId=COLLECTION_ID,
             Image={'Bytes': image_bytes},
             ExternalImageId=external_image_id,
-            DetectionAttributes=['ALL']
+            DetectionAttributes=['ALL'],
+            QualityFilter='AUTO'  # Automatically handle low-quality images
         )
 
         if not response['FaceRecords']:
@@ -82,10 +83,23 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Step 1: Detect all faces in the image
+        # Enhance image (brightness and contrast)
+        image = Image.open(io.BytesIO(image_bytes))
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(1.5)  # Increase contrast
+        enhancer = ImageEnhance.Brightness(image)
+        image = enhancer.enhance(1.2)  # Increase brightness
+
+        # Convert enhanced image back to bytes
+        enhanced_image_bytes = io.BytesIO()
+        image.save(enhanced_image_bytes, format="JPEG")
+        enhanced_image_bytes = enhanced_image_bytes.getvalue()
+
+        # Step 1: Detect all faces in the image with lower MinConfidence
         detect_response = rekognition_client.detect_faces(
-            Image={'Bytes': image_bytes},
-            Attributes=['DEFAULT']
+            Image={'Bytes': enhanced_image_bytes},
+            Attributes=['DEFAULT'],
+            MinConfidence=50  # Lower confidence for better detection
         )
 
         face_details = detect_response.get('FaceDetails', [])
@@ -94,8 +108,8 @@ def recognize():
         if not face_details:
             return jsonify({"message": "No faces detected", "total_faces": 0, "identified_people": []}), 200
 
-        # Load the original image for cropping
-        image = Image.open(io.BytesIO(image_bytes))
+        # Load the enhanced image for cropping
+        image = Image.open(io.BytesIO(enhanced_image_bytes))
         width, height = image.size
 
         # Step 2: Process each detected face individually
@@ -118,12 +132,12 @@ def recognize():
             cropped_face.save(cropped_face_bytes, format="JPEG")
             cropped_face_bytes = cropped_face_bytes.getvalue()
 
-            # Perform face search for the cropped face
+            # Perform face search with lower FaceMatchThreshold
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
                 Image={'Bytes': cropped_face_bytes},
                 MaxFaces=1,
-                FaceMatchThreshold=80
+                FaceMatchThreshold=70  # Adjusted for better sensitivity
             )
 
             face_matches = search_response.get('FaceMatches', [])
