@@ -62,6 +62,9 @@ def register():
         if not response['FaceRecords']:
             return jsonify({"message": "No face detected in the image"}), 400
 
+        # Debugging logs to ensure the ExternalImageId is stored
+        print(f"Stored ExternalImageId: {external_image_id}")
+
         return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
     except Exception as e:
@@ -96,6 +99,9 @@ def recognize():
         match = face_matches[0]
         external_image_id = match['Face']['ExternalImageId']
         confidence = match['Face']['Confidence']
+
+        # Debugging logs for the retrieved ExternalImageId
+        print(f"Retrieved ExternalImageId: {external_image_id}")
 
         # Parse name and student ID from ExternalImageId
         if "_" in external_image_id:
