@@ -2,7 +2,7 @@ const AWS = require('aws-sdk');
 
 // Configure AWS Rekognition
 AWS.config.update({
-    region: process.env.AWS_REGION,
+    region: process.env.AWS_REGION || 'us-east-1', // Default to 'us-east-1' if AWS_REGION is not set
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
