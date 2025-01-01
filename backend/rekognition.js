@@ -9,12 +9,12 @@ AWS.config.update({
 
 const rekognition = new AWS.Rekognition();
 
-// Register a student's face
+// Register a face
 async function registerFace(imageBase64, studentId) {
     const params = {
         CollectionId: 'students',
         Image: { Bytes: Buffer.from(imageBase64, 'base64') },
-        ExternalImageId: studentId, // Use student ID as unique identifier
+        ExternalImageId: studentId,
     };
 
     try {
@@ -26,7 +26,7 @@ async function registerFace(imageBase64, studentId) {
     }
 }
 
-// Recognize a student's face
+// Recognize a face
 async function recognizeFace(imageBase64) {
     const params = {
         CollectionId: 'students',
@@ -38,7 +38,7 @@ async function recognizeFace(imageBase64) {
     try {
         const response = await rekognition.searchFacesByImage(params).promise();
         if (response.FaceMatches.length > 0) {
-            return response.FaceMatches[0].Face.ExternalImageId; // Return student ID
+            return response.FaceMatches[0].Face.ExternalImageId;
         } else {
             return null;
         }

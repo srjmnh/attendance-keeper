@@ -1,14 +1,27 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const path = require('path');
 const { registerFace, recognizeFace } = require('./rekognition');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Serve static files from the frontend directory
+app.use(express.static(path.join(__dirname, '../frontend')));
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.static('frontend'));
 
-// Register a student
+// Routes for serving frontend files
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/register.html'));
+});
+app.get('/recognize', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/recognize.html'));
+});
+
+// Register a student's face
 app.post('/register-student', async (req, res) => {
     const { studentId, image } = req.body;
 
@@ -21,7 +34,7 @@ app.post('/register-student', async (req, res) => {
     }
 });
 
-// Recognize a student
+// Recognize a student's face
 app.post('/recognize-student', async (req, res) => {
     const { image } = req.body;
 
@@ -38,4 +51,7 @@ app.post('/recognize-student', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Start the server
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
