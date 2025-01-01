@@ -1,5 +1,4 @@
 const AWS = require('aws-sdk');
-const db = require('./db'); // Firebase database integration
 
 // Configure AWS Rekognition
 AWS.config.update({
@@ -20,37 +19,26 @@ async function registerFace(imageBase64, studentId) {
 
     try {
         const response = await rekognition.indexFaces(params).promise();
-
-        // Store face metadata in Firebase
-        const faceRecord = response.FaceRecords[0];
-        if (faceRecord) {
-            await db.collection('students').doc(studentId).set({
-                faceId: faceRecord.Face.FaceId,
-                name: studentId,
-            });
-            return faceRecord.Face.FaceId;
-        } else {
-            throw new Error('No face detected.');
-        }
+        return response.FaceRecords;
     } catch (error) {
-        console.error('Error registering face:', error);
+        console.error('Error indexing face:', error);
         throw new Error('Failed to register face');
     }
 }
 
-// Recognize a face
+// Recognize a student's face
 async function recognizeFace(imageBase64) {
     const params = {
         CollectionId: 'students',
         Image: { Bytes: Buffer.from(imageBase64, 'base64') },
         MaxFaces: 1,
-        FaceMatchThreshold: 90, // Confidence threshold
+        FaceMatchThreshold: 90,
     };
 
     try {
         const response = await rekognition.searchFacesByImage(params).promise();
         if (response.FaceMatches.length > 0) {
-            return response.FaceMatches[0].Face.FaceId; // Return matched face ID
+            return response.FaceMatches[0].Face.ExternalImageId; // Return student ID
         } else {
             return null;
         }
