@@ -36,7 +36,7 @@ HF_API_URL = "https://api-inference.huggingface.co/models/xinntao/ESRGAN"
 
 def enhance_image_with_huggingface(image_bytes):
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    response = requests.post(HF_API_URL, headers=headers, files={"image": image_bytes})
+    response = requests.post(HF_API_URL, headers=headers, files={"image": ("image.jpg", image_bytes, "image/jpeg")})
 
     if response.status_code != 200:
         raise Exception(f"Hugging Face API error: {response.status_code}, {response.text}")
@@ -85,19 +85,23 @@ def register():
 @app.route('/recognize', methods=['POST'])
 def recognize():
     try:
-        image = request.files.get('image')
+        print("Incoming request to /recognize")
 
+        image = request.files.get('image')
         if not image:
+            print("No image provided in the request.")
             return jsonify({"message": "No image provided"}), 400
 
         # Convert image to bytes
         image_bytes = image.read()
+        print(f"Input image size: {len(image_bytes)} bytes")
 
         # Enhance image using Hugging Face API
         print("Enhancing image with Hugging Face...")
         enhanced_image = enhance_image_with_huggingface(image_bytes)
+        print(f"Enhanced image size: {len(enhanced_image)} bytes")
 
-        # Detect faces in the image
+        # Detect faces in the enhanced image
         print("Detecting faces with AWS Rekognition...")
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': enhanced_image},
@@ -106,6 +110,7 @@ def recognize():
 
         face_details = detect_response.get('FaceDetails', [])
         face_count = len(face_details)
+        print(f"{face_count} face(s) detected.")
 
         if not face_details:
             return jsonify({"message": "No faces detected", "total_faces": 0}), 200
