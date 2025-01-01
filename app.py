@@ -22,8 +22,8 @@ rekognition_client = boto3.client(
 )
 
 # Hugging Face API configuration
-HF_API_KEY = os.getenv('HF_API_KEY')
 HF_API_URL = "https://api-inference.huggingface.co/models/xinntao/ESRGAN"
+HF_API_KEY = os.getenv('HF_API_KEY')  # Ensure this is set in the environment
 
 # Ensure the collection exists
 def create_collection(collection_id):
@@ -36,11 +36,27 @@ create_collection(COLLECTION_ID)
 
 def enhance_face_with_huggingface(face_image_bytes):
     """Enhance a cropped face using the Hugging Face API."""
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    response = requests.post(HF_API_URL, headers=headers, files={"image": ("face.jpg", face_image_bytes, "image/jpeg")})
+    if not HF_API_KEY:
+        raise Exception("HF_API_KEY environment variable is not set!")
 
-    if response.status_code != 200:
-        raise Exception(f"Hugging Face API error: {response.status_code}, {response.text}")
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}"
+    }
+
+    try:
+        response = requests.post(
+            HF_API_URL,
+            headers=headers,
+            files={"image": ("face.jpg", face_image_bytes, "image/jpeg")},
+            timeout=30  # Adding timeout for robustness
+        )
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"Hugging Face API error: {e}")
+        raise Exception(f"Error enhancing image with Hugging Face API: {e}")
+
+    if not response.content:
+        raise Exception("No content in the response from Hugging Face API")
 
     return response.content
 
