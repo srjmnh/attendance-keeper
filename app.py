@@ -1,5 +1,3 @@
-import cv2
-import numpy as np
 import boto3
 import base64
 import os
@@ -31,24 +29,6 @@ def create_collection(collection_id):
         print(f"Collection '{collection_id}' already exists.")
 
 create_collection(COLLECTION_ID)
-
-# Enhance image using OpenCV and EDSR
-def enhance_image_with_opencv(image_bytes):
-    # Load pretrained super-resolution model
-    sr = cv2.dnn_superres.DnnSuperResImpl_create()
-    sr.readModel("models/super_resolution/EDSR_x4.pb")  # Path to the downloaded model
-    sr.setModel("edsr", 4)  # Model name and scale factor
-
-    # Read image with OpenCV
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-    # Apply super-resolution
-    enhanced_img = sr.upsample(img)
-
-    # Encode image back to bytes
-    _, buffer = cv2.imencode('.jpg', enhanced_img)
-    return buffer.tobytes()
 
 @app.route('/')
 def index():
@@ -97,14 +77,12 @@ def recognize():
         image = data.get('image')
 
         if not image:
+            print("No image provided in the request.")
             return jsonify({"message": "No image provided"}), 400
 
         # Decode base64 image
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
-
-        # Enhance image using EDSR
-        image_bytes = enhance_image_with_opencv(image_bytes)
 
         # Detect faces in the image
         detect_response = rekognition_client.detect_faces(
@@ -169,6 +147,7 @@ def recognize():
         }), 200
 
     except Exception as e:
+        print("Error during recognition:", str(e))
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
