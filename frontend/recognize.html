@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recognize Student</title>
+    <title>Register Student</title>
 </head>
 <body>
-    <h1>Recognize Student</h1>
-    <form id="recognize-form">
+    <h1>Register Student</h1>
+    <form id="register-form">
+        <label for="name">Name:</label>
+        <input type="text" id="name" required>
+        <label for="studentId">Student ID:</label>
+        <input type="text" id="studentId" required>
         <h3>Choose Image Upload Method</h3>
         <input type="radio" id="webcamOption" name="method" value="webcam" checked>
         <label for="webcamOption">Use Webcam</label>
@@ -16,13 +20,18 @@
 
         <div id="camera-section">
             <video id="video" autoplay></video>
+            <button type="button" id="capture">Capture Image</button>
         </div>
+
         <div id="file-section" style="display: none;">
             <label for="imageFile">Upload Image:</label>
             <input type="file" id="imageFile" accept="image/*">
         </div>
-        <button type="submit">Recognize</button>
+
+        <canvas id="canvas" style="display: none;"></canvas>
+        <button type="submit">Register</button>
     </form>
-    <script src="recognize.js"></script>
+    <script src="register.js"></script>
 </body>
+</html>
 </html>
