@@ -93,8 +93,11 @@ def recognize():
         external_image_id = match['Face']['ExternalImageId']
         confidence = match['Face']['Confidence']
 
-        # Extract name and student_id from ExternalImageId
-        name, student_id = external_image_id.split("_")
+        # Parse name and student ID from ExternalImageId
+        if "_" in external_image_id:
+            name, student_id = external_image_id.split("_")
+        else:
+            name, student_id = external_image_id, "Unknown"
 
         return jsonify({
             "message": "Face recognized",
