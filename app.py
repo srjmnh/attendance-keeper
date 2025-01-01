@@ -34,8 +34,8 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-def enhance_face_with_huggingface(face_image_bytes):
-    """Enhance a cropped face using the Hugging Face API."""
+def enhance_image_with_huggingface(image_bytes):
+    """Enhance the entire image using Hugging Face API."""
     if not HF_API_KEY:
         raise Exception("HF_API_KEY environment variable is not set!")
 
@@ -47,7 +47,7 @@ def enhance_face_with_huggingface(face_image_bytes):
         response = requests.post(
             HF_API_URL,
             headers=headers,
-            files={"image": ("face.jpg", face_image_bytes, "image/jpeg")},
+            files={"image": ("input.jpg", image_bytes, "image/jpeg")},
             timeout=30  # Adding timeout for robustness
         )
         response.raise_for_status()
@@ -64,41 +64,6 @@ def enhance_face_with_huggingface(face_image_bytes):
 def index():
     return render_template('index.html')
 
-@app.route('/register', methods=['POST'])
-def register():
-    try:
-        data = request.form
-        name = data.get('name')
-        student_id = data.get('student_id')
-        image = request.files.get('image')
-
-        if not name or not student_id or not image:
-            return jsonify({"message": "Missing name, student_id, or image"}), 400
-
-        # Sanitize name
-        sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
-
-        # Convert image to bytes
-        image_bytes = image.read()
-
-        # Index the face in the Rekognition collection
-        external_image_id = f"{sanitized_name}_{student_id}"
-        response = rekognition_client.index_faces(
-            CollectionId=COLLECTION_ID,
-            Image={'Bytes': image_bytes},
-            ExternalImageId=external_image_id,
-            DetectionAttributes=['ALL'],
-            QualityFilter='AUTO'
-        )
-
-        if not response['FaceRecords']:
-            return jsonify({"message": "No face detected in the image"}), 400
-
-        return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/recognize', methods=['POST'])
 def recognize():
     try:
@@ -109,9 +74,17 @@ def recognize():
         # Read image bytes
         image_bytes = image.read()
 
+        # Enhance the entire image
+        try:
+            enhanced_image_bytes = enhance_image_with_huggingface(image_bytes)
+            print("Image enhancement completed.")
+        except Exception as e:
+            print(f"Image enhancement failed: {e}")
+            return jsonify({"message": "Image enhancement failed"}), 500
+
         # Detect faces using AWS Rekognition
         detect_response = rekognition_client.detect_faces(
-            Image={'Bytes': image_bytes},
+            Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
 
@@ -124,28 +97,21 @@ def recognize():
         for face in face_details:
             # Crop face using bounding box
             bounding_box = face['BoundingBox']
-            width, height = Image.open(io.BytesIO(image_bytes)).size
+            width, height = Image.open(io.BytesIO(enhanced_image_bytes)).size
             left = int(bounding_box['Left'] * width)
             top = int(bounding_box['Top'] * height)
             right = int((bounding_box['Left'] + bounding_box['Width']) * width)
             bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-            cropped_face = Image.open(io.BytesIO(image_bytes)).crop((left, top, right, bottom))
+            cropped_face = Image.open(io.BytesIO(enhanced_image_bytes)).crop((left, top, right, bottom))
             cropped_face_bytes = io.BytesIO()
             cropped_face.save(cropped_face_bytes, format="JPEG")
             cropped_face_bytes = cropped_face_bytes.getvalue()
 
-            # Enhance the cropped face
-            try:
-                enhanced_face_bytes = enhance_face_with_huggingface(cropped_face_bytes)
-            except Exception as e:
-                print(f"Face enhancement failed: {e}")
-                continue
-
-            # Recognize the enhanced face
+            # Recognize the cropped face
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
-                Image={'Bytes': enhanced_face_bytes},
+                Image={'Bytes': cropped_face_bytes},
                 MaxFaces=1,
                 FaceMatchThreshold=60
             )
