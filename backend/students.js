@@ -1,60 +1,51 @@
 const db = require('./db');
-const { detectFaces } = require('./azure-face');
-const similarity = require('image-similarity'); // For similarity comparison
-const Jimp = require('jimp'); // For image cropping
+const { registerFace, recognizeFace } = require('./rekognition');
 
-// Crop face using bounding box
-async function cropFace(imageBase64, boundingBox) {
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    const image = await Jimp.read(imageBuffer);
-
-    const { left, top, width, height } = boundingBox;
-    image.crop(left, top, width, height); // Crop face using bounding box
-
-    const croppedBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-    return croppedBuffer.toString('base64'); // Return cropped face as base64
-}
-
-// Recognize a face using cropped image similarity
-async function recognizeFace(req, res) {
-    const { image } = req.body;
+// Register a student
+async function registerStudent(req, res) {
+    const { studentName, studentId, image } = req.body;
 
     try {
-        const faces = await detectFaces(image); // Detect faces using Azure Face API
-        if (faces.length === 0) {
-            return res.status(400).json({ success: false, message: 'No face detected' });
-        }
+        const faceData = await registerFace(image, studentId);
 
-        const croppedFace = await cropFace(image, faces[0].faceRectangle);
+        await db.collection('students').doc(studentId).set({
+            name: studentName,
+            faceId: faceData.FaceRecords[0].Face.FaceId, // Save the FaceId
+        });
 
-        // Retrieve all students from Firebase
-        const studentsSnapshot = await db.collection('students').get();
-        const students = studentsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
-
-        // Compare the cropped face with stored faces
-        for (const student of students) {
-            const similarityScore = await similarity.compareBase64(
-                croppedFace,
-                student.faceImage
-            );
-
-            if (similarityScore > 0.85) { // Example threshold for a match
-                return res.json({
-                    success: true,
-                    message: 'Face recognized successfully',
-                    student,
-                });
-            }
-        }
-
-        res.status(400).json({ success: false, message: 'Face not recognized' });
+        res.json({ success: true, message: 'Student registered successfully' });
     } catch (error) {
-        console.error('Error recognizing face:', error);
-        res.status(500).json({ success: false, message: 'Error recognizing face' });
+        console.error('Error registering student:', error);
+        res.status(500).json({ success: false, message: 'Error registering student' });
     }
 }
 
-module.exports = { recognizeFace };
+// Recognize a student
+async function recognizeStudent(req, res) {
+    const { image } = req.body;
+
+    try {
+        const faceMatch = await recognizeFace(image);
+
+        if (!faceMatch) {
+            return res.status(400).json({ success: false, message: 'Face not recognized' });
+        }
+
+        const studentSnapshot = await db.collection('students').where('faceId', '==', faceMatch.Face.FaceId).get();
+        if (studentSnapshot.empty) {
+            return res.status(400).json({ success: false, message: 'Student not found' });
+        }
+
+        const student = studentSnapshot.docs[0].data();
+        res.json({
+            success: true,
+            message: 'Face recognized successfully',
+            student,
+        });
+    } catch (error) {
+        console.error('Error recognizing student:', error);
+        res.status(500).json({ success: false, message: 'Error recognizing student' });
+    }
+}
+
+module.exports = { registerStudent, recognizeStudent };

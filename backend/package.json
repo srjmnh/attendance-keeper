@@ -1,19 +1,18 @@
 {
   "name": "attendance-system-backend",
   "version": "1.0.0",
-  "description": "A student attendance system using Azure Face API for face detection",
+  "description": "A student attendance system using AWS Rekognition for face detection and recognition",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
+    "aws-sdk": "*",
     "axios": "*",
     "body-parser": "*",
     "dotenv": "*",
     "express": "*",
-    "firebase-admin": "*",
-    "sharp": "*",
-    "crypto": "*"
+    "firebase-admin": "*"
   },
   "devDependencies": {},
   "author": "Your Name",
