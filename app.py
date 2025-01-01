@@ -140,9 +140,10 @@ def recognize():
             external_image_id = match['Face']['ExternalImageId']
             confidence = match['Face']['Confidence']
 
-            # Parse name and student ID from ExternalImageId
-            if "_" in external_image_id:
-                name, student_id = external_image_id.split("_")
+            # Safely parse the external_image_id
+            parts = external_image_id.split("_")
+            if len(parts) == 2:
+                name, student_id = parts
             else:
                 name, student_id = external_image_id, "Unknown"
 
