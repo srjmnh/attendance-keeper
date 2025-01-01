@@ -1,8 +1,8 @@
 import boto3
 import base64
 import os
+from flask import Flask, request, jsonify, render_template
 import requests
-from flask import Flask, request, jsonify
 from PIL import Image
 import io
 
@@ -21,6 +21,15 @@ rekognition_client = boto3.client(
     region_name=AWS_REGION
 )
 
+# Ensure the collection exists
+def create_collection(collection_id):
+    try:
+        rekognition_client.create_collection(CollectionId=collection_id)
+    except rekognition_client.exceptions.ResourceAlreadyExistsException:
+        print(f"Collection '{collection_id}' already exists.")
+
+create_collection(COLLECTION_ID)
+
 # Hugging Face API configuration
 HF_API_KEY = os.getenv('HF_API_KEY')
 HF_API_URL = "https://api-inference.huggingface.co/models/xinntao/ESRGAN"
@@ -36,15 +45,15 @@ def enhance_image_with_huggingface(image_bytes):
 
 @app.route('/')
 def index():
-    return "Welcome to the Face Recognition API!"
+    return render_template('index.html')
 
 @app.route('/register', methods=['POST'])
 def register():
     try:
-        data = request.json
+        data = request.form
         name = data.get('name')
         student_id = data.get('student_id')
-        image = data.get('image')
+        image = request.files.get('image')
 
         if not name or not student_id or not image:
             return jsonify({"message": "Missing name, student_id, or image"}), 400
@@ -52,9 +61,8 @@ def register():
         # Sanitize name
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
 
-        # Decode base64 image
-        image_data = image.split(",")[1]
-        image_bytes = base64.b64decode(image_data)
+        # Convert image to bytes
+        image_bytes = image.read()
 
         # Index the face in the Rekognition collection
         external_image_id = f"{sanitized_name}_{student_id}"
@@ -77,15 +85,13 @@ def register():
 @app.route('/recognize', methods=['POST'])
 def recognize():
     try:
-        data = request.json
-        image = data.get('image')
+        image = request.files.get('image')
 
         if not image:
             return jsonify({"message": "No image provided"}), 400
 
-        # Decode base64 image
-        image_data = image.split(",")[1]
-        image_bytes = base64.b64decode(image_data)
+        # Convert image to bytes
+        image_bytes = image.read()
 
         # Enhance image using Hugging Face API
         print("Enhancing image with Hugging Face...")
