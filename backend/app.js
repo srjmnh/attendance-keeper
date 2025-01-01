@@ -1,45 +1,38 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
-const { registerStudent, recognizeFace } = require('./students');
+const { registerStudent, recognizeStudent } = require('./students');
 
 const app = express();
+const PORT = process.env.PORT || 10000;
 
 // Middleware
-app.use(bodyParser.json({ limit: '10mb' })); // Allow larger payloads for image data
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, '../frontend'))); // Serve frontend files
-
-// Environment variable for PORT
-const PORT = process.env.PORT || 10000;
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Routes
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html')); // Serve the main page
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// Route to serve the register page
-app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/register.html')); // Serve the register page
-});
-
-// API Endpoint for registering a student
+// API Endpoint to register a student
 app.post('/register-student', async (req, res) => {
     try {
         await registerStudent(req, res);
     } catch (error) {
-        console.error('Error registering student:', error);
+        console.error('Error in /register-student:', error);
         res.status(500).json({ success: false, message: 'Failed to register student' });
     }
 });
 
-// API Endpoint for recognizing a face
-app.post('/recognize-face', async (req, res) => {
+// API Endpoint to recognize a student
+app.post('/recognize-student', async (req, res) => {
     try {
-        await recognizeFace(req, res);
+        await recognizeStudent(req, res);
     } catch (error) {
-        console.error('Error recognizing face:', error);
-        res.status(500).json({ success: false, message: 'Failed to recognize face' });
+        console.error('Error in /recognize-student:', error);
+        res.status(500).json({ success: false, message: 'Failed to recognize student' });
     }
 });
 
