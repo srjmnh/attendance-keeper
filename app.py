@@ -3,6 +3,8 @@ import base64
 import os
 from flask import Flask, request, jsonify, render_template
 from PIL import Image, ImageEnhance
+import cv2
+import numpy as np
 import io
 
 app = Flask(__name__)
@@ -29,6 +31,31 @@ def create_collection(collection_id):
         print(f"Collection '{collection_id}' already exists.")
 
 create_collection(COLLECTION_ID)
+
+# Upscale image resolution using OpenCV
+def upscale_image(image_bytes, upscale_factor=2):
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    upscaled_image = cv2.resize(image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC)
+    _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
+    return upscaled_image_bytes.tobytes()
+
+# Split image into smaller regions for better face detection
+def split_image(image, grid_size=2):
+    width, height = image.size
+    region_width = width // grid_size
+    region_height = height // grid_size
+
+    regions = []
+    for row in range(grid_size):
+        for col in range(grid_size):
+            left = col * region_width
+            top = row * region_height
+            right = (col + 1) * region_width
+            bottom = (row + 1) * region_height
+            regions.append(image.crop((left, top, right, bottom)))
+
+    return regions
 
 @app.route('/')
 def index():
@@ -83,6 +110,9 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
+        # Step 1: Upscale image resolution
+        image_bytes = upscale_image(image_bytes)
+
         # Enhance image (brightness and contrast)
         image = Image.open(io.BytesIO(image_bytes))
         enhancer = ImageEnhance.Contrast(image)
@@ -95,77 +125,74 @@ def recognize():
         image.save(enhanced_image_bytes, format="JPEG")
         enhanced_image_bytes = enhanced_image_bytes.getvalue()
 
-        # Step 1: Detect all faces in the image
-        detect_response = rekognition_client.detect_faces(
-            Image={'Bytes': enhanced_image_bytes},
-            Attributes=['DEFAULT']
-        )
+        # Step 2: Split image into smaller regions
+        regions = split_image(image, grid_size=2)
 
-        face_details = detect_response.get('FaceDetails', [])
-        face_count = len(face_details)
-
-        if not face_details:
-            return jsonify({"message": "No faces detected", "total_faces": 0, "identified_people": []}), 200
-
-        # Load the enhanced image for cropping
-        image = Image.open(io.BytesIO(enhanced_image_bytes))
-        width, height = image.size
-
-        # Step 2: Process each detected face individually
         identified_people = []
-        for i, face in enumerate(face_details):
-            # Extract bounding box
-            bounding_box = face['BoundingBox']
-            left = int(bounding_box['Left'] * width)
-            top = int(bounding_box['Top'] * height)
-            right = int((bounding_box['Left'] + bounding_box['Width']) * width)
-            bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
+        face_count = 0
 
-            # Ensure bounding box is valid
-            if left < 0 or top < 0 or right > width or bottom > height:
-                continue
+        for region in regions:
+            region_bytes = io.BytesIO()
+            region.save(region_bytes, format="JPEG")
+            region_bytes = region_bytes.getvalue()
 
-            # Crop the face region
-            cropped_face = image.crop((left, top, right, bottom))
-            cropped_face_bytes = io.BytesIO()
-            cropped_face.save(cropped_face_bytes, format="JPEG")
-            cropped_face_bytes = cropped_face_bytes.getvalue()
-
-            # Perform face search with lower FaceMatchThreshold
-            search_response = rekognition_client.search_faces_by_image(
-                CollectionId=COLLECTION_ID,
-                Image={'Bytes': cropped_face_bytes},
-                MaxFaces=1,
-                FaceMatchThreshold=70  # Adjusted for better sensitivity
+            # Detect faces in the region
+            detect_response = rekognition_client.detect_faces(
+                Image={'Bytes': region_bytes},
+                Attributes=['DEFAULT']
             )
 
-            face_matches = search_response.get('FaceMatches', [])
-            if not face_matches:
+            face_details = detect_response.get('FaceDetails', [])
+            face_count += len(face_details)
+
+            # Process each detected face
+            for face in face_details:
+                bounding_box = face['BoundingBox']
+                width, height = region.size
+                left = int(bounding_box['Left'] * width)
+                top = int(bounding_box['Top'] * height)
+                right = int((bounding_box['Left'] + bounding_box['Width']) * width)
+                bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
+
+                # Crop the face region
+                cropped_face = region.crop((left, top, right, bottom))
+                cropped_face_bytes = io.BytesIO()
+                cropped_face.save(cropped_face_bytes, format="JPEG")
+                cropped_face_bytes = cropped_face_bytes.getvalue()
+
+                # Perform face search with lower FaceMatchThreshold
+                search_response = rekognition_client.search_faces_by_image(
+                    CollectionId=COLLECTION_ID,
+                    Image={'Bytes': cropped_face_bytes},
+                    MaxFaces=1,
+                    FaceMatchThreshold=60  # Adjusted for better sensitivity
+                )
+
+                face_matches = search_response.get('FaceMatches', [])
+                if not face_matches:
+                    identified_people.append({
+                        "message": "Face not recognized",
+                        "confidence": "N/A"
+                    })
+                    continue
+
+                # Extract the best match
+                match = face_matches[0]
+                external_image_id = match['Face']['ExternalImageId']
+                confidence = match['Face']['Confidence']
+
+                # Safely parse the external_image_id
+                parts = external_image_id.split("_")
+                if len(parts) == 2:
+                    name, student_id = parts
+                else:
+                    name, student_id = external_image_id, "Unknown"
+
                 identified_people.append({
-                    "face_number": i + 1,
-                    "message": f"Face {i + 1} not recognized",
-                    "confidence": "N/A"
+                    "name": name,
+                    "student_id": student_id,
+                    "confidence": confidence
                 })
-                continue
-
-            # Extract the best match
-            match = face_matches[0]
-            external_image_id = match['Face']['ExternalImageId']
-            confidence = match['Face']['Confidence']
-
-            # Safely parse the external_image_id
-            parts = external_image_id.split("_")
-            if len(parts) == 2:
-                name, student_id = parts
-            else:
-                name, student_id = external_image_id, "Unknown"
-
-            identified_people.append({
-                "face_number": i + 1,
-                "name": name,
-                "student_id": student_id,
-                "confidence": confidence
-            })
 
         return jsonify({
             "message": f"{face_count} face(s) detected in the photo.",
