@@ -1,9 +1,9 @@
 import boto3
 import base64
 import os
+import subprocess
 from flask import Flask, request, jsonify, render_template
-from PIL import Image, ImageEnhance
-from realesrgan import RealESRGAN
+from PIL import Image
 import io
 
 app = Flask(__name__)
@@ -31,19 +31,32 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-# Enhance image with Real-ESRGAN (super-resolution)
-def enhance_image_with_esrgan(image_bytes):
-    weights_path = "RealESRGAN_x4.pth"
-    if not os.path.exists(weights_path):
-        raise FileNotFoundError(f"Pre-trained weights file not found: {weights_path}")
-    
-    image = Image.open(io.BytesIO(image_bytes))
-    model = RealESRGAN("cuda", scale=4)  # Ensure GPU support
-    model.load_weights(weights_path)
-    enhanced_image = model.predict(image)
-    enhanced_image_bytes = io.BytesIO()
-    enhanced_image.save(enhanced_image_bytes, format="JPEG")
-    return enhanced_image_bytes.getvalue()
+# Enhance image using realesrgan-ncnn-vulkan binary
+def enhance_image_with_binary(image_bytes):
+    # Save input image to file
+    input_path = "input.jpg"
+    output_path = "output.png"
+
+    with open(input_path, "wb") as f:
+        f.write(image_bytes)
+
+    # Run the realesrgan-ncnn-vulkan binary
+    command = [
+        "./realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan",
+        "-i", input_path,
+        "-o", output_path
+    ]
+    subprocess.run(command, check=True)
+
+    # Read the enhanced image
+    with open(output_path, "rb") as f:
+        enhanced_image_bytes = f.read()
+
+    # Cleanup
+    os.remove(input_path)
+    os.remove(output_path)
+
+    return enhanced_image_bytes
 
 @app.route('/')
 def index():
@@ -98,24 +111,15 @@ def recognize():
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
-        # Step 1: Enhance image with Real-ESRGAN
-        image_bytes = enhance_image_with_esrgan(image_bytes)
+        # Enhance image using realesrgan-ncnn-vulkan
+        image_bytes = enhance_image_with_binary(image_bytes)
 
         # Enhance image for brightness and contrast
         image = Image.open(io.BytesIO(image_bytes))
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.5)
-        enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.2)
 
-        # Convert enhanced image back to bytes
-        enhanced_image_bytes = io.BytesIO()
-        image.save(enhanced_image_bytes, format="JPEG")
-        enhanced_image_bytes = enhanced_image_bytes.getvalue()
-
-        # Detect faces
+        # Detect faces in the image
         detect_response = rekognition_client.detect_faces(
-            Image={'Bytes': enhanced_image_bytes},
+            Image={'Bytes': image_bytes},
             Attributes=['ALL']
         )
 
