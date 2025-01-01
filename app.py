@@ -2,6 +2,8 @@ import boto3
 import base64
 import os
 from flask import Flask, request, jsonify, render_template
+from PIL import Image
+import io
 
 app = Flask(__name__)
 
@@ -92,13 +94,30 @@ def recognize():
         if not face_details:
             return jsonify({"message": "No faces detected", "total_faces": 0, "identified_people": []}), 200
 
+        # Load the original image for cropping
+        image = Image.open(io.BytesIO(image_bytes))
+        width, height = image.size
+
         # Step 2: Process each detected face individually
         identified_people = []
         for i, face in enumerate(face_details):
-            # Perform face search for the detected face
+            # Extract bounding box
+            bounding_box = face['BoundingBox']
+            left = int(bounding_box['Left'] * width)
+            top = int(bounding_box['Top'] * height)
+            right = int((bounding_box['Left'] + bounding_box['Width']) * width)
+            bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
+
+            # Crop the face region
+            cropped_face = image.crop((left, top, right, bottom))
+            cropped_face_bytes = io.BytesIO()
+            cropped_face.save(cropped_face_bytes, format="JPEG")
+            cropped_face_bytes = cropped_face_bytes.getvalue()
+
+            # Perform face search for the cropped face
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
-                Image={'Bytes': image_bytes},
+                Image={'Bytes': cropped_face_bytes},
                 MaxFaces=1,
                 FaceMatchThreshold=80
             )
