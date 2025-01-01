@@ -51,8 +51,14 @@ function recognize() {
         .then(data => {
             const resultText = data.message || data.error;
             document.getElementById('recognize_result').innerText = resultText;
-            if (data.name) {
-                document.getElementById('recognize_result').innerText += ` - Name: ${data.name}, Confidence: ${data.confidence}%`;
+
+            if (data.identified_people) {
+                let resultHTML = "<ul>";
+                data.identified_people.forEach(person => {
+                    resultHTML += `<li><strong>Name:</strong> ${person.name}, <strong>ID:</strong> ${person.student_id}, <strong>Confidence:</strong> ${person.confidence.toFixed(2)}%</li>`;
+                });
+                resultHTML += "</ul>";
+                document.getElementById('recognize_result').innerHTML = resultHTML;
             }
         })
         .catch(error => console.error('Error:', error));
