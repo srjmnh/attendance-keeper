@@ -36,9 +36,11 @@ HF_API_URL = "https://api-inference.huggingface.co/models/xinntao/ESRGAN"
 
 def enhance_image_with_huggingface(image_bytes):
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    response = requests.post(HF_API_URL, headers=headers, files={"image": ("image.jpg", image_bytes, "image/jpeg")})
-
-    if response.status_code != 200:
+    try:
+        response = requests.post(HF_API_URL, headers=headers, files={"image": ("image.jpg", image_bytes, "image/jpeg")})
+        response.raise_for_status()
+    except Exception as e:
+        print(f"Error calling Hugging Face API: {e}")
         raise Exception(f"Hugging Face API error: {response.status_code}, {response.text}")
     
     return response.content
@@ -86,20 +88,31 @@ def register():
 def recognize():
     try:
         print("Incoming request to /recognize")
+        print(f"Request Content-Type: {request.content_type}")
+        print(f"Request Files: {request.files}")
 
         # Retrieve the image
-        image = request.files.get('image')
-        if not image:
-            print("No image provided in the request.")
+        if 'image' not in request.files:
+            print("No 'image' in request.files")
+            return jsonify({"message": "No image part in the request"}), 400
+
+        image = request.files['image']
+        if image.filename == '':
+            print("No image provided (empty filename)")
             return jsonify({"message": "No image provided"}), 400
 
         # Convert image to bytes
         image_bytes = image.read()
-        print(f"Input image size: {len(image_bytes)} bytes")
+        print(f"Image size before enhancement: {len(image_bytes)} bytes")
 
         # Enhance image using Hugging Face API
         print("Enhancing image with Hugging Face...")
-        enhanced_image = enhance_image_with_huggingface(image_bytes)
+        try:
+            enhanced_image = enhance_image_with_huggingface(image_bytes)
+        except Exception as e:
+            print(f"Error during image enhancement: {e}")
+            return jsonify({"message": "Image enhancement failed"}), 500
+
         print(f"Enhanced image size: {len(enhanced_image)} bytes")
 
         # Detect faces in the enhanced image
@@ -167,7 +180,7 @@ def recognize():
         }), 200
 
     except Exception as e:
-        print("Error during recognition:", str(e))
+        print(f"Error during recognition: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
