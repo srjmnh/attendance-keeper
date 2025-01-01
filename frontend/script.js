@@ -1,49 +1,63 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const video = document.getElementById('camera');
-    const registerForm = document.getElementById('registerForm');
+const registerForm = document.getElementById('register-form');
+const recognizeForm = document.getElementById('recognize-form');
+const video = document.getElementById('video');
+const canvas = document.createElement('canvas');
+const fileInput = document.getElementById('imageFile');
 
-    // Start the camera
-    async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-        } catch (error) {
-            console.error('Error accessing camera:', error);
-        }
-    }
-
-    // Register student
-    registerForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const studentName = document.getElementById('studentName').value;
-        const studentId = document.getElementById('studentId').value;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        const image = canvas.toDataURL().split(',')[1]; // Get Base64 image data
-
-        try {
-            const response = await fetch('/register-student', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ studentName, studentId, image }),
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                alert('Student registered successfully!');
-                registerForm.reset();
-            } else {
-                alert(`Error: ${data.message}`);
-            }
-        } catch (error) {
-            console.error('Error registering student:', error);
-            alert('Failed to register student. Please try again.');
-        }
-    });
-
-    await startCamera();
+// Webcam access
+navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+    video.srcObject = stream;
 });
+
+// Capture image
+function captureImage() {
+    const context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1]; // Remove base64 prefix
+}
+
+// Submit forms
+[registerForm, recognizeForm].forEach(form => {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const method = form.querySelector('input[name="method"]:checked').value;
+        let imageBase64;
+
+        if (method === 'webcam') {
+            imageBase64 = captureImage();
+        } else {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = () => {
+                imageBase64 = reader.result.split(',')[1];
+                sendData(form.id, imageBase64);
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+        sendData(form.id, imageBase64);
+    });
+});
+
+// Send data to backend
+async function sendData(formId, imageBase64) {
+    const endpoint = formId === 'register-form' ? '/register-student' : '/recognize-student';
+    const payload = formId === 'register-form'
+        ? { studentId: document.getElementById('studentId').value, image: imageBase64 }
+        : { image: imageBase64 };
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        alert(result.message);
+    } catch (error) {
+        console.error(error);
+        alert('Operation failed.');
+    }
+}
