@@ -95,10 +95,6 @@ def recognize():
         # Step 2: Process each detected face individually
         identified_people = []
         for i, face in enumerate(face_details):
-            # Extract bounding box (Optional, can use for debugging or cropping)
-            bounding_box = face['BoundingBox']
-            print(f"Processing face {i + 1}: {bounding_box}")
-
             # Perform face search for the detected face
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
