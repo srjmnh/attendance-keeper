@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Mark Attendance</h1>
+    <form id="attendance-form">
+        <h3>Choose Recognition Method</h3>
+        <input type="radio" id="webcamOption" name="method" value="webcam" checked>
+        <label for="webcamOption">Use Webcam</label>
+        <input type="radio" id="fileOption" name="method" value="file">
+        <label for="fileOption">Upload File</label>
+
+        <div id="camera-section">
+            <video id="video" autoplay></video>
+            <button id="capture">Capture</button>
+        </div>
+
+        <div id="file-section" style="display: none;">
+            <label for="imageFile">Upload Image:</label>
+            <input type="file" id="imageFile" name="imageFile" accept="image/*">
+        </div>
+
+        <canvas id="canvas" style="display: none;"></canvas>
+        <button type="submit">Mark Attendance</button>
+    </form>
+
+    <script>
+        // Same JavaScript logic as in register.html, but POST to '/mark-attendance' instead of '/register-student'.
+    </script>
+</body>
+</html>
