@@ -1,19 +1,19 @@
 import boto3
 import base64
 import os
-from flask import Flask, request, jsonify, render_template
+import requests
+from flask import Flask, request, jsonify
 from PIL import Image
 import io
 
 app = Flask(__name__)
 
-# AWS credentials and configuration
+# AWS Rekognition configuration
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
-COLLECTION_ID = "students"  # Rekognition Collection name
+COLLECTION_ID = "students"
 
-# Initialize AWS Rekognition client
 rekognition_client = boto3.client(
     'rekognition',
     aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -21,18 +21,22 @@ rekognition_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# Ensure the collection exists
-def create_collection(collection_id):
-    try:
-        rekognition_client.create_collection(CollectionId=collection_id)
-    except rekognition_client.exceptions.ResourceAlreadyExistsException:
-        print(f"Collection '{collection_id}' already exists.")
+# Hugging Face API configuration
+HF_API_KEY = os.getenv('HF_API_KEY')
+HF_API_URL = "https://api-inference.huggingface.co/models/xinntao/ESRGAN"
 
-create_collection(COLLECTION_ID)
+def enhance_image_with_huggingface(image_bytes):
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    response = requests.post(HF_API_URL, headers=headers, files={"image": image_bytes})
+
+    if response.status_code != 200:
+        raise Exception(f"Hugging Face API error: {response.status_code}, {response.text}")
+    
+    return response.content
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return "Welcome to the Face Recognition API!"
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -77,16 +81,20 @@ def recognize():
         image = data.get('image')
 
         if not image:
-            print("No image provided in the request.")
             return jsonify({"message": "No image provided"}), 400
 
         # Decode base64 image
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
+        # Enhance image using Hugging Face API
+        print("Enhancing image with Hugging Face...")
+        enhanced_image = enhance_image_with_huggingface(image_bytes)
+
         # Detect faces in the image
+        print("Detecting faces with AWS Rekognition...")
         detect_response = rekognition_client.detect_faces(
-            Image={'Bytes': image_bytes},
+            Image={'Bytes': enhanced_image},
             Attributes=['ALL']
         )
 
@@ -100,13 +108,13 @@ def recognize():
 
         for face in face_details:
             bounding_box = face['BoundingBox']
-            width, height = Image.open(io.BytesIO(image_bytes)).size
+            width, height = Image.open(io.BytesIO(enhanced_image)).size
             left = int(bounding_box['Left'] * width)
             top = int(bounding_box['Top'] * height)
             right = int((bounding_box['Left'] + bounding_box['Width']) * width)
             bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-            cropped_face = Image.open(io.BytesIO(image_bytes)).crop((left, top, right, bottom))
+            cropped_face = Image.open(io.BytesIO(enhanced_image)).crop((left, top, right, bottom))
             cropped_face_bytes = io.BytesIO()
             cropped_face.save(cropped_face_bytes, format="JPEG")
             cropped_face_bytes = cropped_face_bytes.getvalue()
