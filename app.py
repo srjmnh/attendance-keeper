@@ -45,7 +45,7 @@ create_collection_if_not_exists(COLLECTION_ID)
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
+base64_cred_str = os.getenv("FIREBASE_ADMIN_CREDENTIALS_BASE64")
 if not base64_cred_str:
     raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
 
@@ -103,7 +103,7 @@ conversation_memory.append({"role": "system", "content": system_context})
 # 4) Flask App
 # -----------------------------
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*")  # Initialize SocketIO
 
 # -----------------------------
 # 5) Image Enhancement Function (Using OpenCV and Pillow)
@@ -641,7 +641,7 @@ def process_prompt():
         conversation_memory.pop(0)
 
     # Check if the assistant reply contains actionable commands
-    handle_chatbot_commands(assistant_reply)
+    # (Implement command parsing and handling if needed)
 
     return jsonify({"message": assistant_reply})
 
@@ -649,5 +649,6 @@ def process_prompt():
 # 8) Run App
 # -----------------------------
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    socketio.run(app, host="0.0.0.0", port=port, debug=True)
+    # Note: The following run block is only for local development.
+    # In production, Render will use Gunicorn to run the app.
+    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True, allow_unsafe_werkzeug=True)
