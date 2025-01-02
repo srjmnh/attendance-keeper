@@ -92,6 +92,8 @@ Facial Recognition Attendance system features:
 
 5) Chat:
    - You are the assistant, a bit humorous, guiding usage or code features.
+   - You can perform CRUD operations on Firebase Firestore based on user commands.
+   - You can generate analytics reports based on attendance data.
 """
 
 # Start the conversation with a system message
@@ -168,8 +170,8 @@ INDEX_HTML = """
       position: fixed;
       bottom: 80px;
       right: 20px;
-      width: 300px;
-      max-height: 400px;
+      width: 350px;
+      max-height: 500px;
       border: 1px solid #ccc;
       border-radius: 10px;
       background-color: #fff;
@@ -216,6 +218,36 @@ INDEX_HTML = """
       border: none; padding: 0 15px; cursor: pointer;
     }
     #chatSendBtn:hover { background-color: #0b5ed7; }
+
+    /* Progress Bar */
+    .progress {
+      height: 20px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Recognized Faces Display */
+    #recognizedFaces {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .face-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      width: 150px;
+      text-align: center;
+    }
+    .face-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 5px;
+    }
+    .face-info {
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body class="container">
@@ -257,7 +289,7 @@ INDEX_HTML = """
     <label class="form-label">Image</label>
     <input type="file" id="reg_image" class="form-control" accept="image/*" />
     <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
-    <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
+    <div id="register_result" class="alert mt-3" style="display:none;"></div>
   </div>
 
   <!-- RECOGNIZE -->
@@ -270,7 +302,16 @@ INDEX_HTML = """
     <label class="form-label">Image</label>
     <input type="file" id="rec_image" class="form-control" accept="image/*" />
     <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
-    <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
+
+    <!-- Progress Bar -->
+    <div class="progress">
+      <div id="recognizeProgress" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+    </div>
+
+    <div id="recognize_result" class="alert mt-3" style="display:none;"></div>
+    
+    <!-- Recognized Faces Display -->
+    <div id="recognizedFaces"></div>
   </div>
 
   <!-- SUBJECTS -->
@@ -279,7 +320,7 @@ INDEX_HTML = """
     <label class="form-label">New Subject Name:</label>
     <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
     <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
-    <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
+    <div id="subject_result" class="alert mt-3" style="display:none;"></div>
     <hr />
     <h5>Existing Subjects</h5>
     <ul id="subjects_list"></ul>
@@ -382,6 +423,13 @@ INDEX_HTML = """
     addMessage(userMessage, 'user');
     chatInput.value = '';
 
+    // Show progress bar
+    const progressBar = document.querySelector('.progress');
+    const recognizeProgress = document.getElementById('recognizeProgress');
+    progressBar.style.display = 'block';
+    recognizeProgress.style.width = '0%';
+    recognizeProgress.textContent = '0%';
+
     fetch('/process_prompt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -389,6 +437,9 @@ INDEX_HTML = """
     })
     .then(res => res.json())
     .then(data => {
+      // Hide progress bar
+      progressBar.style.display = 'none';
+
       if (data.error) {
         addMessage("Error: " + data.error, 'assistant');
       } else {
@@ -396,6 +447,9 @@ INDEX_HTML = """
       }
     })
     .catch(err => {
+      // Hide progress bar
+      progressBar.style.display = 'none';
+
       addMessage("Network or server error!", 'assistant');
       console.error(err);
     });
@@ -447,6 +501,7 @@ INDEX_HTML = """
       .then(data => {
         const div = document.getElementById('register_result');
         div.style.display = 'block';
+        div.className = data.message.includes("successfully") ? "alert alert-success" : "alert alert-danger";
         div.textContent = data.message || data.error || JSON.stringify(data);
       })
       .catch(err => console.error(err));
@@ -471,16 +526,49 @@ INDEX_HTML = """
       .then(data => {
         const div = document.getElementById('recognize_result');
         div.style.display = 'block';
+        div.className = "alert alert-info";
         let text = data.message || data.error || JSON.stringify(data);
         if (data.identified_people) {
           text += "\\n\\nIdentified People:\\n";
-          data.identified_people.forEach((p) => {
-            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\\n`;
+          data.identified_people.forEach((p, index) => {
+            text += `- Name: ${p.name || "Unknown"}, ID: ${p.student_id || "N/A"}, Confidence: ${p.confidence || "N/A"}%\\n`;
           });
+          div.textContent = text;
+
+          // Display Recognized Faces
+          displayRecognizedFaces(data.identified_people);
+        } else {
+          div.textContent = text;
         }
-        div.textContent = text;
       })
       .catch(err => console.error(err));
+    });
+  }
+
+  function displayRecognizedFaces(people) {
+    const facesDiv = document.getElementById('recognizedFaces');
+    facesDiv.innerHTML = ''; // Clear previous faces
+    people.forEach((person, index) => {
+      const faceCard = document.createElement('div');
+      faceCard.classList.add('face-card');
+
+      // Assuming you have the cropped face image stored or can be retrieved
+      // For demonstration, using a placeholder image
+      const img = document.createElement('img');
+      img.src = 'https://via.placeholder.com/150';
+      img.alt = `Face ${index + 1}`;
+      faceCard.appendChild(img);
+
+      const infoDiv = document.createElement('div');
+      infoDiv.classList.add('face-info');
+      infoDiv.innerHTML = `
+        <p><strong>Name:</strong> ${person.name || "Unknown"}</p>
+        <p><strong>ID:</strong> ${person.student_id || "N/A"}</p>
+        <p><strong>Confidence:</strong> ${person.confidence || "N/A"}%</p>
+      `;
+      faceCard.appendChild(infoDiv);
+
+      facesDiv.appendChild(faceCard);
     });
   }
 
@@ -500,6 +588,7 @@ INDEX_HTML = """
     .then(data => {
       const div = document.getElementById('subject_result');
       div.style.display = 'block';
+      div.className = data.message.includes("successfully") ? "alert alert-success" : "alert alert-danger";
       div.textContent = data.message || data.error || JSON.stringify(data);
       document.getElementById('subject_name').value = '';
       loadSubjects();
@@ -601,6 +690,7 @@ INDEX_HTML = """
     .then(res => res.json())
     .then(resp => {
       alert(resp.message || JSON.stringify(resp));
+      loadAttendance();
     })
     .catch(err => console.error(err));
   }
@@ -658,7 +748,7 @@ INDEX_HTML = """
 # 7) Routes
 # -----------------------------
 
-# Root route to avoid "URL not found" on /
+# Root route to serve the frontend
 @app.route("/", methods=["GET"])
 def index():
     # Return the single-page UI
@@ -1080,7 +1170,121 @@ def process_prompt():
     if len(conversation_memory) > MAX_MEMORY:
         conversation_memory.pop(0)
 
+    # Parse assistant_reply for actionable commands
+    perform_command(assistant_reply)
+
     return jsonify({"message": assistant_reply})
+
+def perform_command(message):
+    """
+    Parses the assistant's message and performs Firebase operations based on recognized commands.
+    """
+    # Simple command parsing using regex
+    # You can enhance this with NLP techniques for better accuracy
+
+    # Example Commands:
+    # - "Add a new subject named 'Physics'"
+    # - "Delete the subject with ID 'abc123'"
+    # - "Update the subject 'Mathematics' to 'Advanced Mathematics'"
+    # - "Generate attendance report for 'Mathematics'"
+
+    add_subject_pattern = r"add a new subject named '(.*)'"
+    delete_subject_pattern = r"delete the subject with id '(.*)'"
+    update_subject_pattern = r"update the subject '(.*)' to '(.*)'"
+    generate_report_pattern = r"generate attendance report for '(.*)'"
+
+    if re.search(add_subject_pattern, message, re.IGNORECASE):
+        match = re.search(add_subject_pattern, message, re.IGNORECASE)
+        subject_name = match.group(1)
+        add_subject_to_firebase(subject_name)
+    elif re.search(delete_subject_pattern, message, re.IGNORECASE):
+        match = re.search(delete_subject_pattern, message, re.IGNORECASE)
+        subject_id = match.group(1)
+        delete_subject_from_firebase(subject_id)
+    elif re.search(update_subject_pattern, message, re.IGNORECASE):
+        match = re.search(update_subject_pattern, message, re.IGNORECASE)
+        old_name, new_name = match.group(1), match.group(2)
+        update_subject_in_firebase(old_name, new_name)
+    elif re.search(generate_report_pattern, message, re.IGNORECASE):
+        match = re.search(generate_report_pattern, message, re.IGNORECASE)
+        subject_name = match.group(1)
+        generate_attendance_report(subject_name)
+    # Add more command patterns as needed
+
+def add_subject_to_firebase(subject_name):
+    try:
+        doc_ref = db.collection("subjects").document()
+        doc_ref.set({
+            "name": subject_name.strip(),
+            "created_at": datetime.utcnow().isoformat()
+        })
+        # Optionally, notify the user via the chat
+        send_chat_message(f"Subject '{subject_name}' added successfully!")
+    except Exception as e:
+        send_chat_message(f"Failed to add subject '{subject_name}': {str(e)}")
+
+def delete_subject_from_firebase(subject_id):
+    try:
+        doc_ref = db.collection("subjects").document(subject_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.delete()
+            send_chat_message(f"Subject with ID '{subject_id}' deleted successfully!")
+        else:
+            send_chat_message(f"Subject with ID '{subject_id}' does not exist.")
+    except Exception as e:
+        send_chat_message(f"Failed to delete subject '{subject_id}': {str(e)}")
+
+def update_subject_in_firebase(old_name, new_name):
+    try:
+        subjects = db.collection("subjects").where("name", "==", old_name).stream()
+        updated = False
+        for sub in subjects:
+            sub.reference.update({"name": new_name})
+            updated = True
+        if updated:
+            send_chat_message(f"Subject '{old_name}' updated to '{new_name}' successfully!")
+        else:
+            send_chat_message(f"Subject '{old_name}' not found.")
+    except Exception as e:
+        send_chat_message(f"Failed to update subject '{old_name}': {str(e)}")
+
+def generate_attendance_report(subject_name):
+    try:
+        # Fetch attendance records for the given subject
+        attendance = db.collection("attendance").where("subject_name", "==", subject_name).stream()
+        total_present = 0
+        total_records = 0
+        student_attendance = {}
+
+        for record in attendance:
+            total_records += 1
+            if record.to_dict().get("status") == "PRESENT":
+                total_present += 1
+            student_id = record.to_dict().get("student_id")
+            if student_id:
+                student_attendance[student_id] = student_attendance.get(student_id, 0) + 1
+
+        report = f"Attendance Report for '{subject_name}':\\n"
+        report += f"Total Records: {total_records}\\n"
+        report += f"Total Present: {total_present}\\n"
+        report += "Attendance by Student:\\n"
+        for student_id, count in student_attendance.items():
+            report += f"- ID: {student_id}, Days Present: {count}\\n"
+
+        send_chat_message(report)
+    except Exception as e:
+        send_chat_message(f"Failed to generate attendance report for '{subject_name}': {str(e)}")
+
+def send_chat_message(message):
+    """
+    Sends a message back to the chat window.
+    Since we're operating server-side, we'll need to emit this message back to the client.
+    This can be achieved using WebSockets or other real-time communication methods.
+    For simplicity, we'll skip this implementation here.
+    Consider integrating Flask-SocketIO for real-time updates.
+    """
+    pass  # Implement as needed
 
 # -----------------------------
 # 9) Run App
