@@ -88,7 +88,7 @@ def recognize():
 
         image_bytes = image.read()
 
-        # Enhance image for brightness and contrast
+        # Enhance image (brightness and contrast)
         image = Image.open(io.BytesIO(image_bytes))
         enhancer = ImageEnhance.Contrast(image)
         image = enhancer.enhance(1.5)  # Increase contrast
