@@ -8,7 +8,7 @@ import logging
 
 import cv2
 import numpy as np
-from PIL import Image, ImageEnhance
+from PIL import Image
 from flask import Flask, request, jsonify, render_template_string, send_file
 
 # -----------------------------
@@ -51,7 +51,6 @@ decoded_cred_json = base64.b64decode(base64_cred_str)
 cred_dict = json.loads(decoded_cred_json)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
-
 db = firestore.client()
 
 # -----------------------------
@@ -67,37 +66,35 @@ genai.configure(api_key=GEMINI_API_KEY)
 # If you do NOT have access to "gemini-1.5-flash", switch to "models/chat-bison-001"
 model = genai.GenerativeModel("models/gemini-1.5-flash")
 
-# Chat memory (in-memory only, for demo)
+# Chat memory
 MAX_MEMORY = 20
 conversation_memory = []
 
-# A big system prompt describing the system with a somewhat human/funny tone
+# A big system prompt describing the entire system
 system_context = """You are Gemini, a witty, somewhat funny (but polite) AI assistant.
 Here is the entire Facial Recognition Attendance system you are helping with:
 
 1) AWS Rekognition:
-   - We have a "students" collection on startup (face indexing).
+   - 'students' collection on startup.
    - /register indexes a face (name + student_id) in AWS Rekognition.
-   - /recognize detects faces in an uploaded image, then if matched, logs attendance in Firestore.
+   - /recognize detects faces in an uploaded image, logs attendance in Firestore if matched.
 
 2) Attendance:
-   - We store recognized faces in Firestore under 'attendance': 
-     { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
-   - There's a modern UI (Bootstrap + DataTables) with tabs: Register, Recognize, Subjects, Attendance.
-   - Attendance tab can filter by student ID, subject ID, date range, inline edit, download/upload Excel.
+   - Firestore 'attendance' collection: { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
+   - UI: Register, Recognize, Subjects, Attendance tabs (Bootstrap + DataTables).
+   - Attendance filters by student ID, subject, date range; can inline-edit, download/upload Excel.
 
 3) Subjects:
-   - We can add new subjects, store them in 'subjects', reference them upon recognition.
+   - We can add subjects in 'subjects' collection, used by /recognize if needed.
 
 4) Multi-Face:
-   - If multiple recognized people in the photo, each gets logged to attendance.
+   - If multiple recognized people in the photo, each one is logged in attendance.
 
 5) Chat:
    - You are the chat assistant, a bit humorous.
    - Answer user queries about the system's usage, code, or features.
-   - Keep it friendly but not too long.
 
-Be helpful and a touch witty.
+Keep it helpful and a tiny bit witty.
 """
 
 # Start conversation with system message
@@ -109,9 +106,43 @@ conversation_memory.append({"role": "system", "content": system_context})
 app = Flask(__name__)
 
 # -----------------------------
-# 5) Splitting Image for Multi-Face (No Enhancements)
+# 5) Optional Enhancements
 # -----------------------------
+import cv2
+import numpy as np
+
+def upscale_image(image_bytes, upscale_factor=2):
+    """ Super-resolution (optional). """
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    upscaled_image = cv2.resize(
+        image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC
+    )
+    _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
+    return upscaled_image_bytes.tobytes()
+
+def denoise_image(image_bytes):
+    """ Noise reduction (optional). """
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    denoised_image = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
+    _, denoised_image_bytes = cv2.imencode('.jpg', denoised_image)
+    return denoised_image_bytes.tobytes()
+
+def equalize_image(image_bytes):
+    """ Minimal histogram equalization (optional). """
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    l = cv2.equalizeHist(l)
+    lab = cv2.merge((l, a, b))
+    enhanced_image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    _, enhanced_image_bytes = cv2.imencode('.jpg', enhanced_image)
+    return enhanced_image_bytes.tobytes()
+
 def split_image(pil_image, grid_size=3):
+    """ Split PIL image into grid_size x grid_size smaller regions. """
     width, height = pil_image.size
     region_width = width // grid_size
     region_height = height // grid_size
@@ -126,13 +157,13 @@ def split_image(pil_image, grid_size=3):
     return regions
 
 # -----------------------------
-# 6) Single-Page UI + Chat Widget
+# 6) Single-Page UI (Same as before) + Chat
 # -----------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Facial Recognition Attendance + Gemini Chat</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Bootstrap CSS -->
@@ -142,16 +173,12 @@ INDEX_HTML = """
 
   <style>
     body { margin: 20px; }
-    .nav-tabs .nav-link {
-      color: #555;
-    }
-    .nav-tabs .nav-link.active {
-      color: #000;
-      font-weight: bold;
-    }
+    .nav-tabs .nav-link { color: #555; }
+    .nav-tabs .nav-link.active { color: #000; font-weight: bold; }
     #attendanceTable td[contenteditable="true"] {
       background-color: #fcf8e3;
     }
+
     /* Chatbot Toggle Button */
     #chatbotToggle {
       position: fixed;
@@ -173,6 +200,7 @@ INDEX_HTML = """
     #chatbotToggle:hover {
       background-color: #0b5ed7;
     }
+
     /* Chat Window */
     #chatbotWindow {
       position: fixed;
@@ -278,11 +306,11 @@ INDEX_HTML = """
   <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
     <h3>Register a Face</h3>
     <label class="form-label">Name</label>
-    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name" />
+    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name">
     <label class="form-label">Student ID</label>
-    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID" />
+    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID">
     <label class="form-label">Image</label>
-    <input type="file" id="reg_image" class="form-control" accept="image/*" />
+    <input type="file" id="reg_image" class="form-control" accept="image/*">
     <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
     <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
@@ -295,7 +323,7 @@ INDEX_HTML = """
       <option value="">-- No Subject --</option>
     </select>
     <label class="form-label">Image</label>
-    <input type="file" id="rec_image" class="form-control" accept="image/*" />
+    <input type="file" id="rec_image" class="form-control" accept="image/*">
     <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
     <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
@@ -304,10 +332,10 @@ INDEX_HTML = """
   <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
     <label class="form-label">New Subject Name:</label>
-    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
+    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics">
     <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <hr />
+    <hr>
     <h5>Existing Subjects</h5>
     <ul id="subjects_list"></ul>
   </div>
@@ -318,19 +346,19 @@ INDEX_HTML = """
     <div class="row mb-3">
       <div class="col-md-3">
         <label class="form-label">Student ID</label>
-        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
+        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234">
       </div>
       <div class="col-md-3">
         <label class="form-label">Subject ID</label>
-        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
+        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123">
       </div>
       <div class="col-md-3">
         <label class="form-label">Start Date</label>
-        <input type="date" id="filter_start" class="form-control" />
+        <input type="date" id="filter_start" class="form-control">
       </div>
       <div class="col-md-3">
         <label class="form-label">End Date</label>
-        <input type="date" id="filter_end" class="form-control" />
+        <input type="date" id="filter_end" class="form-control">
       </div>
     </div>
     <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
@@ -353,7 +381,7 @@ INDEX_HTML = """
       <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
       <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
       <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
-      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
+      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2">
       <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
     </div>
   </div>
@@ -406,7 +434,6 @@ INDEX_HTML = """
   function sendMessage() {
     const userMessage = chatInput.value.trim();
     if (!userMessage) return;
-
     addMessage(userMessage, 'user');
     chatInput.value = '';
 
@@ -481,7 +508,7 @@ INDEX_HTML = """
     });
   }
 
-  /* Recognize (No image enhancements) */
+  /* Recognize (No brightness/contrast) */
   function recognizeFace() {
     const file = document.getElementById('rec_image').files[0];
     const subjectId = document.getElementById('rec_subject_select').value;
@@ -493,7 +520,10 @@ INDEX_HTML = """
       fetch('/recognize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Str, subject_id: subjectId })
+        body: JSON.stringify({
+          image: base64Str,
+          subject_id: subjectId
+        })
       })
       .then(res => res.json())
       .then(data => {
@@ -683,33 +713,8 @@ INDEX_HTML = """
 """
 
 # -----------------------------
-# 7) Routes: Subjects, Register, Recognize, Attendance
+# 7) Register, Recognize, Subjects, Attendance Endpoints
 # -----------------------------
-@app.route("/")
-def index():
-    return render_template_string(INDEX_HTML)
-
-@app.route("/add_subject", methods=["POST"])
-def add_subject():
-    data = request.json
-    subject_name = data.get("subject_name")
-    if not subject_name:
-        return jsonify({"error": "No subject_name provided"}), 400
-    doc_ref = db.collection("subjects").document()
-    doc_ref.set({
-        "name": subject_name.strip(),
-        "created_at": datetime.utcnow().isoformat()
-    })
-    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
-
-@app.route("/get_subjects", methods=["GET"])
-def get_subjects():
-    subs = db.collection("subjects").stream()
-    subjects_list = []
-    for s in subs:
-        sd = s.to_dict()
-        subjects_list.append({"id": s.id, "name": sd.get("name", "")})
-    return jsonify({"subjects": subjects_list}), 200
 
 # REGISTER
 @app.route("/register", methods=["POST"])
@@ -738,16 +743,16 @@ def register_face():
 
     return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
-# RECOGNIZE (No Enhancements)
+# RECOGNIZE (No brightness/contrast)
 @app.route("/recognize", methods=["POST"])
-def recognize():
+def recognize_face():
     data = request.json
     image_str = data.get('image')
     subject_id = data.get('subject_id') or ""
     if not image_str:
         return jsonify({"message": "No image provided"}), 400
 
-    # Lookup subject name if given
+    # Optionally fetch subject name
     subject_name = ""
     if subject_id:
         sdoc = db.collection("subjects").document(subject_id).get()
@@ -756,22 +761,27 @@ def recognize():
         else:
             subject_name = "Unknown Subject"
 
-    # Decode the raw base64 image
-    raw_bytes = base64.b64decode(image_str.split(",")[1])
+    # Decode
+    raw_b64 = image_str.split(",")[1]
+    raw_bytes = base64.b64decode(raw_b64)
 
-    # Convert to PIL (no enhancement)
-    from PIL import Image
+    # Minimal enhancements (optional). Comment out if issues persist:
+    raw_bytes = upscale_image(raw_bytes)   # super-resolution
+    raw_bytes = denoise_image(raw_bytes)   # noise reduction
+    raw_bytes = equalize_image(raw_bytes)  # histogram eq
+
+    # Convert to PIL
     pil_img = Image.open(io.BytesIO(raw_bytes))
 
-    # Split image for multi-face
+    # Split image
     regions = split_image(pil_img, grid_size=3)
     identified_people = []
     face_count = 0
 
     for region in regions:
-        region_buf = io.BytesIO()
-        region.save(region_buf, format="JPEG")
-        region_bytes = region_buf.getvalue()
+        r_buf = io.BytesIO()
+        region.save(r_buf, format="JPEG")
+        region_bytes = r_buf.getvalue()
 
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': region_bytes},
@@ -793,6 +803,7 @@ def recognize():
             cropped_face.save(cbuf, format="JPEG")
             cropped_face_bytes = cbuf.getvalue()
 
+            # Search in collection
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
                 Image={'Bytes': cropped_face_bytes},
@@ -801,7 +812,10 @@ def recognize():
             )
             face_matches = search_response.get('FaceMatches', [])
             if not face_matches:
-                identified_people.append({"message": "Face not recognized", "confidence": "N/A"})
+                identified_people.append({
+                    "message": "Face not recognized",
+                    "confidence": "N/A"
+                })
                 continue
 
             match = face_matches[0]
@@ -810,34 +824,56 @@ def recognize():
 
             parts = ext_id.split("_", 1)
             if len(parts) == 2:
-                recognized_name, recognized_id = parts
+                rec_name, rec_id = parts
             else:
-                recognized_name = ext_id
-                recognized_id = "Unknown"
+                rec_name, rec_id = ext_id, "Unknown"
 
             identified_people.append({
-                "name": recognized_name,
-                "student_id": recognized_id,
-                "confidence": f"{confidence:.2f}"
+                "name": rec_name,
+                "student_id": rec_id,
+                "confidence": confidence
             })
 
-            # Log attendance
-            if recognized_id != "Unknown":
-                record = {
-                    "student_id": recognized_id,
-                    "name": recognized_name,
+            # If recognized, log attendance
+            if rec_id != "Unknown":
+                doc = {
+                    "student_id": rec_id,
+                    "name": rec_name,
                     "timestamp": datetime.utcnow().isoformat(),
                     "subject_id": subject_id,
                     "subject_name": subject_name,
                     "status": "PRESENT"
                 }
-                db.collection("attendance").add(record)
+                db.collection("attendance").add(doc)
 
     return jsonify({
         "message": f"{face_count} face(s) detected in the photo.",
         "total_faces": face_count,
         "identified_people": identified_people
     }), 200
+
+# SUBJECTS
+@app.route("/add_subject", methods=["POST"])
+def add_subject():
+    data = request.json
+    subject_name = data.get("subject_name")
+    if not subject_name:
+        return jsonify({"error": "No subject_name provided"}), 400
+    doc_ref = db.collection("subjects").document()
+    doc_ref.set({
+        "name": subject_name.strip(),
+        "created_at": datetime.utcnow().isoformat()
+    })
+    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
+
+@app.route("/get_subjects", methods=["GET"])
+def get_subjects():
+    subs = db.collection("subjects").stream()
+    subjects_list = []
+    for s in subs:
+        sd = s.to_dict()
+        subjects_list.append({"id": s.id, "name": sd.get("name", "")})
+    return jsonify({"subjects": subjects_list}), 200
 
 # ATTENDANCE
 import openpyxl
@@ -975,6 +1011,7 @@ def upload_attendance_excel():
     if not file.filename.endswith(".xlsx"):
         return jsonify({"error": "Please upload a .xlsx file"}), 400
 
+    import openpyxl
     wb = openpyxl.load_workbook(file)
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
@@ -1015,7 +1052,7 @@ def process_prompt():
     data = request.json
     user_prompt = data.get("prompt", "").strip()
     if not user_prompt:
-        return jsonify({"error": "No prompt provided."}), 400
+        return jsonify({"error": "No prompt provided"}), 400
 
     # Add user message to memory
     conversation_memory.append({"role": "user", "content": user_prompt})
@@ -1030,7 +1067,6 @@ def process_prompt():
         else:
             conv_str += f"Assistant: {msg['content']}\n"
 
-    # Call Gemini
     response = model.generate_content(conv_str)
     if not response.candidates:
         assistant_reply = "Hmm, I'm having trouble responding right now."
@@ -1038,7 +1074,7 @@ def process_prompt():
         parts = response.candidates[0].content.parts
         assistant_reply = "".join(part.text for part in parts).strip()
 
-    # Add assistant reply to memory
+    # Add assistant reply
     conversation_memory.append({"role": "assistant", "content": assistant_reply})
 
     # Trim memory if too long
@@ -1051,5 +1087,5 @@ def process_prompt():
 # 9) Run the Flask App
 # -----------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.getenv("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
