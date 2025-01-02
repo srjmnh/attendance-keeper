@@ -103,38 +103,16 @@ conversation_memory.append({"role": "system", "content": system_context})
 app = Flask(__name__)
 
 # -----------------------------
-# 5) Optional Enhancements
+# 5) Optional Enhancements (Removed)
 # -----------------------------
-def upscale_image(image_bytes, upscale_factor=2):
-    """Super-resolution (optional)."""
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    upscaled_image = cv2.resize(
-        image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC
-    )
-    _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
-    return upscaled_image_bytes.tobytes()
+# The following image enhancement functions have been removed to reduce computational load:
+# - upscale_image
+# - denoise_image
+# - equalize_image
 
-def denoise_image(image_bytes):
-    """Noise reduction (optional)."""
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    denoised_image = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
-    _, denoised_image_bytes = cv2.imencode('.jpg', denoised_image)
-    return denoised_image_bytes.tobytes()
-
-def equalize_image(image_bytes):
-    """Histogram equalization (optional)."""
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    l = cv2.equalizeHist(l)
-    lab = cv2.merge((l, a, b))
-    eq_image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-    _, eq_bytes = cv2.imencode('.jpg', eq_image)
-    return eq_bytes.tobytes()
-
+# -----------------------------
+# 6) Image Splitting Function (Retained)
+# -----------------------------
 def split_image(pil_image, grid_size=3):
     """Split PIL image into grid_size x grid_size smaller regions."""
     width, height = pil_image.size
@@ -151,7 +129,7 @@ def split_image(pil_image, grid_size=3):
     return regions
 
 # -----------------------------
-# 6) Single-Page HTML + Chat Widget
+# 7) Single-Page HTML + Chat Widget
 # -----------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
@@ -416,6 +394,7 @@ INDEX_HTML = """
     })
     .then(res => res.json())
     .then(data => {
+      const div = document.getElementById('recognize_result');
       if (data.error) {
         addMessage("Error: " + data.error, 'assistant');
       } else {
@@ -744,11 +723,6 @@ def recognize_face():
 
     raw_bytes = base64.b64decode(image_str.split(",")[1])
 
-    # Optional enhancements (comment out if needed)
-    raw_bytes = upscale_image(raw_bytes)
-    raw_bytes = denoise_image(raw_bytes)
-    raw_bytes = equalize_image(raw_bytes)
-
     pil_img = Image.open(io.BytesIO(raw_bytes))
 
     # Split
@@ -774,12 +748,10 @@ def recognize_face():
             left = int(bbox['Left'] * w)
             top = int(bbox['Top'] * h)
             right = int((bbox['Left'] + bbox['Width']) * w)
-            bottom = int((bbox['Top'] + bbox['Height']) * w)
+            bottom = int((bbox['Top'] + bbox['Height']) * h)
 
-            # Correction: bounding_box might need to ensure bottom is in height coords:
-            # bottom = int((bbox['Top'] + bbox['Height']) * h)
-
-            bottom = int((bbox['Top'] + bbox['Height']) * h)  # fix bounding bottom
+            # Ensure bounding box coordinates are within image dimensions
+            bottom = int((bbox['Top'] + bbox['Height']) * h)
 
             cropped_face = region.crop((left, top, right, bottom))
             cbuf = io.BytesIO()
@@ -874,13 +846,19 @@ def get_attendance():
     if subject_id:
         query = query.where("subject_id", "==", subject_id)
     if start_date:
-        dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-        query = query.where("timestamp", ">=", dt_start.isoformat())
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where("timestamp", ">=", dt_start.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
     if end_date:
-        dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59, microsecond=999999
-        )
-        query = query.where("timestamp", "<=", dt_end.isoformat())
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
 
     results = query.stream()
     out_list = []
@@ -924,13 +902,19 @@ def download_attendance_excel():
     if subject_id:
         query = query.where("subject_id", "==", subject_id)
     if start_date:
-        dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-        query = query.where("timestamp", ">=", dt_start.isoformat())
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where("timestamp", ">=", dt_start.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
     if end_date:
-        dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59, microsecond=999999
-        )
-        query = query.where("timestamp", "<=", dt_end.isoformat())
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
 
     results = query.stream()
     att_list = []
@@ -993,8 +977,11 @@ def upload_attendance_excel():
     if not file.filename.endswith(".xlsx"):
         return jsonify({"error": "Please upload a .xlsx file"}), 400
 
-    import openpyxl
-    wb = openpyxl.load_workbook(file)
+    try:
+        wb = openpyxl.load_workbook(file)
+    except Exception as e:
+        return jsonify({"error": f"Failed to read Excel file: {str(e)}"}), 400
+
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
     expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
