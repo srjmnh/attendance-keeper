@@ -5,24 +5,18 @@ import io
 from datetime import datetime
 
 from flask import Flask, request, jsonify, render_template_string, send_file
+import boto3
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-import google.generativeai as genai
-
-import boto3
+# For face enhancements, optionally
 import cv2
 import numpy as np
 from PIL import Image
 
-# ------------------------------------------------------
-# 1) FLASK SETUP
-# ------------------------------------------------------
-app = Flask(__name__)
-
-# ------------------------------------------------------
-# 2) AWS REKOGNITION CONFIG
-# ------------------------------------------------------
+# -----------------------------
+# 1) AWS Rekognition Setup
+# -----------------------------
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
@@ -44,81 +38,63 @@ def create_collection_if_not_exists():
 
 create_collection_if_not_exists()
 
-# ------------------------------------------------------
-# 3) FIREBASE FIRESTORE SETUP
-# ------------------------------------------------------
-encoded_json = os.getenv("FIREBASE_ADMIN_CREDENTIALS_BASE64")
-if not encoded_json:
-    raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not set.")
+# -----------------------------
+# 2) Firebase Setup
+# -----------------------------
+base64_cred_str = os.getenv("FIREBASE_ADMIN_CREDENTIALS_BASE64")
+if not base64_cred_str:
+    raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
 
-decoded_json = base64.b64decode(encoded_json)
-cred_dict = json.loads(decoded_json)
+decoded_cred = base64.b64decode(base64_cred_str)
+cred_dict = json.loads(decoded_cred)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# ------------------------------------------------------
-# 4) GEMINI CHATBOT CONFIG
-# ------------------------------------------------------
+# -----------------------------
+# 3) Gemini Setup
+# -----------------------------
+import google.generativeai as genai
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set.")
 
 genai.configure(api_key=GEMINI_API_KEY)
-# If you lack "gemini-1.5-flash", you can swap to "models/chat-bison-001"
-gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
+model = genai.GenerativeModel("models/gemini-1.5-flash")  # or "models/chat-bison-001"
 
-# We'll keep a short conversation memory
+# In-memory chat memory
 MAX_MEMORY = 20
 conversation_memory = []
 
-# System prompt telling Gemini how to classify or handle actions
-system_context = """You are a helpful, somewhat witty AI that:
-1) Does normal chat or help about the system.
-2) Performs Firestore queries/updates if user requests data changes or analytics.
-
-**Output** must be JSON if an action is needed, like:
-{
-  "type": "firestore",
-  "action": "query_attendance_lowest",
-  "subject": "physics"
-}
-OR:
-{
-  "type": "firestore",
-  "action": "update_subject_name",
-  "old_name": "Physics",
-  "new_name": "Advanced Physics"
-}
-If it's normal talk => {"type":"casual"}.
-
-System also manages a Facial Recognition Attendance system with:
-- AWS Rekognition
-- Firestore attendance logs
-- Subjects
-- A UI with tabs: Register, Recognize, Subjects, Attendance
-**We** can retrieve or modify data in Firestore if asked. 
+# A "system" prompt that instructs Gemini how to respond
+system_prompt = """You are Gemini, an AI assistant that can:
+1) Talk casually with the user.
+2) If the user's prompt is about analyzing attendance (lowest, highest, or queries by subject), parse it into:
+   {"action":"analytics","subject":"...","metric":"lowest_attendance"} or similar.
+3) Then the system will run a Firestore query, show the result in the chat.
+4) If it's not an analytics request, just respond casually.
+Keep answers short and helpful.
 """
 
-# Add system prompt as initial memory
-conversation_memory.append({"role":"system","content":system_context})
+conversation_memory.append({"role":"system", "content": system_prompt})
 
-# ------------------------------------------------------
-# 5) OPTIONAL IMAGE ENHANCEMENT FUNCTIONS
-# ------------------------------------------------------
+# -----------------------------
+# 4) Minimal Enhancements (Optional)
+# -----------------------------
 def upscale_image(image_bytes, factor=2):
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    upscaled = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
-    _, upscaled_bytes = cv2.imencode('.jpg', upscaled)
-    return upscaled_bytes.tobytes()
+    up_img = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
+    _, up_bytes = cv2.imencode('.jpg', up_img)
+    return up_bytes.tobytes()
 
 def denoise_image(image_bytes):
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    denoised = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
-    _, denoised_bytes = cv2.imencode('.jpg', denoised)
-    return denoised_bytes.tobytes()
+    denoised = cv2.fastNlMeansDenoisingColored(img, None, 10,10,7,21)
+    _, out_bytes = cv2.imencode('.jpg', denoised)
+    return out_bytes.tobytes()
 
 def equalize_image(image_bytes):
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -126,266 +102,150 @@ def equalize_image(image_bytes):
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     l,a,b = cv2.split(lab)
     l = cv2.equalizeHist(l)
-    merged = cv2.merge((l,a,b))
-    eq_img = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+    eq_lab = cv2.merge((l,a,b))
+    eq_img = cv2.cvtColor(eq_lab, cv2.COLOR_LAB2BGR)
     _, eq_bytes = cv2.imencode('.jpg', eq_img)
     return eq_bytes.tobytes()
 
-def split_image(pil_image, grid_size=3):
-    w,h = pil_image.size
-    rw = w // grid_size
-    rh = h // grid_size
-    regions = []
-    for row in range(grid_size):
-        for col in range(grid_size):
-            left = col * rw
-            top = row * rh
-            right = (col+1)*rw
-            bottom = (row+1)*rh
-            region = pil_image.crop((left, top, right, bottom))
-            regions.append(region)
-    return regions
+def split_image(pil_img, grid=3):
+    w,h = pil_img.size
+    rw, rh = w//grid, h//grid
+    regs = []
+    for r in range(grid):
+        for c in range(grid):
+            left = c*rw
+            top = r*rh
+            right= (c+1)*rw
+            bottom=(r+1)*rh
+            regs.append(pil_img.crop((left,top,right,bottom)))
+    return regs
 
-# ------------------------------------------------------
-# 6) HELPER: CLASSIFICATION for Firestore Actions
-# ------------------------------------------------------
-def classify_with_gemini(prompt):
-    """
-    Ask Gemini to produce JSON describing 'type' and 'action' if it's a Firestore request, else 'casual'.
-    """
-    classification_system = "You are a JSON classifier:\n" + system_context
-    conversation_str = f"System: {classification_system}\nUser: {prompt}\n"
-
-    resp = gemini_model.generate_content(conversation_str)
-    if not resp.candidates:
-        return {"type":"casual"}
-    text = "".join(part.text for part in resp.candidates[0].content.parts).strip()
-    # remove code fences
-    if text.startswith("```"):
-        text = text.strip("```").strip()
-    try:
-        data = json.loads(text)
-        if "type" not in data:
-            data["type"] = "casual"
-        return data
-    except:
-        return {"type":"casual"}
-
-# ------------------------------------------------------
-# 7) FIRESTORE ACTIONS
-# ------------------------------------------------------
-def query_attendance_lowest(subject):
-    """
-    Finds the student with the least attendance for a given subject.
-    We'll do a naive approach: group by 'student_id' in 'attendance' collection 
-    where subject_id=subject. 
-    Then pick min by count.
-    """
-    docs = db.collection("attendance").where("subject_id","==",subject).stream()
-    counts = {}
-    for d in docs:
-        rec = d.to_dict()
-        sid = rec.get("student_id","Unknown")
-        counts[sid] = counts.get(sid,0)+1
-    if not counts:
-        return f"No attendance records found for subject '{subject}'."
-    min_sid = min(counts, key=counts.get)
-    min_val = counts[min_sid]
-    return f"Student {min_sid} has the lowest attendance in '{subject}', with {min_val} records."
-
-def update_subject_name(old_name,new_name):
-    """
-    Finds all 'subjects' docs with name=old_name, updates them to name=new_name.
-    """
-    docs = db.collection("subjects").where("name","==",old_name).stream()
-    found=False
-    for d in docs:
-        d.reference.update({"name":new_name})
-        found=True
-    if found:
-        return f"Subject '{old_name}' updated to '{new_name}'."
-    else:
-        return f"No subject named '{old_name}' found."
-
-# ------------------------------------------------------
-# 8) MAIN /process_prompt ENDPOINT
-# ------------------------------------------------------
-@app.route("/process_prompt", methods=["POST"])
-def process_prompt():
-    data = request.json
-    user_prompt = data.get("prompt","").strip()
-    if not user_prompt:
-        return jsonify({"error":"No prompt"}),400
-
-    # add user to memory
-    conversation_memory.append({"role":"user","content":user_prompt})
-
-    # classify
-    classification = classify_with_gemini(user_prompt)
-    if classification.get("type") == "firestore":
-        action = classification.get("action")
-        if action == "query_attendance_lowest":
-            subj = classification.get("subject","")
-            if not subj:
-                assistant_reply = "Need a 'subject' to find the lowest attendance."
-            else:
-                assistant_reply = query_attendance_lowest(subj)
-        elif action == "update_subject_name":
-            old_name = classification.get("old_name","")
-            new_name = classification.get("new_name","")
-            if not old_name or not new_name:
-                assistant_reply = "Need old_name and new_name to update the subject."
-            else:
-                assistant_reply = update_subject_name(old_name,new_name)
-        else:
-            assistant_reply = f"Unrecognized Firestore action: {action}"
-    else:
-        # casual talk => build conversation str
-        conv_str = ""
-        for msg in conversation_memory:
-            if msg["role"]=="system":
-                conv_str += f"System: {msg['content']}\n"
-            elif msg["role"]=="user":
-                conv_str += f"User: {msg['content']}\n"
-            else:
-                conv_str += f"Assistant: {msg['content']}\n"
-
-        resp = gemini_model.generate_content(conv_str)
-        if not resp.candidates:
-            assistant_reply = "Hmm, I'm having trouble responding now."
-        else:
-            assistant_reply = "".join(part.text for part in resp.candidates[0].content.parts).strip()
-
-    # add assistant reply to memory
-    conversation_memory.append({"role":"assistant","content":assistant_reply})
-
-    # trim memory
-    if len(conversation_memory)>MAX_MEMORY:
-        conversation_memory.pop(0)
-
-    return jsonify({"message": assistant_reply})
-
-# ------------------------------------------------------
-# 9) The Single-Page UI for Register/Recognize/Subjects/Attendance + Chat
-# ------------------------------------------------------
+# -----------------------------
+# 5) Single-Page UI (4 tabs: Register, Recognize, Subjects, Attendance),
+#    plus a floating chatbot that also can do "analytics" if it detects an "action".
+# -----------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8" />
-    <title>Facial Recognition + Gemini Analytics</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Bootstrap + DataTables -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+  <title>Facial Recognition + Gemini Chat</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+  <style>
+    body { margin: 20px; }
+    .nav-tabs .nav-link.active { font-weight: bold; }
+    #attendanceTable td[contenteditable="true"] { background-color: #fcf8e3; }
 
-    <style>
-      body { margin:20px; }
-      .nav-tabs .nav-link { color:#555; }
-      .nav-tabs .nav-link.active { color:#000; font-weight:bold; }
-      #chatbotToggle {
-        position: fixed; bottom:20px; right:20px; z-index:999;
-        background-color:#0d6efd; color:#fff; border:none; border-radius:50%;
-        width:50px; height:50px; font-size:22px; cursor:pointer;
-        display:flex; align-items:center; justify-content:center;
-      }
-      #chatbotToggle:hover { background-color:#0b5ed7; }
-      #chatbotWindow {
-        position:fixed; bottom:80px; right:20px; width:300px; max-height:400px;
-        border:1px solid #ccc; border-radius:10px; background-color:#fff;
-        box-shadow:0 0 10px rgba(0,0,0,0.2); display:none; flex-direction:column; z-index:1000;
-      }
-      #chatHeader {
-        background-color:#0d6efd; color:#fff; padding:10px; border-radius:10px 10px 0 0; font-weight:bold;
-        display:flex; justify-content:space-between; align-items:center;
-      }
-      #chatHeader .close-btn {
-        background:none; border:none; color:#fff; font-weight:bold; cursor:pointer; font-size:16px;
-      }
-      #chatMessages { flex:1; overflow-y:auto; padding:10px; font-size:14px; }
-      .message { margin-bottom:10px; }
-      .message.user { text-align:right; }
-      .message.assistant { text-align:left; color:#333; }
-      #chatInputArea { display:flex; border-top:1px solid #ddd; }
-      #chatInput {
-        flex:1; padding:8px; border:none; outline:none; font-size:14px;
-      }
-      #chatSendBtn {
-        background-color:#0d6efd; color:#fff; border:none; padding:0 15px; cursor:pointer;
-      }
-      #chatSendBtn:hover { background-color:#0b5ed7; }
-      #attendanceTable td[contenteditable="true"] { background-color:#fcf8e3; }
-    </style>
+    /* Chatbot */
+    #chatbotToggle {
+      position: fixed; bottom: 20px; right: 20px; z-index: 999;
+      background-color: #0d6efd; color: #fff; border: none; border-radius: 50%;
+      width: 50px; height: 50px; font-size: 22px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #chatbotWindow {
+      position: fixed; bottom: 80px; right: 20px; width: 300px; max-height: 400px;
+      border: 1px solid #ccc; border-radius: 10px; background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2); display: none; flex-direction: column; z-index: 1000;
+    }
+    #chatHeader {
+      background-color: #0d6efd; color: #fff; padding: 10px;
+      border-radius: 10px 10px 0 0; font-weight: bold;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #chatHeader .close-btn { background: none; border: none; color: #fff; cursor: pointer; font-weight: bold; font-size:16px; }
+    #chatMessages { flex:1; overflow-y:auto; padding:10px; font-size:14px; }
+    .message { margin-bottom:10px; }
+    .message.user { text-align:right; }
+    .message.assistant { text-align:left; color:#333; }
+    #chatInputArea { display:flex; border-top:1px solid #ddd; }
+    #chatInput { flex:1; padding:8px; border:none; outline:none; font-size:14px; }
+    #chatSendBtn { background-color:#0d6efd; color:#fff; border:none; padding:0 15px; cursor:pointer; }
+  </style>
 </head>
 <body class="container">
 
-<h1 class="my-4">Facial Recognition + Gemini Analytics</h1>
+<h1>Facial Recognition Attendance + Gemini Chat</h1>
 
 <ul class="nav nav-tabs">
   <li class="nav-item">
-    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#register">Register</button>
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#registerTab">Register</button>
   </li>
   <li class="nav-item">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#recognize">Recognize</button>
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#recognizeTab">Recognize</button>
   </li>
   <li class="nav-item">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#subjects">Subjects</button>
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#subjectsTab">Subjects</button>
   </li>
   <li class="nav-item">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#attendance">Attendance</button>
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#attendanceTab">Attendance</button>
   </li>
 </ul>
 
-<div class="tab-content">
-  <div class="tab-pane fade show active" id="register" style="margin-top:20px;">
+<div class="tab-content mt-3">
+  <!-- Register -->
+  <div class="tab-pane fade show active" id="registerTab">
     <h3>Register a Face</h3>
-    <label>Name: <input type="text" id="reg_name" class="form-control" /></label><br/>
-    <label>Student ID: <input type="text" id="reg_student_id" class="form-control" /></label><br/>
-    <label>Image: <input type="file" id="reg_image" accept="image/*" class="form-control" /></label><br/>
-    <button class="btn btn-primary" onclick="registerFace()">Register</button>
+    <label>Name</label>
+    <input type="text" id="reg_name" class="form-control" placeholder="Enter name"/>
+    <label>Student ID</label>
+    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter ID"/>
+    <label>Image</label>
+    <input type="file" id="reg_image" class="form-control" accept="image/*"/>
+    <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
     <div id="register_result" class="alert alert-info mt-2" style="display:none;"></div>
   </div>
 
-  <div class="tab-pane fade" id="recognize" style="margin-top:20px;">
+  <!-- Recognize -->
+  <div class="tab-pane fade" id="recognizeTab">
     <h3>Recognize a Face</h3>
-    <label>Subject (optional): 
-      <select id="rec_subject_select" class="form-control">
-        <option value="">-- None --</option>
-      </select>
-    </label><br/>
-    <label>Image: <input type="file" id="rec_image" accept="image/*" class="form-control" /></label><br/>
-    <button class="btn btn-success" onclick="recognizeFace()">Recognize</button>
+    <label>Subject (optional)</label>
+    <select id="rec_subject_select" class="form-control mb-2">
+      <option value="">-- No Subject --</option>
+    </select>
+    <label>Image</label>
+    <input type="file" id="rec_image" class="form-control" accept="image/*"/>
+    <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
     <div id="recognize_result" class="alert alert-info mt-2" style="display:none;"></div>
   </div>
 
-  <div class="tab-pane fade" id="subjects" style="margin-top:20px;">
+  <!-- Subjects -->
+  <div class="tab-pane fade" id="subjectsTab">
     <h3>Manage Subjects</h3>
-    <label>New Subject Name: <input type="text" id="subject_name" class="form-control" /></label><br/>
-    <button class="btn btn-primary" onclick="addSubject()">Add Subject</button>
+    <label>New Subject Name:</label>
+    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics"/>
+    <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
     <div id="subject_result" class="alert alert-info mt-2" style="display:none;"></div>
     <hr/>
     <h5>Existing Subjects</h5>
     <ul id="subjects_list"></ul>
   </div>
 
-  <div class="tab-pane fade" id="attendance" style="margin-top:20px;">
+  <!-- Attendance -->
+  <div class="tab-pane fade" id="attendanceTab">
     <h3>Attendance Records</h3>
-    <div class="row mb-3">
+    <div class="row mb-2">
       <div class="col-md-3">
-        <label>Student ID: <input type="text" id="filter_student_id" class="form-control" /></label>
+        <label>Student ID</label>
+        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234"/>
       </div>
       <div class="col-md-3">
-        <label>Subject ID: <input type="text" id="filter_subject_id" class="form-control" /></label>
+        <label>Subject ID</label>
+        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. math101"/>
       </div>
       <div class="col-md-3">
-        <label>Start Date: <input type="date" id="filter_start" class="form-control" /></label>
+        <label>Start Date</label>
+        <input type="date" id="filter_start" class="form-control"/>
       </div>
       <div class="col-md-3">
-        <label>End Date: <input type="date" id="filter_end" class="form-control" /></label>
+        <label>End Date</label>
+        <input type="date" id="filter_end" class="form-control"/>
       </div>
     </div>
-    <button class="btn btn-info" onclick="loadAttendance()">Apply Filters</button>
-    <table id="attendanceTable" class="display table table-striped w-100 mt-3">
+    <button onclick="loadAttendance()" class="btn btn-info mb-3">Apply Filters</button>
+    <table id="attendanceTable" class="display table table-striped w-100">
       <thead>
         <tr>
           <th>Doc ID</th>
@@ -400,20 +260,20 @@ INDEX_HTML = """
       <tbody></tbody>
     </table>
     <div class="mt-3">
-      <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
-      <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
-      <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
+      <button onclick="saveEdits()" class="btn btn-warning">Save Changes</button>
+      <button onclick="downloadExcel()" class="btn btn-secondary">Download Excel</button>
+      <button onclick="downloadTemplate()" class="btn btn-link">Download Template</button>
       <label class="d-block mt-3">Upload Excel:</label>
       <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2"/>
-      <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
+      <button onclick="uploadExcel()" class="btn btn-dark">Upload Excel</button>
     </div>
   </div>
 </div>
 
-<!-- Chatbot Toggle Button -->
+<!-- Chatbot Toggle -->
 <button id="chatbotToggle">💬</button>
 
-<!-- Chatbot Window -->
+<!-- Chat Window -->
 <div id="chatbotWindow">
   <div id="chatHeader">
     <span>Gemini Chat</span>
@@ -421,7 +281,7 @@ INDEX_HTML = """
   </div>
   <div id="chatMessages"></div>
   <div id="chatInputArea">
-    <input type="text" id="chatInput" placeholder="Type a message..."/>
+    <input type="text" id="chatInput" placeholder="Ask or chat..." />
     <button id="chatSendBtn">Send</button>
   </div>
 </div>
@@ -430,22 +290,26 @@ INDEX_HTML = """
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script>
-  // Chat toggle
+  // Chat
   const toggleBtn = document.getElementById('chatbotToggle');
   const chatWindow = document.getElementById('chatbotWindow');
-  const chatCloseBtn = document.getElementById('chatCloseBtn');
+  const closeBtn = document.getElementById('chatCloseBtn');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
 
   toggleBtn.addEventListener('click', () => {
-    chatWindow.style.display = (chatWindow.style.display==='none'||chatWindow.style.display==='') ? 'flex' : 'none';
+    if (chatWindow.style.display === '' || chatWindow.style.display === 'none') {
+      chatWindow.style.display = 'flex';
+    } else {
+      chatWindow.style.display = 'none';
+    }
   });
-  chatCloseBtn.addEventListener('click', () => {
+  closeBtn.addEventListener('click', () => {
     chatWindow.style.display = 'none';
   });
 
-  function addMessage(text, sender) {
+  function addChatMessage(text, sender) {
     const div = document.createElement('div');
     div.classList.add('message', sender);
     div.textContent = text;
@@ -453,199 +317,186 @@ INDEX_HTML = """
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }
 
-  function sendMessage() {
-    const userText = chatInput.value.trim();
-    if (!userText) return;
-    addMessage(userText, 'user');
+  function sendChat() {
+    const userMsg = chatInput.value.trim();
+    if (!userMsg) return;
+    addChatMessage(userMsg, 'user');
     chatInput.value = '';
 
     fetch('/process_prompt', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({prompt:userText})
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ prompt: userMsg })
     })
     .then(r=>r.json())
     .then(d=>{
-      addMessage(d.message, 'assistant');
+      if (d.error) {
+        addChatMessage("Error: "+d.error, 'assistant');
+      } else {
+        addChatMessage(d.message, 'assistant');
+      }
     })
-    .catch(e=>{
-      addMessage("Error or server not available", 'assistant');
-      console.error(e);
+    .catch(err=>{
+      addChatMessage("Network or server error!", 'assistant');
+      console.error(err);
     });
   }
 
-  chatSendBtn.addEventListener('click', sendMessage);
-  chatInput.addEventListener('keydown', (e)=>{
+  chatSendBtn.addEventListener('click', sendChat);
+  chatInput.addEventListener('keydown', e=>{
     if(e.key==='Enter'){
       e.preventDefault();
-      sendMessage();
+      sendChat();
     }
   });
 
   // Register
-  function getBase64(file, callback) {
+  function getBase64(file, cb){
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = ()=> callback(reader.result);
-    reader.onerror = (e)=> console.error(e);
+    reader.onload=()=>cb(reader.result);
+    reader.onerror=(err)=>console.error('FileReader error',err);
   }
 
   function registerFace(){
-    const name = document.getElementById('reg_name').value.trim();
-    const sid = document.getElementById('reg_student_id').value.trim();
-    const file = document.getElementById('reg_image').files[0];
-    if(!name||!sid||!file){
-      alert("Need name, student ID, and image.");
-      return;
-    }
-    getBase64(file,(base64Str)=>{
+    const name=document.getElementById('reg_name').value.trim();
+    const studentId=document.getElementById('reg_student_id').value.trim();
+    const file=document.getElementById('reg_image').files[0];
+    if(!name||!studentId||!file){alert('Please provide name, ID, image.');return;}
+    getBase64(file,(b64)=>{
       fetch('/register',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({name,s tudent_id:sid, image:base64Str})
+        body: JSON.stringify({name, student_id:studentId, image:b64})
       })
       .then(r=>r.json())
       .then(d=>{
-        const div = document.getElementById('register_result');
+        const div=document.getElementById('register_result');
         div.style.display='block';
-        div.textContent= d.message|| d.error|| JSON.stringify(d);
+        div.textContent=d.message||d.error||JSON.stringify(d);
       })
-      .catch(e=>console.error(e));
+      .catch(err=>console.error(err));
     });
   }
 
   // Recognize
   function recognizeFace(){
-    const file = document.getElementById('rec_image').files[0];
-    const subj = document.getElementById('rec_subject_select').value;
-    if(!file){
-      alert("Please select an image for recognition");
-      return;
-    }
+    const file=document.getElementById('rec_image').files[0];
+    const subjectId=document.getElementById('rec_subject_select').value;
+    if(!file){alert('No image?');return;}
     getBase64(file,(b64)=>{
       fetch('/recognize',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({image:b64, subject_id:subj})
+        body:JSON.stringify({image:b64, subject_id:subjectId})
       })
       .then(r=>r.json())
       .then(d=>{
-        const div = document.getElementById('recognize_result');
+        const div=document.getElementById('recognize_result');
         div.style.display='block';
-        let text = d.message || d.error || JSON.stringify(d);
+        let t=d.message||d.error||JSON.stringify(d);
         if(d.identified_people){
-          text += "\\n\\nIdentified People:\\n";
+          t+="\\n\\nIdentified People:\\n";
           d.identified_people.forEach(p=>{
-            text += `- ${p.name || "Unknown"} (ID: ${p.student_id||"N/A"}), Confidence: ${p.confidence}\\n`;
+            t+=`- ${p.name} (ID: ${p.student_id}), Confidence:${p.confidence}\\n`;
           });
         }
-        div.textContent= text;
+        div.textContent=t;
       })
-      .catch(e=>console.error(e));
+      .catch(err=>console.error(err));
     });
   }
 
   // Subjects
   function addSubject(){
-    const subjectName = document.getElementById('subject_name').value.trim();
-    if(!subjectName){
-      alert("Please enter a subject name.");
-      return;
-    }
+    const subjectName=document.getElementById('subject_name').value.trim();
+    if(!subjectName){alert('No subject name?');return;}
     fetch('/add_subject',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({subject_name: subjectName})
+      body:JSON.stringify({subject_name:subjectName})
     })
     .then(r=>r.json())
     .then(d=>{
-      const div = document.getElementById('subject_result');
+      const div=document.getElementById('subject_result');
       div.style.display='block';
-      div.textContent= d.message|| d.error|| JSON.stringify(d);
+      div.textContent=d.message||d.error||JSON.stringify(d);
       document.getElementById('subject_name').value='';
       loadSubjects();
     })
-    .catch(e=>console.error(e));
+    .catch(err=>console.error(err));
   }
 
   function loadSubjects(){
     fetch('/get_subjects')
     .then(r=>r.json())
     .then(d=>{
-      const select = document.getElementById('rec_subject_select');
-      select.innerHTML='<option value="">-- None --</option>';
-      (d.subjects||[]).forEach(sub=>{
-        const opt = document.createElement('option');
-        opt.value=sub.id;
-        opt.textContent=sub.name;
-        select.appendChild(opt);
+      const sel=document.getElementById('rec_subject_select');
+      sel.innerHTML='<option value="">-- No Subject --</option>';
+      (d.subjects||[]).forEach(s=>{
+        const opt=document.createElement('option');
+        opt.value=s.id;
+        opt.textContent=s.name;
+        sel.appendChild(opt);
       });
-      // show list
-      const ul = document.getElementById('subjects_list');
-      if(ul){
-        ul.innerHTML='';
-        (d.subjects||[]).forEach(sub=>{
-          const li = document.createElement('li');
-          li.textContent=`ID:${sub.id}, Name:${sub.name}`;
-          ul.appendChild(li);
+      const list=document.getElementById('subjects_list');
+      if(list){ // if we exist
+        list.innerHTML='';
+        (d.subjects||[]).forEach(s=>{
+          const li=document.createElement('li');
+          li.textContent=`ID: ${s.id}, Name: ${s.name}`;
+          list.appendChild(li);
         });
       }
     })
-    .catch(e=>console.error(e));
+    .catch(err=>console.error(err));
   }
 
   // Attendance
-  let table;
-  let attendanceData=[];
+  let attendanceTable;
   function loadAttendance(){
-    const stid= document.getElementById('filter_student_id').value.trim();
-    const sbjid= document.getElementById('filter_subject_id').value.trim();
-    const start= document.getElementById('filter_start').value;
-    const end= document.getElementById('filter_end').value;
-
+    const stid=document.getElementById('filter_student_id').value.trim();
+    const subj=document.getElementById('filter_subject_id').value.trim();
+    const start=document.getElementById('filter_start').value;
+    const end=document.getElementById('filter_end').value;
     let url='/api/attendance?';
-    if(stid) url+='student_id='+stid+'&';
-    if(sbjid) url+='subject_id='+sbjid+'&';
-    if(start) url+='start_date='+start+'&';
-    if(end) url+='end_date='+end+'&';
-
+    if(stid)url+='student_id='+stid+'&';
+    if(subj)url+='subject_id='+subj+'&';
+    if(start)url+='start_date='+start+'&';
+    if(end)url+='end_date='+end+'&';
     fetch(url)
     .then(r=>r.json())
-    .then(d=>{
-      attendanceData=d;
-      renderAttendanceTable(attendanceData);
+    .then(data=>{
+      if(attendanceTable){
+        attendanceTable.destroy();
+      }
+      const tb=document.querySelector('#attendanceTable tbody');
+      tb.innerHTML='';
+      data.forEach(rec=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${rec.doc_id||''}</td>
+          <td contenteditable="true">${rec.student_id||''}</td>
+          <td contenteditable="true">${rec.name||''}</td>
+          <td contenteditable="true">${rec.subject_id||''}</td>
+          <td contenteditable="true">${rec.subject_name||''}</td>
+          <td contenteditable="true">${rec.timestamp||''}</td>
+          <td contenteditable="true">${rec.status||''}</td>
+        `;
+        tb.appendChild(tr);
+      });
+      attendanceTable=$('#attendanceTable').DataTable({
+        paging:true, searching:false, info:false, responsive:true
+      });
     })
-    .catch(e=>console.error(e));
-  }
-
-  function renderAttendanceTable(data){
-    const tbl = document.getElementById('attendanceTable');
-    if($.fn.DataTable.isDataTable(tbl)){
-      $(tbl).DataTable().clear().destroy();
-    }
-    const tbody= tbl.querySelector('tbody');
-    tbody.innerHTML='';
-    data.forEach(rec=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML=`
-        <td>${rec.doc_id||''}</td>
-        <td contenteditable="true">${rec.student_id||''}</td>
-        <td contenteditable="true">${rec.name||''}</td>
-        <td contenteditable="true">${rec.subject_id||''}</td>
-        <td contenteditable="true">${rec.subject_name||''}</td>
-        <td contenteditable="true">${rec.timestamp||''}</td>
-        <td contenteditable="true">${rec.status||''}</td>`;
-      tbody.appendChild(tr);
-    });
-    $(tbl).DataTable({paging:true, searching:false, info:false, responsive:true});
+    .catch(err=>console.error(err));
   }
 
   function saveEdits(){
-    const tbl = document.getElementById('attendanceTable');
-    const rows = tbl.querySelectorAll('tbody tr');
-    const updatedRecords=[];
+    const rows=document.querySelectorAll('#attendanceTable tbody tr');
+    const updates=[];
     rows.forEach(r=>{
-      const cells = r.querySelectorAll('td');
+      const cells=r.querySelectorAll('td');
       const doc_id=cells[0].textContent.trim();
       const student_id=cells[1].textContent.trim();
       const name=cells[2].textContent.trim();
@@ -653,30 +504,28 @@ INDEX_HTML = """
       const subject_name=cells[4].textContent.trim();
       const timestamp=cells[5].textContent.trim();
       const status=cells[6].textContent.trim();
-      updatedRecords.push({doc_id, student_id, name, subject_id, subject_name, timestamp, status});
+      updates.push({doc_id, student_id,name, subject_id,subject_name,timestamp,status});
     });
     fetch('/api/attendance/update',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({records:updatedRecords})
+      body:JSON.stringify({records:updates})
     })
     .then(r=>r.json())
-    .then(d=>{
-      alert(d.message || JSON.stringify(d));
-    })
-    .catch(e=>console.error(e));
+    .then(d=>alert(d.message||JSON.stringify(d)))
+    .catch(err=>console.error(err));
   }
 
   function downloadExcel(){
-    const stid= document.getElementById('filter_student_id').value.trim();
-    const sbjid= document.getElementById('filter_subject_id').value.trim();
-    const start= document.getElementById('filter_start').value;
-    const end= document.getElementById('filter_end').value;
+    const stid=document.getElementById('filter_student_id').value.trim();
+    const subj=document.getElementById('filter_subject_id').value.trim();
+    const start=document.getElementById('filter_start').value;
+    const end=document.getElementById('filter_end').value;
     let url='/api/attendance/download?';
-    if(stid) url+='student_id='+stid+'&';
-    if(sbjid) url+='subject_id='+sbjid+'&';
-    if(start) url+='start_date='+start+'&';
-    if(end) url+='end_date='+end+'&';
+    if(stid)url+='student_id='+stid+'&';
+    if(subj)url+='subject_id='+subj+'&';
+    if(start)url+='start_date='+start+'&';
+    if(end)url+='end_date='+end+'&';
     window.location.href=url;
   }
 
@@ -685,162 +534,160 @@ INDEX_HTML = """
   }
 
   function uploadExcel(){
-    const fileInput= document.getElementById('excelFile');
-    if(!fileInput.files.length){
-      alert("Please select a .xlsx file.");
-      return;
-    }
-    const file= fileInput.files[0];
-    const fd= new FormData();
-    fd.append('file', file);
-
+    const f=document.getElementById('excelFile').files[0];
+    if(!f){alert('No file?');return;}
+    const fd=new FormData();
+    fd.append('file',f);
     fetch('/api/attendance/upload',{
-      method:'POST',
-      body:fd
+      method:'POST', body:fd
     })
     .then(r=>r.json())
     .then(d=>{
-      alert(d.message||d.error||'Upload done');
+      alert(d.message||d.error||'Excel uploaded');
       loadAttendance();
     })
-    .catch(e=>console.error(e));
+    .catch(err=>console.error(err));
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
-    loadSubjects();
-  });
+  document.addEventListener('DOMContentLoaded',loadSubjects);
 </script>
+</body>
+</html>
 """
 
-@app.route("/", methods=["GET"])
-def index():
-    # Return the big single-page HTML
-    return INDEX_HTML
+app = Flask(__name__)
 
-# ------------------------------------------------------
-# 10) REGISTER Endpoint
-# ------------------------------------------------------
+@app.route("/")
+def index():
+    # Render our big single-page
+    return render_template_string(INDEX_HTML)
+
+# -----------------------------
+# Register
+# -----------------------------
 @app.route("/register", methods=["POST"])
 def register_face():
     data = request.json
     name = data.get("name")
-    sid = data.get("student_id")
-    img = data.get("image")
+    student_id = data.get("student_id")
+    image = data.get("image")
+    if not name or not student_id or not image:
+        return jsonify({"message":"Missing name,student_id,image"}),400
 
-    if not name or not sid or not img:
-        return jsonify({"message":"Missing name, student_id, or image"}),400
+    sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
+    image_data = image.split(",")[1]
+    image_bytes = base64.b64decode(image_data)
 
-    # decode image
-    b64 = img.split(",")[1]
-    raw_bytes= base64.b64decode(b64)
-
-    ext_id = f"{name}_{sid}".replace(" ","_")
-    res= rekognition_client.index_faces(
+    external_image_id = f"{sanitized_name}_{student_id}"
+    resp = rekognition_client.index_faces(
         CollectionId=COLLECTION_ID,
-        Image={'Bytes':raw_bytes},
-        ExternalImageId=ext_id,
+        Image={'Bytes':image_bytes},
+        ExternalImageId=external_image_id,
         DetectionAttributes=['ALL'],
         QualityFilter='AUTO'
     )
-    if not res.get('FaceRecords'):
-        return jsonify({"message":"No face detected in the image"}),400
+    if not resp.get('FaceRecords'):
+        return jsonify({"message":"No face detected"}),400
+    return jsonify({"message":f"Student {name} with ID {student_id} registered!"}),200
 
-    return jsonify({"message":f"Student {name} with ID {sid} registered successfully!"}),200
-
-# ------------------------------------------------------
-# 11) RECOGNIZE Endpoint
-# ------------------------------------------------------
+# -----------------------------
+# Recognize
+# -----------------------------
 @app.route("/recognize", methods=["POST"])
-def recognize_face():
+def recognize():
     data = request.json
-    img = data.get("image")
-    subject_id= data.get("subject_id") or ""
-    if not img:
+    image_str = data.get("image")
+    subject_id = data.get("subject_id") or ""
+    if not image_str:
         return jsonify({"message":"No image provided"}),400
 
-    # decode
-    b64= img.split(",")[1]
-    raw_bytes= base64.b64decode(b64)
+    # optional subject name
+    subject_name=""
+    if subject_id:
+        doc=db.collection("subjects").document(subject_id).get()
+        if doc.exists:
+            subject_name = doc.to_dict().get("name","Unknown Subject")
 
-    # Optionally do super-resolution, denoise, eq
-    raw_bytes= upscale_image(raw_bytes)
-    raw_bytes= denoise_image(raw_bytes)
-    raw_bytes= equalize_image(raw_bytes)
+    raw_b64 = image_str.split(",")[1]
+    raw_bytes=base64.b64decode(raw_b64)
+    # optional enhancements
+    raw_bytes=upscale_image(raw_bytes)
+    raw_bytes=denoise_image(raw_bytes)
+    raw_bytes=equalize_image(raw_bytes)
 
-    pil_img = Image.open(io.BytesIO(raw_bytes))
-    regs= split_image(pil_img,grid_size=3)
+    pil_img=Image.open(io.BytesIO(raw_bytes))
+
+    # split
+    def split_image(pil_img,grid=3):
+        w,h=pil_img.size
+        rw, rh = w//grid, h//grid
+        regs=[]
+        for r in range(grid):
+            for c in range(grid):
+                left=c*rw
+                top=r*rh
+                right=(c+1)*rw
+                bottom=(r+1)*rh
+                regs.append(pil_img.crop((left,top,right,bottom)))
+        return regs
+
+    regions=split_image(pil_img,3)
 
     identified_people=[]
     face_count=0
+    for region in regions:
+        buf=io.BytesIO()
+        region.save(buf,format="JPEG")
+        region_bytes=buf.getvalue()
 
-    # (Optional) fetch subject_name from Firestore if you want to log
-    subject_name= ""
-    if subject_id:
-        doc= db.collection("subjects").document(subject_id).get()
-        if doc.exists:
-            subject_name= doc.to_dict().get("name","")
-        else:
-            subject_name= "Unknown Subject"
-
-    for region in regs:
-        r_buf= io.BytesIO()
-        region.save(r_buf, format="JPEG")
-        region_bytes= r_buf.getvalue()
-
-        detect= rekognition_client.detect_faces(
+        det=rekognition_client.detect_faces(
             Image={'Bytes':region_bytes}, Attributes=['ALL']
         )
-        fds= detect.get('FaceDetails',[])
-        face_count+= len(fds)
-
-        for face in fds:
-            bbox= face['BoundingBox']
-            w,h= region.size
-            left= int(bbox['Left']*w)
-            top= int(bbox['Top']*h)
-            right= int((bbox['Left']+bbox['Width'])*w)
-            bottom= int((bbox['Top']+bbox['Height'])*h)
-            cropped= region.crop((left,top,right,bottom))
-            cbuf= io.BytesIO()
-            cropped.save(cbuf,format="JPEG")
-            cropped_bytes= cbuf.getvalue()
-
-            srch= rekognition_client.search_faces_by_image(
+        faces=det.get('FaceDetails',[])
+        face_count+=len(faces)
+        for f in faces:
+            bbox=f['BoundingBox']
+            w,h=region.size
+            left=int(bbox['Left']*w)
+            top=int(bbox['Top']*h)
+            rght=int((bbox['Left']+bbox['Width'])*w)
+            bot=int((bbox['Top']+bbox['Height'])*h)
+            cf=region.crop((left,top,rght,bot))
+            cbuf=io.BytesIO()
+            cf.save(cbuf,format="JPEG")
+            cfac=cbuf.getvalue()
+            sr=rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
-                Image={'Bytes':cropped_bytes},
+                Image={'Bytes':cfac},
                 MaxFaces=1,
                 FaceMatchThreshold=60
             )
-            fm= srch.get('FaceMatches',[])
-            if not fm:
+            matches=sr.get('FaceMatches',[])
+            if not matches:
                 identified_people.append({"message":"Face not recognized","confidence":"N/A"})
                 continue
-
-            match= fm[0]
-            extid= match['Face']['ExternalImageId']
-            conf= match['Face']['Confidence']
-
-            parts= extid.split("_",1)
+            m=matches[0]
+            ext_id=m['Face']['ExternalImageId']
+            conf=m['Face']['Confidence']
+            parts=ext_id.split("_",1)
             if len(parts)==2:
-                rec_name, rec_id= parts
+                rec_name, rec_id=parts
             else:
-                rec_name, rec_id= extid,"Unknown"
+                rec_name, rec_id=ext_id,"Unknown"
 
-            identified_people.append({
-                "name":rec_name,"student_id":rec_id,"confidence":conf
-            })
+            identified_people.append({"name":rec_name,"student_id":rec_id,"confidence":conf})
 
-            # Optionally log attendance
-            if rec_id != "Unknown":
-                record= {
-                    "student_id":rec_id,
-                    "name":rec_name,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "subject_id":subject_id,
-                    "subject_name":subject_name,
-                    "status":"PRESENT"
+            # log attendance
+            if rec_id!="Unknown":
+                doc={
+                  "student_id":rec_id,
+                  "name":rec_name,
+                  "timestamp":datetime.utcnow().isoformat(),
+                  "subject_id":subject_id,
+                  "subject_name":subject_name,
+                  "status":"PRESENT"
                 }
-                db.collection("attendance").add(record)
+                db.collection("attendance").add(doc)
 
     return jsonify({
       "message":f"{face_count} face(s) detected in the photo.",
@@ -848,126 +695,120 @@ def recognize_face():
       "identified_people":identified_people
     }),200
 
-# ------------------------------------------------------
-# 12) SUBJECTS
-# ------------------------------------------------------
+# -----------------------------
+# Subjects
+# -----------------------------
 @app.route("/add_subject", methods=["POST"])
 def add_subject():
-    data= request.json
-    sname= data.get("subject_name")
-    if not sname:
-        return jsonify({"error":"No subject_name provided"}),400
-
-    ref= db.collection("subjects").document()
-    ref.set({"name": sname.strip(), "created_at":datetime.utcnow().isoformat()})
-    return jsonify({"message": f"Subject '{sname}' added successfully!"}),200
+    d=request.json
+    subject_name=d.get("subject_name")
+    if not subject_name:
+        return jsonify({"error":"No subject_name"}),400
+    doc_ref=db.collection("subjects").document()
+    doc_ref.set({"name":subject_name.strip(),"created_at":datetime.utcnow().isoformat()})
+    return jsonify({"message":f"Subject '{subject_name}' added."}),200
 
 @app.route("/get_subjects", methods=["GET"])
 def get_subjects():
-    docs= db.collection("subjects").stream()
-    subj= []
-    for d in docs:
-        dd= d.to_dict()
-        subj.append({"id":d.id,"name":dd.get("name","")})
-    return jsonify({"subjects":subj}),200
+    subs=db.collection("subjects").stream()
+    subjects_list=[]
+    for s in subs:
+        dd=s.to_dict()
+        subjects_list.append({"id":s.id,"name":dd.get("name","")})
+    return jsonify({"subjects":subjects_list}),200
 
-# ------------------------------------------------------
-# 13) ATTENDANCE
-# ------------------------------------------------------
+# -----------------------------
+# Attendance
+# -----------------------------
 import openpyxl
 from openpyxl import Workbook
 
 @app.route("/api/attendance", methods=["GET"])
-def get_attendance():
-    sid= request.args.get("student_id")
-    sbj= request.args.get("subject_id")
-    start= request.args.get("start_date")
-    end= request.args.get("end_date")
-
-    ref= db.collection("attendance")
-    if sid:
-        ref= ref.where("student_id","==",sid)
-    if sbj:
-        ref= ref.where("subject_id","==",sbj)
+def list_attendance():
+    stid=request.args.get("student_id")
+    subid=request.args.get("subject_id")
+    start=request.args.get("start_date")
+    end=request.args.get("end_date")
+    q=db.collection("attendance")
+    if stid:
+        q=q.where("student_id","==",stid)
+    if subid:
+        q=q.where("subject_id","==",subid)
     if start:
-        dt_s= datetime.strptime(start,"%Y-%m-%d")
-        ref= ref.where("timestamp",">=",dt_s.isoformat())
+        dt_start=datetime.strptime(start,"%Y-%m-%d")
+        q=q.where("timestamp",">=",dt_start.isoformat())
     if end:
-        dt_e= datetime.strptime(end,"%Y-%m-%d").replace(hour=23,minute=59,second=59,microsecond=999999)
-        ref= ref.where("timestamp","<=",dt_e.isoformat())
+        dt_end=datetime.strptime(end,"%Y-%m-%d").replace(hour=23,minute=59,second=59,microsecond=999999)
+        q=q.where("timestamp","<=",dt_end.isoformat())
 
-    docs= ref.stream()
-    arr=[]
-    for d in docs:
-        dd= d.to_dict()
-        dd["doc_id"]= d.id
-        arr.append(dd)
-    return jsonify(arr)
+    docs=q.stream()
+    output=[]
+    for doc_ in docs:
+        d=doc_.to_dict()
+        d["doc_id"]=doc_.id
+        output.append(d)
+    return jsonify(output)
 
 @app.route("/api/attendance/update", methods=["POST"])
 def update_attendance():
-    data= request.json
-    recs= data.get("records",[])
+    data=request.json
+    recs=data.get("records",[])
     for r in recs:
-        doc_id= r.get("doc_id")
-        if not doc_id:
-            continue
-        ref= db.collection("attendance").document(doc_id)
-        ref.update({
-          "student_id":r.get("student_id",""),
-          "name":r.get("name",""),
-          "subject_id":r.get("subject_id",""),
-          "subject_name":r.get("subject_name",""),
-          "timestamp":r.get("timestamp",""),
-          "status":r.get("status","")
-        })
-    return jsonify({"message":"Attendance records updated successfully."})
+        doc_id=r.get("doc_id")
+        if not doc_id: continue
+        ref=db.collection("attendance").document(doc_id)
+        dd={
+          "student_id": r.get("student_id",""),
+          "name": r.get("name",""),
+          "subject_id": r.get("subject_id",""),
+          "subject_name": r.get("subject_name",""),
+          "timestamp": r.get("timestamp",""),
+          "status": r.get("status",""),
+        }
+        ref.update(dd)
+    return jsonify({"message":"Attendance records updated."})
 
 @app.route("/api/attendance/download", methods=["GET"])
 def download_attendance():
-    sid= request.args.get("student_id")
-    sbj= request.args.get("subject_id")
-    start= request.args.get("start_date")
-    end= request.args.get("end_date")
-
-    ref= db.collection("attendance")
-    if sid:
-        ref= ref.where("student_id","==",sid)
-    if sbj:
-        ref= ref.where("subject_id","==",sbj)
+    stid=request.args.get("student_id")
+    subid=request.args.get("subject_id")
+    start=request.args.get("start_date")
+    end=request.args.get("end_date")
+    q=db.collection("attendance")
+    if stid:
+        q=q.where("student_id","==",stid)
+    if subid:
+        q=q.where("subject_id","==",subid)
     if start:
-        ds= datetime.strptime(start,"%Y-%m-%d")
-        ref= ref.where("timestamp",">=", ds.isoformat())
+        dt_start=datetime.strptime(start,"%Y-%m-%d")
+        q=q.where("timestamp",">=",dt_start.isoformat())
     if end:
-        de= datetime.strptime(end,"%Y-%m-%d").replace(hour=23,minute=59,second=59,microsecond=999999)
-        ref= ref.where("timestamp","<=", de.isoformat())
+        dt_end=datetime.strptime(end,"%Y-%m-%d").replace(hour=23,minute=59,second=59,microsecond=999999)
+        q=q.where("timestamp","<=",dt_end.isoformat())
 
-    docs= ref.stream()
-    arr=[]
+    docs=q.stream()
+    recs=[]
     for d in docs:
-        dd= d.to_dict()
-        dd["doc_id"]= d.id
-        arr.append(dd)
-
-    wb= Workbook()
-    ws= wb.active
-    ws.title= "Attendance"
-    headers= ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
+        dd=d.to_dict()
+        dd["doc_id"]=d.id
+        recs.append(dd)
+    wb=Workbook()
+    ws=wb.active
+    ws.title="Attendance"
+    headers=["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
     ws.append(headers)
-
-    for rec in arr:
-        row= [
-          rec.get("doc_id",""),
-          rec.get("student_id",""),
-          rec.get("name",""),
-          rec.get("subject_id",""),
-          rec.get("subject_name",""),
-          rec.get("timestamp",""),
-          rec.get("status","")
+    for r in recs:
+        row=[
+          r.get("doc_id",""),
+          r.get("student_id",""),
+          r.get("name",""),
+          r.get("subject_id",""),
+          r.get("subject_name",""),
+          r.get("timestamp",""),
+          r.get("status","")
         ]
         ws.append(row)
-
-    out= io.BytesIO()
+    out=io.BytesIO()
     wb.save(out)
     out.seek(0)
     return send_file(
@@ -978,14 +819,13 @@ def download_attendance():
     )
 
 @app.route("/api/attendance/template", methods=["GET"])
-def download_template():
-    wb= Workbook()
-    ws= wb.active
-    ws.title="Attendance Template"
-    headers= ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
-    ws.append(headers)
-
-    out= io.BytesIO()
+def template():
+    wb=Workbook()
+    ws=wb.active
+    ws.title="AttendanceTemplate"
+    h=["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
+    ws.append(h)
+    out=io.BytesIO()
     wb.save(out)
     out.seek(0)
     return send_file(
@@ -998,46 +838,142 @@ def download_template():
 @app.route("/api/attendance/upload", methods=["POST"])
 def upload_attendance():
     if "file" not in request.files:
-        return jsonify({"error":"No file uploaded"}),400
-    file= request.files["file"]
-    if not file.filename.endswith(".xlsx"):
-        return jsonify({"error":"Please upload a .xlsx file"}),400
+        return jsonify({"error":"No file"}),400
+    f=request.files["file"]
+    if not f.filename.endswith(".xlsx"):
+        return jsonify({"error":"Please upload .xlsx"}),400
 
-    wb= openpyxl.load_workbook(file)
-    ws= wb.active
-    rows= list(ws.iter_rows(values_only=True))
-    expected= ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
-    if not rows or rows[0]!= expected:
+    import openpyxl
+    wb=openpyxl.load_workbook(f)
+    ws=wb.active
+    rows=list(ws.iter_rows(values_only=True))
+    expected=("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
+    if not rows or rows[0]!=expected:
         return jsonify({"error":"Incorrect template format"}),400
 
     for row in rows[1:]:
-        doc_id, student_id, name, subject_id, subject_name, timestamp, status= row
+        doc_id, stid, nm, subid, subnm, ts, status=row
         if doc_id:
-            dd= {
-              "student_id": student_id or "",
-              "name": name or "",
-              "subject_id": subject_id or "",
-              "subject_name": subject_name or "",
-              "timestamp": timestamp or "",
+            dd={
+              "student_id": stid or "",
+              "name": nm or "",
+              "subject_id": subid or "",
+              "subject_name": subnm or "",
+              "timestamp": ts or "",
               "status": status or ""
             }
-            db.collection("attendance").document(doc_id).set(dd, merge=True)
+            db.collection("attendance").document(doc_id).set(dd,merge=True)
         else:
-            new_dd= {
-              "student_id": student_id or "",
-              "name": name or "",
-              "subject_id": subject_id or "",
-              "subject_name": subject_name or "",
-              "timestamp": timestamp or "",
+            newd={
+              "student_id": stid or "",
+              "name": nm or "",
+              "subject_id": subid or "",
+              "subject_name": subnm or "",
+              "timestamp": ts or "",
               "status": status or ""
             }
-            db.collection("attendance").add(new_dd)
-
+            db.collection("attendance").add(newd)
     return jsonify({"message":"Excel data imported successfully."})
 
-# ------------------------------------------------------
-# 14) RUN FLASK
-# ------------------------------------------------------
+# -----------------------------
+# 6) /process_prompt => interpret user chat. If analytics, do Firestore query, else respond
+# -----------------------------
+@app.route("/process_prompt", methods=["POST"])
+def process_prompt():
+    data=request.json
+    user_prompt=data.get("prompt","").strip()
+    if not user_prompt:
+        return jsonify({"error":"No prompt provided"}),400
+
+    # Add user message
+    conversation_memory.append({"role":"user","content":user_prompt})
+    # Build conversation string
+    conv_str=""
+    for msg in conversation_memory:
+        if msg["role"]=="system":
+            conv_str+=f"System: {msg['content']}\n"
+        elif msg["role"]=="user":
+            conv_str+=f"User: {msg['content']}\n"
+        else:
+            conv_str+=f"Assistant: {msg['content']}\n"
+
+    # Step 1: Let Gemini classify or parse
+    # We'll ask it: "Decide if this is analytics or casual. If analytics, output JSON with {action:'analytics', subject:'X', metric:'lowest_attendance'}. If not, say {action:'casual'}."
+    classification_prompt=conv_str+"\nYou are an advanced assistant. Output EXACT valid JSON, either {\"action\":\"casual\"} or {\"action\":\"analytics\",\"subject\":\"...\",\"metric\":\"lowest_attendance\"} for example."
+    classification_resp=model.generate_content(classification_prompt)
+    if not classification_resp.candidates:
+        # fallback
+        assistant_reply="I'm having trouble responding."
+    else:
+        # parse the classification
+        raw=classification_resp.candidates[0].content.parts[0].text.strip()
+        # attempt to decode JSON
+        try:
+            # e.g. {"action":"analytics","subject":"physics","metric":"lowest_attendance"}
+            classification_data=json.loads(raw)
+            if classification_data.get("action")=="analytics":
+                # e.g. subject=classification_data["subject"], metric=lowest_attendance
+                subject_str=classification_data.get("subject","")
+                metric=classification_data.get("metric","lowest_attendance")
+                # run a Firestore query
+                # Example: "lowest attendance for subject"
+                # This is naive - you'd customize your logic
+                # For "lowest_attendance", we interpret as "the student with the fewest 'PRESENT' docs for that subject"
+                analytics_result=run_analytics_lowest_attendance(subject_str)
+                assistant_reply=f"For subject={subject_str}, lowest attendance is: {analytics_result}"
+            else:
+                # casual
+                # Generate a normal chat reply
+                normal_resp=model.generate_content(conv_str)
+                if not normal_resp.candidates:
+                    assistant_reply="Hmm, I'm stuck."
+                else:
+                    assistant_reply="".join(part.text for part in normal_resp.candidates[0].content.parts).strip()
+        except:
+            # fallback if JSON parse fails, treat as casual
+            normal_resp=model.generate_content(conv_str)
+            if not normal_resp.candidates:
+                assistant_reply="Hmm, I'm stuck."
+            else:
+                assistant_reply="".join(part.text for part in normal_resp.candidates[0].content.parts).strip()
+
+    # Add to memory
+    conversation_memory.append({"role":"assistant","content":assistant_reply})
+    # Trim
+    if len(conversation_memory)>MAX_MEMORY:
+        conversation_memory.pop(0)
+    return jsonify({"message":assistant_reply})
+
+def run_analytics_lowest_attendance(subject_str):
+    """
+    Example logic: For each student, count how many attendance docs with subject_id=subject_str.
+    Return the student with the fewest.
+    This is naive and not optimized. If you want 'lowest attendance rate' you need total possible days, etc.
+    """
+    # Gather all attendance with subject_id=subject_str
+    q=db.collection("attendance").where("subject_id","==",subject_str)
+    docs=q.stream()
+    # count by student
+    from collections import Counter
+    counts=Counter()
+    for d in docs:
+        dd=d.to_dict()
+        stid=dd.get("student_id","Unknown")
+        counts[stid]+=1
+
+    if not counts:
+        return "No attendance records found for subject."
+    # find min
+    min_val=min(counts.values())
+    # find who has that min
+    # possibly multiple
+    losers=[k for k,v in counts.items() if v==min_val]
+    # e.g. "Student 1234 with 2"
+    return f"{', '.join(losers)} with {min_val} record(s)"
+
+# -----------------------------
+# 7) Run
+# -----------------------------
 if __name__=="__main__":
-    port= int(os.getenv("PORT",5000))
+    port=int(os.getenv("PORT","5000"))
     app.run(host="0.0.0.0",port=port,debug=True)
