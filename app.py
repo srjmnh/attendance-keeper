@@ -12,16 +12,26 @@ from PIL import Image
 import openpyxl
 from openpyxl import Workbook
 import google.generativeai as genai
-
 from dotenv import load_dotenv
+import logging
+from flask_cors import CORS
+import cv2
+import numpy as np
 
 # -----------------------------
 # 1) Initialize Flask App
 # -----------------------------
 app = Flask(__name__)
+CORS(app)  # Enable CORS if frontend is served from a different origin
 
 # -----------------------------
-# 2) Load Environment Variables
+# 2) Setup Logging
+# -----------------------------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# -----------------------------
+# 3) Load Environment Variables
 # -----------------------------
 load_dotenv()
 
@@ -35,41 +45,59 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 PORT = int(os.getenv('PORT', 5000))
 
 if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, FIREBASE_ADMIN_CREDENTIALS_BASE64, GEMINI_API_KEY]):
+    logger.error("One or more required environment variables are missing.")
     raise EnvironmentError("One or more required environment variables are missing.")
 
 # -----------------------------
-# 3) Initialize Firebase Firestore
+# 4) Initialize Firebase Firestore
 # -----------------------------
-decoded_cred_json = base64.b64decode(FIREBASE_ADMIN_CREDENTIALS_BASE64)
-cred_dict = json.loads(decoded_cred_json)
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+try:
+    decoded_cred_json = base64.b64decode(FIREBASE_ADMIN_CREDENTIALS_BASE64)
+    cred_dict = json.loads(decoded_cred_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    logger.info("Initialized Firebase Firestore.")
+except Exception as e:
+    logger.error(f"Failed to initialize Firebase: {e}")
+    raise e
 
 # -----------------------------
-# 4) Initialize AWS Rekognition Client
+# 5) Initialize AWS Rekognition Client
 # -----------------------------
-rekognition_client = boto3.client(
-    'rekognition',
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION
-)
+try:
+    rekognition_client = boto3.client(
+        'rekognition',
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=AWS_REGION
+    )
+    logger.info("Initialized AWS Rekognition client.")
+except Exception as e:
+    logger.error(f"Failed to initialize AWS Rekognition client: {e}")
+    raise e
 
 def create_collection_if_not_exists(collection_id):
     try:
         rekognition_client.create_collection(CollectionId=collection_id)
-        print(f"Collection '{collection_id}' created.")
+        logger.info(f"Collection '{collection_id}' created.")
     except rekognition_client.exceptions.ResourceAlreadyExistsException:
-        print(f"Collection '{collection_id}' already exists.")
+        logger.info(f"Collection '{collection_id}' already exists.")
+    except Exception as e:
+        logger.error(f"Error creating collection '{collection_id}': {e}")
 
 create_collection_if_not_exists(COLLECTION_ID)
 
 # -----------------------------
-# 5) Initialize Gemini Chatbot
+# 6) Initialize Gemini Chatbot
 # -----------------------------
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("models/gemini-1.5-flash")  # Use appropriate model
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("models/gemini-1.5-flash")  # Use the appropriate model
+    logger.info("Initialized Gemini Chatbot.")
+except Exception as e:
+    logger.error(f"Failed to initialize Gemini Chatbot: {e}")
+    raise e
 
 # Chat memory
 MAX_MEMORY = 20
@@ -104,7 +132,7 @@ Facial Recognition Attendance system features:
 conversation_memory.append({"role": "system", "content": system_context})
 
 # -----------------------------
-# 6) Image Enhancement Function (Using OpenCV and Pillow)
+# 7) Image Enhancement Functions
 # -----------------------------
 def enhance_image(pil_image):
     """
@@ -124,29 +152,79 @@ def enhance_image(pil_image):
 
     return enhanced_pil_image
 
+def upscale_image(image_bytes, upscale_factor=2):
+    """Super-resolution (optional)."""
+    image = Image.open(io.BytesIO(image_bytes))
+    width, height = image.size
+    upscaled_image = image.resize((width * upscale_factor, height * upscale_factor), Image.ANTIALIAS)
+    buffer = io.BytesIO()
+    upscaled_image.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+def denoise_image(image_bytes):
+    """Noise reduction (optional)."""
+    image = Image.open(io.BytesIO(image_bytes))
+    image_array = np.array(image)
+    denoised = cv2.fastNlMeansDenoisingColored(image_array, None, 10, 10, 7, 21)
+    denoised_image = Image.fromarray(denoised)
+    buffer = io.BytesIO()
+    denoised_image.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+def equalize_image(image_bytes):
+    """Histogram equalization (optional)."""
+    image = Image.open(io.BytesIO(image_bytes))
+    image_array = np.array(image)
+    lab = cv2.cvtColor(image_array, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    l = cv2.equalizeHist(l)
+    lab = cv2.merge((l, a, b))
+    eq_image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    eq_image_pil = Image.fromarray(eq_image)
+    buffer = io.BytesIO()
+    eq_image_pil.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+def split_image(pil_image, grid_size=3):
+    """Split PIL image into grid_size x grid_size smaller regions."""
+    width, height = pil_image.size
+    region_width = width // grid_size
+    region_height = height // grid_size
+    regions = []
+    for row in range(grid_size):
+        for col in range(grid_size):
+            left = col * region_width
+            top = row * region_height
+            right = (col + 1) * region_width
+            bottom = (row + 1) * region_height
+            regions.append(pil_image.crop((left, top, right, bottom)))
+    return regions
+
 # -----------------------------
-# 7) Event Logging Functions
+# 8) Event Logging Functions
 # -----------------------------
 def log_event(action, details=""):
     """
     Logs an event and notifies the chatbot.
     """
     message = f"Action: {action}. Details: {details}"
-    conversation_memory.append({"role": "assistant", "content": message})
+    conversation_memory.append({"role":"assistant","content":message})
     if len(conversation_memory) > MAX_MEMORY:
         conversation_memory.pop(0)
+    logger.info(message)
 
 def log_error(error_message, context=""):
     """
     Logs an error and notifies the chatbot.
     """
     message = f"Error: {error_message}. Context: {context}"
-    conversation_memory.append({"role": "assistant", "content": message})
+    conversation_memory.append({"role":"assistant","content":message})
     if len(conversation_memory) > MAX_MEMORY:
         conversation_memory.pop(0)
+    logger.error(message)
 
 # -----------------------------
-# 8) API Endpoints for Firebase Operations
+# 9) API Endpoints for Firebase Operations
 # -----------------------------
 
 @app.route("/api/subjects/add", methods=["POST"])
@@ -209,6 +287,20 @@ def api_delete_subject():
         log_error(f"Failed to delete subject: {str(e)}", "Delete Subject API")
         return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
+@app.route("/api/subjects/get", methods=["GET"])
+def get_subjects():
+    try:
+        subjects = db.collection("subjects").stream()
+        subj_list = []
+        for subject in subjects:
+            subj_data = subject.to_dict()
+            subj_list.append({"id": subject.id, "name": subj_data.get("name", "")})
+        log_event("Fetched subjects", f"Number of subjects fetched: {len(subj_list)}")
+        return jsonify({"subjects": subj_list}), 200
+    except Exception as e:
+        log_error(f"Failed to fetch subjects: {str(e)}", "Get Subjects API")
+        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
+
 @app.route("/api/analytics", methods=["GET"])
 def api_get_analytics():
     try:
@@ -228,7 +320,7 @@ def api_get_analytics():
         return jsonify({"error": f"Failed to fetch analytics: {str(e)}"}), 500
 
 # -----------------------------
-# 9) Attendance Endpoints
+# 10) Attendance Endpoints
 # -----------------------------
 
 @app.route("/api/attendance", methods=["GET"])
@@ -258,14 +350,18 @@ def get_attendance():
         except ValueError:
             return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
 
-    results = query.stream()
-    out_list = []
-    for doc_ in results:
-        dd = doc_.to_dict()
-        dd["doc_id"] = doc_.id
-        out_list.append(dd)
-
-    return jsonify(out_list)
+    try:
+        results = query.stream()
+        out_list = []
+        for doc_ in results:
+            dd = doc_.to_dict()
+            dd["doc_id"] = doc_.id
+            out_list.append(dd)
+        log_event("Fetched attendance records", f"Number of records fetched: {len(out_list)}")
+        return jsonify(out_list)
+    except Exception as e:
+        log_error(f"Failed to fetch attendance records: {str(e)}", "Get Attendance API")
+        return jsonify({"error": f"Failed to fetch attendance records: {str(e)}"}), 500
 
 @app.route("/api/attendance/update", methods=["POST"])
 def update_attendance():
@@ -319,116 +415,127 @@ def download_attendance_excel():
         except ValueError:
             return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
 
-    results = query.stream()
-    att_list = []
-    for doc_ in results:
-        dd = doc_.to_dict()
-        dd["doc_id"] = doc_.id
-        att_list.append(dd)
+    try:
+        results = query.stream()
+        att_list = []
+        for doc_ in results:
+            dd = doc_.to_dict()
+            dd["doc_id"] = doc_.id
+            att_list.append(dd)
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Attendance"
-    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
-    ws.append(headers)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance"
+        headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
+        ws.append(headers)
 
-    for record in att_list:
-        row = [
-            record.get("doc_id",""),
-            record.get("student_id",""),
-            record.get("name",""),
-            record.get("subject_id",""),
-            record.get("subject_name",""),
-            record.get("timestamp",""),
-            record.get("status","")
-        ]
-        ws.append(row)
+        for record in att_list:
+            row = [
+                record.get("doc_id",""),
+                record.get("student_id",""),
+                record.get("name",""),
+                record.get("subject_id",""),
+                record.get("subject_name",""),
+                record.get("timestamp",""),
+                record.get("status","")
+            ]
+            ws.append(row)
 
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        download_name="attendance.xlsx"
-    )
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        log_event("Downloaded attendance as Excel", f"Number of records: {len(att_list)}")
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="attendance.xlsx"
+        )
+    except Exception as e:
+        log_error(f"Failed to download Excel: {str(e)}", "Download Attendance API")
+        return jsonify({"error": f"Failed to download Excel: {str(e)}"}), 500
 
 @app.route("/api/attendance/template", methods=["GET"])
 def download_template():
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Attendance Template"
-    headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
-    ws.append(headers)
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Template"
+        headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
+        ws.append(headers)
 
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        download_name="attendance_template.xlsx"
-    )
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        log_event("Downloaded attendance template", "Template downloaded")
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="attendance_template.xlsx"
+        )
+    except Exception as e:
+        log_error(f"Failed to download template: {str(e)}", "Download Template API")
+        return jsonify({"error": f"Failed to download template: {str(e)}"}), 500
 
 @app.route("/api/attendance/upload", methods=["POST"])
 def upload_attendance_excel():
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    file = request.files["file"]
-    if not file.filename.endswith(".xlsx"):
-        return jsonify({"error": "Please upload a .xlsx file"}), 400
-
     try:
+        if "file" not in request.files:
+            log_error("No file uploaded", "Upload Attendance API")
+            return jsonify({"error": "No file uploaded"}), 400
+        file = request.files["file"]
+        if not file.filename.endswith(".xlsx"):
+            log_error("Uploaded file is not an .xlsx", "Upload Attendance API")
+            return jsonify({"error": "Please upload a .xlsx file"}), 400
+
         wb = openpyxl.load_workbook(file)
-    except Exception as e:
-        log_error(f"Failed to read Excel file: {str(e)}", "Upload Attendance API")
-        return jsonify({"error": f"Failed to read Excel file: {str(e)}"}), 400
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
+        if not rows or rows[0] != expected:
+            log_error("Incorrect template format", "Upload Attendance API")
+            return jsonify({"error": "Incorrect template format"}), 400
 
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
-    if not rows or rows[0] != expected:
-        log_error("Incorrect template format", "Upload Attendance API")
-        return jsonify({"error": "Incorrect template format"}), 400
-
-    try:
-        for row in rows[1:]:
-            doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
-            if doc_id:
-                doc_data = {
-                    "student_id": student_id or "",
-                    "name": name or "",
-                    "subject_id": subject_id or "",
-                    "subject_name": subject_name or "",
-                    "timestamp": timestamp or "",
-                    "status": status or ""
-                }
-                db.collection("attendance").document(doc_id).set(doc_data, merge=True)
-            else:
-                new_doc = {
-                    "student_id": student_id or "",
-                    "name": name or "",
-                    "subject_id": subject_id or "",
-                    "subject_name": subject_name or "",
-                    "timestamp": timestamp or "",
-                    "status": status or ""
-                }
-                db.collection("attendance").add(new_doc)
-        log_event("Uploaded attendance from Excel", f"Number of records imported: {len(rows)-1}")
-        return jsonify({"message": "Excel data imported successfully."}), 200
+        try:
+            for row in rows[1:]:
+                doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
+                if doc_id:
+                    doc_data = {
+                        "student_id": student_id or "",
+                        "name": name or "",
+                        "subject_id": subject_id or "",
+                        "subject_name": subject_name or "",
+                        "timestamp": timestamp or "",
+                        "status": status or ""
+                    }
+                    db.collection("attendance").document(doc_id).set(doc_data, merge=True)
+                else:
+                    new_doc = {
+                        "student_id": student_id or "",
+                        "name": name or "",
+                        "subject_id": subject_id or "",
+                        "subject_name": subject_name or "",
+                        "timestamp": timestamp or "",
+                        "status": status or ""
+                    }
+                    db.collection("attendance").add(new_doc)
+            log_event("Uploaded attendance from Excel", f"Number of records imported: {len(rows)-1}")
+            return jsonify({"message": "Excel data imported successfully."}), 200
+        except Exception as e:
+            log_error(f"Failed to import Excel data: {str(e)}", "Upload Attendance API")
+            return jsonify({"error": f"Failed to import Excel data: {str(e)}"}), 500
     except Exception as e:
-        log_error(f"Failed to import Excel data: {str(e)}", "Upload Attendance API")
-        return jsonify({"error": f"Failed to import Excel data: {str(e)}"}), 500
+        log_error(f"Failed to process upload: {str(e)}", "Upload Attendance API")
+        return jsonify({"error": f"Failed to process upload: {str(e)}"}), 500
 
 # -----------------------------
-# 10) Register Face (GET/POST)
+# 11) Register Face (GET/POST)
 # -----------------------------
 @app.route("/register", methods=["GET","POST"])
 def register_face():
     if request.method == "GET":
-        return "Welcome to /register. Please POST with {name, student_id, image} to register."
+        return "Welcome to /register. Please POST with {name, student_id, image} to register.", 200
 
     data = request.json
     name = data.get('name')
@@ -439,15 +546,30 @@ def register_face():
         return jsonify({"message": "Missing name, student_id, or image"}), 400
 
     sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
-    image_data = image.split(",")[1]
-    image_bytes = base64.b64decode(image_data)
+    try:
+        image_data = image.split(",")[1]
+    except IndexError:
+        log_error("Invalid image format", "Register Route")
+        return jsonify({"message": "Invalid image format"}), 400
+
+    try:
+        image_bytes = base64.b64decode(image_data)
+    except base64.binascii.Error:
+        log_error("Invalid base64 encoding for image", "Register Route")
+        return jsonify({"message": "Invalid base64 encoding for image"}), 400
+
+    try:
+        pil_image = Image.open(io.BytesIO(image_bytes))
+    except IOError:
+        log_error("Uploaded file is not a valid image", "Register Route")
+        return jsonify({"message": "Uploaded file is not a valid image"}), 400
 
     # Enhance image before indexing
-    pil_image = Image.open(io.BytesIO(image_bytes))
     enhanced_image = enhance_image(pil_image)
-    buffered = io.BytesIO()
-    enhanced_image.save(buffered, format="JPEG")
-    enhanced_image_bytes = buffered.getvalue()
+
+    buffer = io.BytesIO()
+    enhanced_image.save(buffer, format="JPEG")
+    enhanced_image_bytes = buffer.getvalue()
 
     external_image_id = f"{sanitized_name}_{student_id}"
     try:
@@ -470,12 +592,12 @@ def register_face():
     return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
 # -----------------------------
-# 11) Recognize Face (GET/POST)
+# 12) Recognize Face (GET/POST)
 # -----------------------------
 @app.route("/recognize", methods=["GET","POST"])
 def recognize_face():
     if request.method == "GET":
-        return "Welcome to /recognize. Please POST with {image, subject_id(optional)} to detect faces."
+        return "Welcome to /recognize. Please POST with {image, subject_id(optional)} to detect faces.", 200
 
     data = request.json
     image_str = data.get('image')
@@ -487,21 +609,40 @@ def recognize_face():
     # Optionally fetch subject name
     subject_name = ""
     if subject_id:
-        sdoc = db.collection("subjects").document(subject_id).get()
-        if sdoc.exists:
-            subject_name = sdoc.to_dict().get("name", "")
-        else:
+        try:
+            sdoc = db.collection("subjects").document(subject_id).get()
+            if sdoc.exists:
+                subject_name = sdoc.to_dict().get("name", "")
+            else:
+                subject_name = "Unknown Subject"
+        except Exception as e:
+            log_error(f"Failed to fetch subject name: {e}", "Recognize Route")
             subject_name = "Unknown Subject"
 
-    image_data = image_str.split(",")[1]
-    image_bytes = base64.b64decode(image_data)
+    try:
+        image_data = image_str.split(",")[1]
+    except IndexError:
+        log_error("Invalid image format", "Recognize Route")
+        return jsonify({"message": "Invalid image format"}), 400
+
+    try:
+        image_bytes = base64.b64decode(image_data)
+    except base64.binascii.Error:
+        log_error("Invalid base64 encoding for image", "Recognize Route")
+        return jsonify({"message": "Invalid base64 encoding for image"}), 400
+
+    try:
+        pil_image = Image.open(io.BytesIO(image_bytes))
+    except IOError:
+        log_error("Uploaded file is not a valid image", "Recognize Route")
+        return jsonify({"message": "Uploaded file is not a valid image"}), 400
 
     # Enhance image before detection
-    pil_image = Image.open(io.BytesIO(image_bytes))
     enhanced_image = enhance_image(pil_image)
-    buffered = io.BytesIO()
-    enhanced_image.save(buffered, format="JPEG")
-    enhanced_image_bytes = buffered.getvalue()
+
+    buffer = io.BytesIO()
+    enhanced_image.save(buffer, format="JPEG")
+    enhanced_image_bytes = buffer.getvalue()
 
     try:
         # Detect faces in the image
@@ -607,7 +748,7 @@ def recognize_face():
     }), 200
 
 # -----------------------------
-# 12) Chatbot Interaction Endpoint
+# 13) Chatbot Interaction Endpoint
 # -----------------------------
 @app.route("/process_prompt", methods=["POST"])
 def process_prompt():
@@ -650,7 +791,7 @@ def process_prompt():
     return jsonify({"message": assistant_reply})
 
 # -----------------------------
-# 13) Notification Endpoint for Gemini
+# 14) Notification Endpoint for Gemini
 # -----------------------------
 @app.route("/notify_gemini", methods=["POST"])
 def notify_gemini():
@@ -665,6 +806,18 @@ def notify_gemini():
         message = f"Recognition Process Completed: {details}"
     elif action == "error":
         message = f"An error occurred: {details}"
+    elif action == "register":
+        message = f"Registered new student: {details}"
+    elif action == "add_subject":
+        message = f"Added new subject: {details}"
+    elif action == "update_attendance":
+        message = f"Attendance updated: {details}"
+    elif action == "download_excel":
+        message = f"Downloaded attendance records as Excel."
+    elif action == "download_template":
+        message = f"Downloaded attendance template."
+    elif action == "upload_excel":
+        message = f"Uploaded attendance records from Excel."
     else:
         message = f"Action performed: {action}. Details: {details}"
 
@@ -672,11 +825,12 @@ def notify_gemini():
     conversation_memory.append({"role":"assistant","content":message})
     if len(conversation_memory) > MAX_MEMORY:
         conversation_memory.pop(0)
+    log_event("Gemini Notification", f"Action: {action}, Details: {details}")
 
     return jsonify({"message": "Notification sent to Gemini."}), 200
 
 # -----------------------------
-# 14) Run App
+# 15) Run App
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT, debug=True)
