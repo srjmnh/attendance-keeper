@@ -5,7 +5,7 @@ eventlet==0.33.3
 gunicorn==20.1.0
 boto3==1.28.0
 firebase-admin==6.1.0
-google-generativeai==1.0.0
+google-generativeai
 openpyxl==3.1.2
 Pillow==9.5.0
 numpy==1.24.3
