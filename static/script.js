@@ -23,11 +23,11 @@ function register() {
             },
             body: JSON.stringify({ name, student_id: studentId, image: imageData }),
         })
-            .then((response) => response.json())
-            .then((data) => {
-                document.getElementById('register_result').innerText = data.message || data.error;
-            })
-            .catch((error) => console.error('Error:', error));
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('register_result').innerText = data.message || data.error;
+        })
+        .catch(error => console.error('Error:', error));
     });
 }
 
@@ -47,10 +47,20 @@ function recognize() {
             },
             body: JSON.stringify({ image: imageData }),
         })
-            .then((response) => response.json())
-            .then((data) => {
-                document.getElementById('recognize_result').innerText = data.message || data.error;
-            })
-            .catch((error) => console.error('Error:', error));
+        .then(response => response.json())
+        .then(data => {
+            const resultText = data.message || data.error;
+            document.getElementById('recognize_result').innerText = resultText;
+
+            if (data.identified_people) {
+                let resultHTML = `<p>Total Faces Detected: ${data.total_faces}</p><ul>`;
+                data.identified_people.forEach(person => {
+                    resultHTML += `<li><strong>Face ${person.face_number}:</strong> Name: ${person.name || "Unknown"}, ID: ${person.student_id || "N/A"}, Confidence: ${person.confidence || "N/A"}%</li>`;
+                });
+                resultHTML += "</ul>";
+                document.getElementById('recognize_result').innerHTML = resultHTML;
+            }
+        })
+        .catch(error => console.error('Error:', error));
     });
 }
