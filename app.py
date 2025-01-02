@@ -6,32 +6,23 @@ import io
 from datetime import datetime
 import logging
 
-import boto3
-import firebase_admin
-from firebase_admin import credentials, firestore
-from PIL import Image
+import cv2
+import numpy as np
+from PIL import Image, ImageEnhance
 from flask import Flask, request, jsonify, render_template_string, send_file
 
 # -----------------------------
-# 1) AWS Configuration
+# 1) AWS Rekognition Setup
 # -----------------------------
+import boto3
+
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 COLLECTION_ID = "students"
-S3_BUCKET = os.getenv('S3_BUCKET_NAME')  # Ensure this environment variable is set
 
-# Initialize AWS Rekognition Client
 rekognition_client = boto3.client(
     'rekognition',
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION
-)
-
-# Initialize AWS S3 Client
-s3_client = boto3.client(
-    's3',
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
@@ -49,6 +40,9 @@ create_collection_if_not_exists(COLLECTION_ID)
 # -----------------------------
 # 2) Firebase Firestore Setup
 # -----------------------------
+import firebase_admin
+from firebase_admin import credentials, firestore
+
 base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
 if not base64_cred_str:
     raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
@@ -83,7 +77,7 @@ Facial Recognition Attendance system features:
 1) AWS Rekognition:
    - We keep a 'students' collection on startup.
    - /register indexes a face by (name + student_id).
-   - /recognize detects faces in an uploaded image from S3, logs attendance in Firestore if matched.
+   - /recognize detects faces in an uploaded image, logs attendance in Firestore if matched.
 
 2) Attendance:
    - Firestore 'attendance' collection: { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
@@ -109,7 +103,28 @@ conversation_memory.append({"role": "system", "content": system_context})
 app = Flask(__name__)
 
 # -----------------------------
-# 5) Single-Page HTML + Chat Widget
+# 5) Image Enhancement Function (Using OpenCV and Pillow)
+# -----------------------------
+def enhance_image(pil_image):
+    """
+    Enhance image quality to improve face detection in distant group photos.
+    This includes increasing brightness and contrast.
+    """
+    # Convert PIL image to OpenCV format
+    cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+    # Increase brightness and contrast
+    alpha = 1.2  # Contrast control (1.0-3.0)
+    beta = 30    # Brightness control (0-100)
+    enhanced_cv_image = cv2.convertScaleAbs(cv_image, alpha=alpha, beta=beta)
+
+    # Convert back to PIL Image
+    enhanced_pil_image = Image.fromarray(cv2.cvtColor(enhanced_cv_image, cv2.COLOR_BGR2RGB))
+
+    return enhanced_pil_image
+
+# -----------------------------
+# 6) Single-Page HTML + Chat Widget
 # -----------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
@@ -458,9 +473,9 @@ INDEX_HTML = """
         div.style.display = 'block';
         let text = data.message || data.error || JSON.stringify(data);
         if (data.identified_people) {
-          text += "\n\nIdentified People:\n";
+          text += "\\n\\nIdentified People:\\n";
           data.identified_people.forEach((p) => {
-            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\n`;
+            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\\n`;
           });
         }
         div.textContent = text;
@@ -640,7 +655,7 @@ INDEX_HTML = """
 """
 
 # -----------------------------
-# 6) Routes
+# 7) Routes
 # -----------------------------
 
 # Root route to avoid "URL not found" on /
@@ -666,24 +681,18 @@ def register_face():
     image_data = image.split(",")[1]
     image_bytes = base64.b64decode(image_data)
 
-    # Upload image to S3
-    image_key = f"registered_faces/{sanitized_name}_{student_id}_{int(datetime.utcnow().timestamp())}.jpg"
-    try:
-        s3_client.put_object(Bucket=S3_BUCKET, Key=image_key, Body=image_bytes, ContentType='image/jpeg')
-    except Exception as e:
-        return jsonify({"message": f"Failed to upload image to S3: {str(e)}"}), 500
+    # Enhance image before indexing
+    pil_image = Image.open(io.BytesIO(image_bytes))
+    enhanced_image = enhance_image(pil_image)
+    buffered = io.BytesIO()
+    enhanced_image.save(buffered, format="JPEG")
+    enhanced_image_bytes = buffered.getvalue()
 
-    # Index face in Rekognition using S3 Object
     external_image_id = f"{sanitized_name}_{student_id}"
     try:
         response = rekognition_client.index_faces(
             CollectionId=COLLECTION_ID,
-            Image={
-                'S3Object': {
-                    'Bucket': S3_BUCKET,
-                    'Name': image_key
-                }
-            },
+            Image={'Bytes': enhanced_image_bytes},
             ExternalImageId=external_image_id,
             DetectionAttributes=['ALL'],
             QualityFilter='AUTO'
@@ -717,23 +726,20 @@ def recognize_face():
         else:
             subject_name = "Unknown Subject"
 
-    # Upload image to S3
-    image_bytes = base64.b64decode(image_str.split(",")[1])
-    image_key = f"recognition_images/{int(datetime.utcnow().timestamp())}.jpg"
-    try:
-        s3_client.put_object(Bucket=S3_BUCKET, Key=image_key, Body=image_bytes, ContentType='image/jpeg')
-    except Exception as e:
-        return jsonify({"message": f"Failed to upload image to S3: {str(e)}"}), 500
+    image_data = image_str.split(",")[1]
+    image_bytes = base64.b64decode(image_data)
 
-    # Detect faces in the image using Rekognition
+    # Enhance image before detection
+    pil_image = Image.open(io.BytesIO(image_bytes))
+    enhanced_image = enhance_image(pil_image)
+    buffered = io.BytesIO()
+    enhanced_image.save(buffered, format="JPEG")
+    enhanced_image_bytes = buffered.getvalue()
+
     try:
+        # Detect faces in the image
         detect_response = rekognition_client.detect_faces(
-            Image={
-                'S3Object': {
-                    'Bucket': S3_BUCKET,
-                    'Name': image_key
-                }
-            },
+            Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
     except Exception as e:
@@ -750,20 +756,10 @@ def recognize_face():
             "identified_people": identified_people
         }), 200
 
-    # Search each detected face in the Rekognition collection
     for idx, face in enumerate(faces):
-        # Calculate bounding box coordinates
+        # Rekognition provides bounding box coordinates relative to image dimensions
         bbox = face['BoundingBox']
-        image_metadata = rekognition_client.get_image(
-            Image={
-                'S3Object': {
-                    'Bucket': S3_BUCKET,
-                    'Name': image_key
-                }
-            }
-        )
-        # Note: AWS Rekognition does not provide image dimensions via API; use PIL to get them
-        pil_img = Image.open(io.BytesIO(image_bytes))
+        pil_img = Image.open(io.BytesIO(enhanced_image_bytes))
         img_width, img_height = pil_img.size
 
         left = int(bbox['Left'] * img_width)
@@ -779,8 +775,8 @@ def recognize_face():
         cropped_face.save(buffer, format="JPEG")
         cropped_face_bytes = buffer.getvalue()
 
-        # Search for the face in the collection
         try:
+            # Search for the face in the collection
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
                 Image={'Bytes': cropped_face_bytes},
@@ -1044,7 +1040,7 @@ def upload_attendance_excel():
     return jsonify({"message": "Excel data imported successfully."})
 
 # -----------------------------
-# 7) Gemini Chat Endpoint
+# 8) Gemini Chat Endpoint
 # -----------------------------
 @app.route("/process_prompt", methods=["POST"])
 def process_prompt():
@@ -1087,7 +1083,7 @@ def process_prompt():
     return jsonify({"message": assistant_reply})
 
 # -----------------------------
-# 8) Run App
+# 9) Run App
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
