@@ -1,7 +1,5 @@
-flask
 boto3
+flask
 pillow
 opencv-python
-opencv-contrib-python
 numpy
-requests
