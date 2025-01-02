@@ -258,3 +258,4 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))  # Default port for Flask
     port = int(os.getenv('PORT', 5000))  # Use PORT from environment or default to 5000
     app.run(host='0.0.0.0', port=port)
+    
