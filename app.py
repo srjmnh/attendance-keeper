@@ -64,39 +64,40 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set.")
 
 genai.configure(api_key=GEMINI_API_KEY)
-# If you do NOT have access to "gemini-1.5-flash", switch to e.g. "models/chat-bison-001"
+# If you do NOT have access to "gemini-1.5-flash", switch to "models/chat-bison-001"
 model = genai.GenerativeModel("models/gemini-1.5-flash")
 
 # Chat memory (in-memory only, for demo)
 MAX_MEMORY = 20
 conversation_memory = []
 
-# A big system prompt that teaches Gemini about your entire project
-system_context = """You are Gemini, a large language model. 
-Here is the entire Facial Recognition Attendance system:
+# A big system prompt describing the system with a slightly human/funny tone
+system_context = """You are Gemini, a witty, somewhat funny (but still polite) AI assistant. 
+Here is the entire Facial Recognition Attendance system you are helping with:
 
 1) AWS Rekognition:
-   - We have a "students" collection on startup.
+   - We have a "students" collection on startup (face indexing).
    - /register indexes a face (name + student_id) in AWS Rekognition.
-   - /recognize detects faces in an uploaded image, searches them in AWS, and if matched, logs attendance in Firestore.
+   - /recognize detects faces in an uploaded image, then if matched, logs attendance in Firestore.
 
 2) Attendance:
-   - We store each recognized face's attendance in a Firestore collection named 'attendance', with fields:
-     student_id, name, timestamp, subject_id, subject_name, status (e.g. 'PRESENT').
-   - A UI with tabs: Register, Recognize, Subjects, Attendance. It's modern + mobile-friendly (Bootstrap + DataTables).
-   - The Attendance tab filters by student ID, subject ID, date range, can inline-edit records, download Excel, or upload Excel with a template.
+   - We store recognized faces in Firestore under 'attendance': 
+     { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
+   - There's a modern UI (Bootstrap + DataTables) with tabs: Register, Recognize, Subjects, Attendance.
+   - Attendance tab can filter by student ID, subject ID, date range, inline edit, download/upload Excel.
 
 3) Subjects:
-   - We can add new subjects, store them in 'subjects', and reference them upon recognition.
+   - We can add new subjects, store them in 'subjects', reference them upon recognition.
 
 4) Multi-Face:
-   - If a photo has multiple recognized people, each recognized face is logged to attendance.
+   - If multiple recognized people in the photo, each gets logged to attendance.
 
-5) Gemini Chat:
-   - You are the assistant, explaining or guiding usage of this entire system. 
-   - The user can ask technical or general questions about how the system works.
+5) Chat:
+   - You are the chat assistant, a bit humorous. 
+   - Answer user queries about the system's usage, code, or features. 
+   - Keep it friendly but not overly long.
 
-Respond politely, concisely, and use your knowledge from this system description.
+Be helpful and a tiny bit witty. 
 """
 
 # Start conversation with system message
@@ -150,24 +151,24 @@ def split_image(pil_image, grid_size=3):
     return regions
 
 # -----------------------------
-# 6) The Single-Page UI + Chat Widget
+# 6) Single-Page UI + Chat Widget
 # -----------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Facial Recognition Attendance + Gemini Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <!-- DataTables CSS -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
 
   <style>
     body { margin: 20px; }
 
-    /* Tabs styling for top-level */
+    /* Tabs */
     .nav-tabs .nav-link {
       color: #555;
     }
@@ -175,13 +176,8 @@ INDEX_HTML = """
       color: #000;
       font-weight: bold;
     }
-    .content-section {
-      margin-top: 20px;
-    }
-    @media (max-width: 576px) {
-      .content-section { margin-top: 10px; }
-    }
-    /* Attendance Table Editable */
+
+    /* Attendance table contenteditable highlight */
     #attendanceTable td[contenteditable="true"] {
       background-color: #fcf8e3;
     }
@@ -207,6 +203,7 @@ INDEX_HTML = """
     #chatbotToggle:hover {
       background-color: #0b5ed7;
     }
+
     /* Chat Window */
     #chatbotWindow {
       position: fixed;
@@ -218,7 +215,7 @@ INDEX_HTML = """
       border-radius: 10px;
       background-color: #fff;
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
-      display: none; /* hidden by default */
+      display: none;
       flex-direction: column;
       z-index: 1000;
     }
@@ -228,6 +225,17 @@ INDEX_HTML = """
       padding: 10px;
       border-radius: 10px 10px 0 0;
       font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #chatHeader .close-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 16px;
     }
     #chatMessages {
       flex: 1;
@@ -297,63 +305,63 @@ INDEX_HTML = """
 </ul>
 
 <div class="tab-content" id="mainTabContent">
-  <!-- REGISTER -->
-  <div class="tab-pane fade show active content-section" id="register" role="tabpanel" aria-labelledby="register-tab">
+  <!-- REGISTER TAB -->
+  <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
     <h3>Register a Face</h3>
     <label class="form-label">Name</label>
-    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name" />
+    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name">
     <label class="form-label">Student ID</label>
-    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID" />
+    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID">
     <label class="form-label">Image</label>
-    <input type="file" id="reg_image" class="form-control" accept="image/*" />
+    <input type="file" id="reg_image" class="form-control" accept="image/*">
     <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
     <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
 
-  <!-- RECOGNIZE -->
-  <div class="tab-pane fade content-section" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
+  <!-- RECOGNIZE TAB -->
+  <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
     <h3>Recognize a Face</h3>
     <label class="form-label">Subject (optional)</label>
     <select id="rec_subject_select" class="form-control mb-2">
       <option value="">-- No Subject --</option>
     </select>
     <label class="form-label">Image</label>
-    <input type="file" id="rec_image" class="form-control" accept="image/*" />
+    <input type="file" id="rec_image" class="form-control" accept="image/*">
     <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
     <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
 
-  <!-- SUBJECTS -->
-  <div class="tab-pane fade content-section" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
+  <!-- SUBJECTS TAB -->
+  <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
     <label class="form-label">New Subject Name:</label>
-    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
+    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics">
     <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <hr />
+    <hr>
     <h5>Existing Subjects</h5>
     <ul id="subjects_list"></ul>
   </div>
 
-  <!-- ATTENDANCE -->
-  <div class="tab-pane fade content-section" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
+  <!-- ATTENDANCE TAB -->
+  <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
     <h3>Attendance Records</h3>
     <div class="row mb-3">
       <div class="col-md-3">
         <label class="form-label">Student ID</label>
-        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
+        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234">
       </div>
       <div class="col-md-3">
         <label class="form-label">Subject ID</label>
-        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
+        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123">
       </div>
       <div class="col-md-3">
         <label class="form-label">Start Date</label>
-        <input type="date" id="filter_start" class="form-control" />
+        <input type="date" id="filter_start" class="form-control">
       </div>
       <div class="col-md-3">
         <label class="form-label">End Date</label>
-        <input type="date" id="filter_end" class="form-control" />
+        <input type="date" id="filter_end" class="form-control">
       </div>
     </div>
     <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
@@ -376,7 +384,7 @@ INDEX_HTML = """
       <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
       <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
       <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
-      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
+      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2">
       <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
     </div>
   </div>
@@ -387,7 +395,10 @@ INDEX_HTML = """
 
 <!-- Chatbot Window -->
 <div id="chatbotWindow" style="display:none; flex-direction:column;">
-  <div id="chatHeader">Gemini Chat</div>
+  <div id="chatHeader">
+    <span>Gemini Chat</span>
+    <button class="close-btn" id="chatCloseBtn">X</button>
+  </div>
   <div id="chatMessages" style="flex:1; overflow-y:auto; padding:10px; font-size:14px;"></div>
   <div id="chatInputArea" style="display:flex; border-top:1px solid #ddd;">
     <input type="text" id="chatInput" placeholder="Type a message..." style="flex:1; padding:8px; border:none; outline:none; font-size:14px;" />
@@ -401,9 +412,10 @@ INDEX_HTML = """
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 
 <script>
-  /* -------------- Chatbot -------------- */
+  /* ------------------- Chatbot Stuff ------------------- */
   const toggleBtn = document.getElementById('chatbotToggle');
   const chatWindow = document.getElementById('chatbotWindow');
+  const chatCloseBtn = document.getElementById('chatCloseBtn');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
@@ -417,10 +429,15 @@ INDEX_HTML = """
     }
   });
 
-  // Send message function
+  // Close chat window
+  chatCloseBtn.addEventListener('click', () => {
+    chatWindow.style.display = 'none';
+  });
+
   function sendMessage() {
     const userMessage = chatInput.value.trim();
     if (!userMessage) return;
+
     addMessage(userMessage, 'user');
     chatInput.value = '';
 
@@ -438,12 +455,11 @@ INDEX_HTML = """
       }
     })
     .catch(err => {
-      addMessage("Network or server error!", 'assistant');
+      addMessage("Network or server error, oh dear!", 'assistant');
       console.error(err);
     });
   }
 
-  // Add message to chat
   function addMessage(text, sender) {
     const div = document.createElement('div');
     div.classList.add('message', sender);
@@ -460,7 +476,7 @@ INDEX_HTML = """
     }
   });
 
-  /* -------------- The rest: Register, Recognize, Subjects, Attendance -------------- */
+  /* ------------------- Register + Recognize + Subjects + Attendance ------------------- */
   let table;
   let attendanceData = [];
 
@@ -508,10 +524,7 @@ INDEX_HTML = """
       fetch('/recognize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: base64Str,
-          subject_id: subjectId
-        })
+        body: JSON.stringify({ image: base64Str, subject_id: subjectId })
       })
       .then(res => res.json())
       .then(data => {
@@ -617,7 +630,7 @@ INDEX_HTML = """
       `;
       tbody.appendChild(row);
     });
-    table = $('#attendanceTable').DataTable({
+    $('#attendanceTable').DataTable({
       paging: true,
       searching: false,
       info: false,
@@ -637,7 +650,6 @@ INDEX_HTML = """
       const subject_name = cells[4].textContent.trim();
       const timestamp = cells[5].textContent.trim();
       const status = cells[6].textContent.trim();
-
       updatedRecords.push({ doc_id, student_id, name, subject_id, subject_name, timestamp, status });
     });
     fetch('/api/attendance/update', {
@@ -779,7 +791,6 @@ def recognize():
     raw_bytes = denoise_image(raw_bytes)
     raw_bytes = equalize_image(raw_bytes)
 
-    from PIL import Image
     pil_img = Image.open(io.BytesIO(raw_bytes))
     enhancer = ImageEnhance.Contrast(pil_img)
     pil_img = enhancer.enhance(1.5)
@@ -847,7 +858,7 @@ def recognize():
                 "confidence": f"{confidence:.2f}"
             })
 
-            # Log attendance if recognized
+            # Log attendance
             if recognized_id != "Unknown":
                 doc = {
                     "student_id": recognized_id,
@@ -892,9 +903,9 @@ def get_attendance():
 
     results = query.stream()
     attendance_list = []
-    for doc in results:
-        doc_data = doc.to_dict()
-        doc_data["doc_id"] = doc.id
+    for doc_ in results:
+        doc_data = doc_.to_dict()
+        doc_data["doc_id"] = doc_.id
         attendance_list.append(doc_data)
 
     return jsonify(attendance_list)
@@ -942,9 +953,9 @@ def download_attendance_excel():
 
     results = query.stream()
     attendance_list = []
-    for doc in results:
-        doc_data = doc.to_dict()
-        doc_data["doc_id"] = doc.id
+    for doc_ in results:
+        doc_data = doc_.to_dict()
+        doc_data["doc_id"] = doc_.id
         attendance_list.append(doc_data)
 
     wb = Workbook()
@@ -972,7 +983,7 @@ def download_attendance_excel():
         output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        attachment_filename="attendance.xlsx"
+        download_name="attendance.xlsx"  # <-- use download_name instead of attachment_filename
     )
 
 @app.route("/api/attendance/template", methods=["GET"])
@@ -980,7 +991,7 @@ def download_template():
     wb = Workbook()
     ws = wb.active
     ws.title = "Attendance Template"
-    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
+    headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
     ws.append(headers)
 
     output = io.BytesIO()
@@ -990,7 +1001,7 @@ def download_template():
         output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        attachment_filename="attendance_template.xlsx"
+        download_name="attendance_template.xlsx"
     )
 
 @app.route("/api/attendance/upload", methods=["POST"])
@@ -1032,7 +1043,6 @@ def upload_attendance_excel():
             db.collection("attendance").add(new_doc)
 
     return jsonify({"message": "Excel data imported successfully."})
-
 
 # -----------------------------
 # 8) Gemini Chat Endpoint
@@ -1078,5 +1088,5 @@ def process_prompt():
 # 9) Run the Flask App
 # -----------------------------
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))  # use the environment's port or default to 5000
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
