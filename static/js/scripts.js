@@ -1,3 +1,20 @@
+/* -------------- SocketIO Initialization -------------- */
+// Initialize SocketIO
+const socket = io();
+
+// Listen for messages from the backend
+socket.on('connect', () => {
+    console.log('Connected to SocketIO server');
+});
+
+socket.on('chat_message', (data) => {
+    addMessage(data.message, 'assistant');
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from SocketIO server');
+});
+
 /* -------------- Chatbot Code -------------- */
 const toggleBtn = document.getElementById('chatbotToggle');
 const chatWindow = document.getElementById('chatbotWindow');
@@ -20,6 +37,16 @@ chatCloseBtn.addEventListener('click', () => {
   chatWindow.style.display = 'none';
 });
 
+// Send message on button click
+chatSendBtn.addEventListener('click', sendMessage);
+
+// Send message on Enter key
+chatInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    sendMessage();
+  }
+});
+
 function sendMessage() {
   const userMessage = chatInput.value.trim();
   if (!userMessage) return;
@@ -36,7 +63,8 @@ function sendMessage() {
     if (data.error) {
       addMessage("Error: " + data.error, 'assistant');
     } else {
-      addMessage(data.message, 'assistant');
+      // The assistant's response is handled via SocketIO
+      // So no need to addMessage here
     }
   })
   .catch(err => {
@@ -51,22 +79,7 @@ function addMessage(text, sender) {
   div.textContent = text;
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-
-  // If the sender is the assistant, animate the chatbot window
-  if (sender === 'assistant') {
-    if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
-      chatWindow.style.display = 'flex';
-    }
-  }
 }
-
-chatSendBtn.addEventListener('click', sendMessage);
-chatInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    sendMessage();
-  }
-});
 
 /* -------------- Register + Recognize + Subjects + Attendance -------------- */
 let table;
@@ -99,25 +112,12 @@ function registerFace() {
       const div = document.getElementById('register_result');
       div.style.display = 'block';
       div.textContent = data.message || data.error || JSON.stringify(data);
-      // Notify Gemini about the registration
-      if (data.message) {
-        notifyGemini('register', `Registered new student: ${name}, ID: ${studentId}`);
-      } else if (data.error) {
-        notifyGemini('error', `Registration error: ${data.error}`);
-      }
     })
-    .catch(err => {
-      console.error(err);
-      const div = document.getElementById('register_result');
-      div.style.display = 'block';
-      div.textContent = "An error occurred during registration.";
-      // Notify Gemini about the error
-      notifyGemini('error', 'An error occurred during registration.');
-    });
+    .catch(err => console.error(err));
   });
 }
 
-/* Recognize Face */
+/* Recognize Faces */
 function recognizeFace() {
   const file = document.getElementById('rec_image').files[0];
   const subjectId = document.getElementById('rec_subject_select').value;
@@ -127,19 +127,9 @@ function recognizeFace() {
   }
   getBase64(file, (base64Str) => {
     // Show progress bar
-    document.getElementById('recognize_progress').style.display = 'block';
-    document.querySelector('#recognize_progress .progress-bar').style.width = '0%';
-
-    // Simulate progress
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      if (progress >= 100) {
-        clearInterval(progressInterval);
-      } else {
-        progress += 10;
-        document.querySelector('#recognize_progress .progress-bar').style.width = `${progress}%`;
-      }
-    }, 300); // Update every 300ms
+    document.getElementById('recognitionProgress').style.display = 'block';
+    document.getElementById('recognize_result').style.display = 'none';
+    document.getElementById('identified_faces').innerHTML = '';
 
     fetch('/recognize', {
       method: 'POST',
@@ -148,45 +138,41 @@ function recognizeFace() {
     })
     .then(res => res.json())
     .then(data => {
-      clearInterval(progressInterval);
-      document.getElementById('recognize_progress').style.display = 'none';
+      // Hide progress bar
+      document.getElementById('recognitionProgress').style.display = 'none';
       const div = document.getElementById('recognize_result');
       div.style.display = 'block';
+      let text = data.message || data.error || JSON.stringify(data);
+      if (data.identified_people) {
+        text += "\n\nIdentified People:\n";
+        data.identified_people.forEach((p) => {
+          text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\n`;
+        });
+      }
+      div.textContent = text;
 
-      let htmlContent = `<strong>${data.message}</strong><br/>`;
+      // Display identified faces beautifully
       if (data.identified_people && data.identified_people.length > 0) {
-        htmlContent += '<div class="row mt-3">';
+        const facesDiv = document.getElementById('identified_faces');
+        facesDiv.innerHTML = '<h5>Identified Faces:</h5>';
         data.identified_people.forEach(person => {
-          htmlContent += `
-            <div class="col-md-4">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <h5 class="card-title">${person.name || "Unknown"}</h5>
-                  <p class="card-text">ID: ${person.student_id || "N/A"}</p>
-                  <p class="card-text">Confidence: ${person.confidence ? person.confidence.toFixed(2) : "N/A"}</p>
-                </div>
-              </div>
+          const card = document.createElement('div');
+          card.classList.add('card', 'mb-2');
+          card.style.width = '18rem';
+          card.innerHTML = `
+            <div class="card-body">
+              <h5 class="card-title">${person.name || "Unknown"}</h5>
+              <p class="card-text">ID: ${person.student_id || "N/A"}</p>
+              <p class="card-text">Confidence: ${person.confidence || "N/A"}</p>
             </div>
           `;
+          facesDiv.appendChild(card);
         });
-        htmlContent += '</div>';
-      }
-      div.innerHTML = htmlContent;
-
-      // Notify Gemini about the recognition
-      if (data.message) {
-        notifyGemini('recognize', data.message);
       }
     })
     .catch(err => {
-      clearInterval(progressInterval);
-      document.getElementById('recognize_progress').style.display = 'none';
-      const div = document.getElementById('recognize_result');
-      div.style.display = 'block';
-      div.textContent = "An error occurred during recognition.";
-
-      // Notify Gemini about the error
-      notifyGemini('error', 'An error occurred during recognition.');
+      document.getElementById('recognitionProgress').style.display = 'none';
+      addMessage("Network or server error!", 'assistant');
       console.error(err);
     });
   });
@@ -199,10 +185,10 @@ function addSubject() {
     alert('Please enter subject name.');
     return;
   }
-  fetch('/api/subjects/add', {
+  fetch('/api/subjects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subject_name: subjectName })
+    body: JSON.stringify({ name: subjectName })
   })
   .then(res => res.json())
   .then(data => {
@@ -211,26 +197,12 @@ function addSubject() {
     div.textContent = data.message || data.error || JSON.stringify(data);
     document.getElementById('subject_name').value = '';
     loadSubjects();
-
-    // Notify Gemini about the action
-    if (data.message) {
-      notifyGemini('add_subject', `Added new subject: ${subjectName}`);
-    } else if (data.error) {
-      notifyGemini('error', `Add subject error: ${data.error}`);
-    }
   })
-  .catch(err => {
-    console.error(err);
-    const div = document.getElementById('subject_result');
-    div.style.display = 'block';
-    div.textContent = "An error occurred while adding the subject.";
-    // Notify Gemini about the error
-    notifyGemini('error', 'An error occurred while adding the subject.');
-  });
+  .catch(err => console.error(err));
 }
 
 function loadSubjects() {
-  fetch('/api/subjects/get')
+  fetch('/api/subjects')
   .then(res => res.json())
   .then(data => {
     const select = document.getElementById('rec_subject_select');
@@ -249,11 +221,7 @@ function loadSubjects() {
       list.appendChild(li);
     });
   })
-  .catch(err => {
-    console.error(err);
-    // Notify Gemini about the error
-    notifyGemini('error', 'Failed to load subjects.');
-  });
+  .catch(err => console.error(err));
 }
 
 /* Attendance */
@@ -261,9 +229,9 @@ function loadAttendance() {
   const studentId = document.getElementById('filter_student_id').value.trim();
   const subjectId = document.getElementById('filter_subject_id').value.trim();
   const startDate = document.getElementById('filter_start').value;
-  const endDate = document.getElementById('filter_end').value;
+  const endDate = document.getElementById('filter_end').value.trim();
 
-  let url = '/api/attendance?';
+  let url = '/api/attendance/get?';
   if (studentId) url += 'student_id=' + studentId + '&';
   if (subjectId) url += 'subject_id=' + subjectId + '&';
   if (startDate) url += 'start_date=' + startDate + '&';
@@ -275,11 +243,7 @@ function loadAttendance() {
       attendanceData = data;
       renderAttendanceTable(attendanceData);
     })
-    .catch(err => {
-      console.error(err);
-      // Notify Gemini about the error
-      notifyGemini('error', 'Failed to load attendance records.');
-    });
+    .catch(err => console.error(err));
 }
 
 function renderAttendanceTable(data) {
@@ -331,24 +295,16 @@ function saveEdits() {
   .then(res => res.json())
   .then(resp => {
     alert(resp.message || JSON.stringify(resp));
-    // Notify Gemini about the update
-    if (resp.message) {
-      notifyGemini('update_attendance', resp.message);
-    }
+    socket.emit('chat_message', { message: resp.message || "Attendance records updated." });
   })
-  .catch(err => {
-    console.error(err);
-    alert("An error occurred while saving changes.");
-    // Notify Gemini about the error
-    notifyGemini('error', 'Failed to save attendance changes.');
-  });
+  .catch(err => console.error(err));
 }
 
 function downloadExcel() {
   const studentId = document.getElementById('filter_student_id').value.trim();
   const subjectId = document.getElementById('filter_subject_id').value.trim();
   const startDate = document.getElementById('filter_start').value;
-  const endDate = document.getElementById('filter_end').value;
+  const endDate = document.getElementById('filter_end').value.trim();
 
   let url = '/api/attendance/download?';
   if (studentId) url += 'student_id=' + studentId + '&';
@@ -357,14 +313,10 @@ function downloadExcel() {
   if (endDate) url += 'end_date=' + endDate + '&';
 
   window.location.href = url;
-  // Notify Gemini about the download
-  notifyGemini('download_excel', 'Downloaded attendance records as Excel.');
 }
 
 function downloadTemplate() {
   window.location.href = '/api/attendance/template';
-  // Notify Gemini about the template download
-  notifyGemini('download_template', 'Downloaded attendance template.');
 }
 
 function uploadExcel() {
@@ -384,41 +336,13 @@ function uploadExcel() {
   .then(res => res.json())
   .then(resp => {
     alert(resp.message || resp.error || 'Excel uploaded');
+    socket.emit('chat_message', { message: resp.message || "Excel data uploaded." });
     loadAttendance();
-    // Notify Gemini about the upload
-    if (resp.message) {
-      notifyGemini('upload_excel', resp.message);
-    } else if (resp.error) {
-      notifyGemini('error', `Upload Excel error: ${resp.error}`);
-    }
   })
-  .catch(err => {
-    console.error(err);
-    alert("An error occurred while uploading Excel.");
-    // Notify Gemini about the error
-    notifyGemini('error', 'Failed to upload Excel.');
-  });
+  .catch(err => console.error(err));
 }
 
+/* Initialize on DOM Content Loaded */
 document.addEventListener('DOMContentLoaded', () => {
   loadSubjects();
 });
-
-/* -------------- Chatbot Notification Function -------------- */
-function notifyGemini(action, details) {
-  fetch('/notify_gemini', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: action, details: details })
-  })
-  .then(res => res.json())
-  .then(data => {
-    // Optionally handle response
-    if (data.message) {
-      console.log("Gemini notified:", data.message);
-    }
-  })
-  .catch(err => {
-    console.error("Failed to notify Gemini:", err);
-  });
-}
