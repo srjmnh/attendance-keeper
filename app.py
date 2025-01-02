@@ -4,8 +4,8 @@ import os
 from flask import Flask, request, jsonify, render_template
 from PIL import Image, ImageEnhance
 import tensorflow as tf
-import cv2
 import numpy as np
+import cv2
 import io
 
 app = Flask(__name__)
@@ -32,28 +32,35 @@ def create_collection(collection_id):
 
 create_collection(COLLECTION_ID)
 
-# Enhance image using TensorFlow EDSR
+# Enhance image using TensorFlow EDSR frozen graph
 def upscale_image_with_edsr(image_bytes, model_path="models/EDSR_x4.pb"):
-    # Load the pre-trained EDSR model
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"EDSR model not found at {model_path}")
+    # Load the frozen graph
+    with tf.io.gfile.GFile(model_path, "rb") as f:
+        graph_def = tf.compat.v1.GraphDef()
+        graph_def.ParseFromString(f.read())
 
     # Decode the input image
     img_array = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
-    # Prepare the input for the model
-    input_image = tf.convert_to_tensor(img, dtype=tf.float32)
-    input_image = tf.image.resize(input_image, [img.shape[0], img.shape[1]])
-    input_image = tf.expand_dims(input_image, axis=0)
+    # Preprocess input image
+    input_image = np.expand_dims(img, axis=0).astype(np.float32)
 
-    # Predict the upscaled image
-    model = tf.saved_model.load(model_path)
-    upscaled_image = model(input_image)
-    upscaled_image = tf.squeeze(upscaled_image, axis=0).numpy()
+    # Create a TensorFlow session
+    with tf.compat.v1.Session() as sess:
+        tf.import_graph_def(graph_def, name="")
 
-    # Convert back to bytes
+        # Get input and output tensors
+        input_tensor = sess.graph.get_tensor_by_name("input:0")
+        output_tensor = sess.graph.get_tensor_by_name("output:0")
+
+        # Run the model
+        upscaled_image = sess.run(output_tensor, feed_dict={input_tensor: input_image})
+
+    # Post-process the output image
+    upscaled_image = np.squeeze(upscaled_image, axis=0).astype(np.uint8)
     _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
+
     return upscaled_image_bytes.tobytes()
 
 @app.route('/')
