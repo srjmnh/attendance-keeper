@@ -1,22 +1,19 @@
-import os
-import base64
-import json
-import io
-from datetime import datetime
-
 import boto3
+import base64
+import os
+from flask import Flask, request, jsonify, render_template_string
+from PIL import Image, ImageEnhance
 import cv2
 import numpy as np
-from PIL import Image, ImageEnhance
-from flask import Flask, request, jsonify, render_template_string, send_file
+import io
 
-# -------------------------------------------------------------------
-# 1) AWS Rekognition Setup
-# -------------------------------------------------------------------
+app = Flask(__name__)
+
+# ========= AWS CREDENTIALS & REKOGNITION SETUP =========
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
-COLLECTION_ID = "students"
+AWS_REGION = os.getenv('AWS_REGION')
+COLLECTION_ID = "students"  # Rekognition Collection name
 
 rekognition_client = boto3.client(
     'rekognition',
@@ -25,45 +22,21 @@ rekognition_client = boto3.client(
     region_name=AWS_REGION
 )
 
-def create_collection_if_not_exists(collection_id):
+def create_collection(collection_id):
     try:
         rekognition_client.create_collection(CollectionId=collection_id)
-        print(f"Collection '{collection_id}' created.")
     except rekognition_client.exceptions.ResourceAlreadyExistsException:
         print(f"Collection '{collection_id}' already exists.")
 
-create_collection_if_not_exists(COLLECTION_ID)
+create_collection(COLLECTION_ID)
 
-# -------------------------------------------------------------------
-# 2) Firebase Firestore Setup (Credentials from Base64 Env Var)
-# -------------------------------------------------------------------
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
-if not base64_cred_str:
-    raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
-
-decoded_cred_json = base64.b64decode(base64_cred_str)
-cred_dict = json.loads(decoded_cred_json)
-
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-
-db = firestore.client()
-
-# -------------------------------------------------------------------
-# 3) Flask App
-# -------------------------------------------------------------------
-app = Flask(__name__)
-
-# -------------------------------------------------------------------
-# 4) Image Enhancement Functions
-# -------------------------------------------------------------------
+# ========= IMAGE ENHANCEMENT FUNCTIONS =========
 def upscale_image(image_bytes, upscale_factor=2):
     image_array = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    upscaled_image = cv2.resize(image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC)
+    upscaled_image = cv2.resize(
+        image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC
+    )
     _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
     return upscaled_image_bytes.tobytes()
 
@@ -85,8 +58,8 @@ def equalize_image(image_bytes):
     _, enhanced_image_bytes = cv2.imencode('.jpg', enhanced_image)
     return enhanced_image_bytes.tobytes()
 
-def split_image(pil_image, grid_size=3):
-    width, height = pil_image.size
+def split_image(image, grid_size=3):
+    width, height = image.size
     region_width = width // grid_size
     region_height = height // grid_size
 
@@ -97,34 +70,116 @@ def split_image(pil_image, grid_size=3):
             top = row * region_height
             right = (col + 1) * region_width
             bottom = (row + 1) * region_height
-            regions.append(pil_image.crop((left, top, right, bottom)))
+            regions.append(image.crop((left, top, right, bottom)))
     return regions
 
-# -------------------------------------------------------------------
-# 5) Simple Home Page (if you like)
-# -------------------------------------------------------------------
+# ========= INLINE HTML/JS FOR REGISTER & RECOGNIZE PAGE =========
 INDEX_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Face Recognition Home</title>
+    <title>Face Recognition System</title>
+    <meta charset="UTF-8" />
 </head>
 <body>
-    <h1>Welcome to Face Recognition with AWS & Firebase Attendance!</h1>
-    <p>Use the <strong>/register</strong> endpoint (POST) to register new faces.</p>
-    <p>Use the <strong>/recognize</strong> endpoint (POST) to recognize faces.</p>
-    <p>Visit <a href="/attendance">/attendance</a> for attendance management (filter, edit, export, import).</p>
+    <h1>Face Recognition System (AWS Rekognition)</h1>
+
+    <!-- REGISTER SECTION -->
+    <section>
+        <h2>Register a Face</h2>
+        <label>Name: <input type="text" id="reg_name" /></label><br><br>
+        <label>Student ID: <input type="text" id="reg_student_id" /></label><br><br>
+        <label>Image: <input type="file" id="reg_image" accept="image/*" /></label><br><br>
+        <button onclick="registerFace()">Register</button>
+        <p id="register_result"></p>
+    </section>
+
+    <hr />
+
+    <!-- RECOGNIZE SECTION -->
+    <section>
+        <h2>Recognize a Face</h2>
+        <label>Image: <input type="file" id="rec_image" accept="image/*" /></label><br><br>
+        <button onclick="recognizeFace()">Recognize</button>
+        <p id="recognize_result"></p>
+    </section>
+
+    <script>
+    // Convert file to base64
+    function getBase64(file, callback) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => callback(reader.result);
+        reader.onerror = (error) => console.error('Error: ', error);
+    }
+
+    // REGISTER a Face => POST /register
+    function registerFace() {
+        const name = document.getElementById('reg_name').value.trim();
+        const studentId = document.getElementById('reg_student_id').value.trim();
+        const file = document.getElementById('reg_image').files[0];
+
+        if (!name || !studentId || !file) {
+            alert('Please provide name, student ID, and an image.');
+            return;
+        }
+
+        getBase64(file, (base64Str) => {
+            fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, student_id: studentId, image: base64Str })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('register_result').innerText =
+                    data.message || data.error || JSON.stringify(data);
+            })
+            .catch(err => console.error(err));
+        });
+    }
+
+    // RECOGNIZE a Face => POST /recognize
+    function recognizeFace() {
+        const file = document.getElementById('rec_image').files[0];
+        if (!file) {
+            alert('Please select an image to recognize.');
+            return;
+        }
+
+        getBase64(file, (base64Str) => {
+            fetch('/recognize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Str })
+            })
+            .then(res => res.json())
+            .then(data => {
+                let text = data.message || data.error || JSON.stringify(data);
+                // If "identified_people" exists, show details
+                if (data.identified_people) {
+                    text += "\\n\\nIdentified People:\\n";
+                    data.identified_people.forEach((person, idx) => {
+                        text += `- ${person.name || "Unknown"} (ID: ${person.student_id || "N/A"}), Confidence: ${person.confidence}\\n`;
+                    });
+                }
+                document.getElementById('recognize_result').innerText = text;
+            })
+            .catch(err => console.error(err));
+        });
+    }
+    </script>
 </body>
 </html>
 """
 
-@app.route("/")
+# ========= ROUTE FOR HOME PAGE (INLINE HTML) =========
+@app.route('/')
 def index():
+    # Return the above HTML so we can click "Register" and "Recognize" in the browser
     return render_template_string(INDEX_HTML)
 
-# -------------------------------------------------------------------
-# 6) Register Endpoint (AWS Face Enrollment)
-# -------------------------------------------------------------------
+# ========= REGISTER ENDPOINT =========
 @app.route('/register', methods=['POST'])
 def register():
     """
@@ -144,12 +199,14 @@ def register():
         if not name or not student_id or not image:
             return jsonify({"message": "Missing name, student_id, or image"}), 400
 
+        # Sanitize name for external image ID
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
 
-        # Decode base64
+        # Decode base64 image
         image_data = image.split(",")[1]
         image_bytes = base64.b64decode(image_data)
 
+        # Index face in Rekognition
         external_image_id = f"{sanitized_name}_{student_id}"
         response = rekognition_client.index_faces(
             CollectionId=COLLECTION_ID,
@@ -158,6 +215,7 @@ def register():
             DetectionAttributes=['ALL'],
             QualityFilter='AUTO'
         )
+
         if not response.get('FaceRecords'):
             return jsonify({"message": "No face detected in the image"}), 400
 
@@ -166,93 +224,81 @@ def register():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# -------------------------------------------------------------------
-# 7) Recognize Endpoint (AWS Face Recognition) + Firestore Attendance
-# -------------------------------------------------------------------
+# ========= RECOGNIZE ENDPOINT =========
 @app.route('/recognize', methods=['POST'])
 def recognize():
     """
     Expects JSON:
     {
-      "image": "data:image/jpeg;base64,....",
-      "subject_id": "abc123" (optional if you want to record subject info)
+      "image": "data:image/jpeg;base64,...."
     }
     """
     try:
         data = request.json
         image_data_str = data.get('image')
-        subject_id = data.get('subject_id')  # optional
 
         if not image_data_str:
             return jsonify({"message": "No image provided"}), 400
 
-        # Optionally fetch subject_name from a "subjects" collection if you store it
-        # For demo, let's just store subject_id if provided:
-        subject_name = ""
-        if subject_id:
-            subj_doc = db.collection("subjects").document(subject_id).get()
-            if subj_doc.exists:
-                subject_name = subj_doc.to_dict().get("name", "")
-            else:
-                subject_name = "Unknown Subject"
-
-        # Decode base64
+        # 1) Enhance image (super-resolution, denoising, and contrast)
         image_bytes = base64.b64decode(image_data_str.split(",")[1])
-
-        # Enhance
         image_bytes = upscale_image(image_bytes)
         image_bytes = denoise_image(image_bytes)
         image_bytes = equalize_image(image_bytes)
 
-        # More brightness/contrast
-        pil_img = Image.open(io.BytesIO(image_bytes))
-        enhancer = ImageEnhance.Contrast(pil_img)
-        pil_img = enhancer.enhance(1.5)
-        enhancer = ImageEnhance.Brightness(pil_img)
-        pil_img = enhancer.enhance(1.2)
+        # Further brightness/contrast with Pillow
+        image = Image.open(io.BytesIO(image_bytes))
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(1.5)
+        enhancer = ImageEnhance.Brightness(image)
+        image = enhancer.enhance(1.2)
 
-        buf = io.BytesIO()
-        pil_img.save(buf, format="JPEG")
-        final_enhanced_bytes = buf.getvalue()
+        # Convert back to bytes
+        enhanced_image_bytes = io.BytesIO()
+        image.save(enhanced_image_bytes, format="JPEG")
+        enhanced_image_bytes = enhanced_image_bytes.getvalue()
 
-        # Split into smaller grids
-        regions = split_image(pil_img, grid_size=3)
+        # 2) Split image into smaller regions
+        regions = split_image(image, grid_size=3)
 
         identified_people = []
         face_count = 0
 
         for region in regions:
-            r_buf = io.BytesIO()
-            region.save(r_buf, format="JPEG")
-            region_bytes = r_buf.getvalue()
+            region_bytes = io.BytesIO()
+            region.save(region_bytes, format="JPEG")
+            region_bytes = region_bytes.getvalue()
 
+            # Detect faces
             detect_response = rekognition_client.detect_faces(
                 Image={'Bytes': region_bytes},
                 Attributes=['ALL']
             )
-            faces = detect_response.get('FaceDetails', [])
-            face_count += len(faces)
+            face_details = detect_response.get('FaceDetails', [])
+            face_count += len(face_details)
 
-            for face in faces:
-                bbox = face['BoundingBox']
-                w, h = region.size
-                left = int(bbox['Left'] * w)
-                top = int(bbox['Top'] * h)
-                right = int((bbox['Left'] + bbox['Width']) * w)
-                bottom = int((bbox['Top'] + bbox['Height']) * h)
+            for face in face_details:
+                bounding_box = face['BoundingBox']
+                width, height = region.size
+                left = int(bounding_box['Left'] * width)
+                top = int(bounding_box['Top'] * height)
+                right = int((bounding_box['Left'] + bounding_box['Width']) * width)
+                bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
+                # Crop face
                 cropped_face = region.crop((left, top, right, bottom))
-                c_buf = io.BytesIO()
-                cropped_face.save(c_buf, format="JPEG")
-                cropped_bytes = c_buf.getvalue()
+                cropped_face_bytes = io.BytesIO()
+                cropped_face.save(cropped_face_bytes, format="JPEG")
+                cropped_face_bytes = cropped_face_bytes.getvalue()
 
-                # Search in Rekognition
+                # Search in Rekognition (lower FaceMatchThreshold)
                 search_response = rekognition_client.search_faces_by_image(
                     CollectionId=COLLECTION_ID,
-                    Image={'Bytes': cropped_bytes},
+                    Image={'Bytes': cropped_face_bytes},
                     MaxFaces=1,
                     FaceMatchThreshold=60
                 )
+
                 face_matches = search_response.get('FaceMatches', [])
                 if not face_matches:
                     identified_people.append({
@@ -262,34 +308,20 @@ def recognize():
                     continue
 
                 match = face_matches[0]
-                ext_id = match['Face']['ExternalImageId']  # e.g. "Alice_12345"
+                external_image_id = match['Face']['ExternalImageId']
                 confidence = match['Face']['Confidence']
 
-                parts = ext_id.split("_", 1)
+                parts = external_image_id.split("_")
                 if len(parts) == 2:
-                    recognized_name, recognized_student_id = parts
+                    recognized_name, recognized_id = parts
                 else:
-                    recognized_name = ext_id
-                    recognized_student_id = "Unknown"
+                    recognized_name, recognized_id = external_image_id, "Unknown"
 
                 identified_people.append({
                     "name": recognized_name,
-                    "student_id": recognized_student_id,
+                    "student_id": recognized_id,
                     "confidence": confidence
                 })
-
-                # Log attendance in Firestore
-                # You can customize fields as needed
-                if recognized_student_id != "Unknown":
-                    attendance_record = {
-                        "student_id": recognized_student_id,
-                        "name": recognized_name,
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "subject_id": subject_id or "",
-                        "subject_name": subject_name or "",
-                        "status": "PRESENT"  # or "IN", or whatever logic you prefer
-                    }
-                    db.collection("attendance").add(attendance_record)
 
         return jsonify({
             "message": f"{face_count} face(s) detected in the photo.",
@@ -300,370 +332,8 @@ def recognize():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# -------------------------------------------------------------------
-# 8) Attendance Management Page (DataTables + Excel Import/Export)
-# -------------------------------------------------------------------
-import openpyxl
-from openpyxl import Workbook
 
-ATTENDANCE_PAGE_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Attendance Management</title>
-    <meta charset="UTF-8">
-    <!-- DataTables CSS -->
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-    <style>
-      body { font-family: Arial, sans-serif; margin: 20px; }
-      .filters { margin-bottom: 20px; }
-      .filters label { margin-right: 10px; }
-      #attendanceTable { width: 100%; border-collapse: collapse; }
-      #attendanceTable th, #attendanceTable td {
-        padding: 8px; 
-        border: 1px solid #ccc;
-      }
-      .save-btn, .download-btn, .upload-btn {
-        margin: 10px 5px 10px 0;
-        padding: 8px 16px;
-      }
-    </style>
-</head>
-<body>
-
-<h1>Attendance Management</h1>
-
-<div class="filters">
-  <label>Student ID:
-    <input type="text" id="filter_student_id" placeholder="e.g. 1234">
-  </label>
-  <label>Subject ID:
-    <input type="text" id="filter_subject_id" placeholder="e.g. abc123">
-  </label>
-  <label>Start Date:
-    <input type="date" id="filter_start">
-  </label>
-  <label>End Date:
-    <input type="date" id="filter_end">
-  </label>
-  <button onclick="loadAttendance()">Apply Filters</button>
-</div>
-
-<table id="attendanceTable" class="display" style="width:100%">
-  <thead>
-    <tr>
-      <th>Doc ID</th>
-      <th>Student ID</th>
-      <th>Name</th>
-      <th>Subject ID</th>
-      <th>Subject Name</th>
-      <th>Timestamp</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
-<div>
-  <button class="save-btn" onclick="saveEdits()">Save Changes</button>
-  <button class="download-btn" onclick="downloadExcel()">Download Excel</button>
-
-  <!-- Upload Excel form -->
-  <input type="file" id="excelFile" accept=".xlsx">
-  <button class="upload-btn" onclick="uploadExcel()">Upload Excel</button>
-</div>
-
-<!-- jQuery & DataTables JS -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-
-<script>
-let table;
-let attendanceData = [];
-
-function loadAttendance() {
-  const studentId = document.getElementById('filter_student_id').value.trim();
-  const subjectId = document.getElementById('filter_subject_id').value.trim();
-  const startDate = document.getElementById('filter_start').value;
-  const endDate = document.getElementById('filter_end').value;
-
-  let url = '/api/attendance?';
-  if (studentId) url += 'student_id=' + studentId + '&';
-  if (subjectId) url += 'subject_id=' + subjectId + '&';
-  if (startDate) url += 'start_date=' + startDate + '&';
-  if (endDate) url += 'end_date=' + endDate + '&';
-
-  fetch(url)
-    .then(response => response.json())
-    .then(data => {
-      attendanceData = data;
-      renderTable(attendanceData);
-    })
-    .catch(err => console.error(err));
-}
-
-function renderTable(data) {
-  if ($.fn.DataTable.isDataTable('#attendanceTable')) {
-    $('#attendanceTable').DataTable().clear().destroy();
-  }
-
-  const tbody = document.querySelector('#attendanceTable tbody');
-  tbody.innerHTML = '';
-  data.forEach(record => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${record.doc_id || ''}</td>
-      <td contenteditable="true" data-field="student_id">${record.student_id || ''}</td>
-      <td contenteditable="true" data-field="name">${record.name || ''}</td>
-      <td contenteditable="true" data-field="subject_id">${record.subject_id || ''}</td>
-      <td contenteditable="true" data-field="subject_name">${record.subject_name || ''}</td>
-      <td contenteditable="true" data-field="timestamp">${record.timestamp || ''}</td>
-      <td contenteditable="true" data-field="status">${record.status || ''}</td>
-    `;
-    tbody.appendChild(row);
-  });
-
-  table = $('#attendanceTable').DataTable({
-    paging: true,
-    searching: false,
-    info: false,
-  });
-}
-
-function saveEdits() {
-  const updatedRecords = [];
-  const rows = document.querySelectorAll('#attendanceTable tbody tr');
-
-  rows.forEach(row => {
-    const cells = row.querySelectorAll('td');
-    const doc_id = cells[0].textContent.trim();
-    const student_id = cells[1].textContent.trim();
-    const name = cells[2].textContent.trim();
-    const subject_id = cells[3].textContent.trim();
-    const subject_name = cells[4].textContent.trim();
-    const timestamp = cells[5].textContent.trim();
-    const status = cells[6].textContent.trim();
-
-    updatedRecords.push({
-      doc_id, student_id, name, subject_id, subject_name, timestamp, status
-    });
-  });
-
-  fetch('/api/attendance/update', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ records: updatedRecords })
-  })
-  .then(res => res.json())
-  .then(resp => {
-    alert(resp.message || 'Attendance updated!');
-  })
-  .catch(err => console.error(err));
-}
-
-function downloadExcel() {
-  const studentId = document.getElementById('filter_student_id').value.trim();
-  const subjectId = document.getElementById('filter_subject_id').value.trim();
-  const startDate = document.getElementById('filter_start').value;
-  const endDate = document.getElementById('filter_end').value;
-
-  let url = '/api/attendance/download?';
-  if (studentId) url += 'student_id=' + studentId + '&';
-  if (subjectId) url += 'subject_id=' + subjectId + '&';
-  if (startDate) url += 'start_date=' + startDate + '&';
-  if (endDate) url += 'end_date=' + endDate + '&';
-
-  window.location.href = url;
-}
-
-function uploadExcel() {
-  const fileInput = document.getElementById('excelFile');
-  if (!fileInput.files.length) {
-    alert('Please select an Excel file (.xlsx)');
-    return;
-  }
-  const file = fileInput.files[0];
-  const formData = new FormData();
-  formData.append('file', file);
-
-  fetch('/api/attendance/upload', {
-    method: 'POST',
-    body: formData
-  })
-  .then(res => res.json())
-  .then(resp => {
-    alert(resp.message || resp.error || 'Excel uploaded');
-    loadAttendance();
-  })
-  .catch(err => console.error(err));
-}
-
-window.onload = loadAttendance;
-</script>
-</body>
-</html>
-"""
-
-@app.route("/attendance")
-def attendance_page():
-    return render_template_string(ATTENDANCE_PAGE_HTML)
-
-# -------------------------------------------------------------------
-# 9) Attendance API Endpoints
-# -------------------------------------------------------------------
-@app.route("/api/attendance", methods=["GET"])
-def get_attendance():
-    student_id = request.args.get("student_id")
-    subject_id = request.args.get("subject_id")
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-
-    query = db.collection("attendance")
-
-    if student_id:
-        query = query.where("student_id", "==", student_id)
-    if subject_id:
-        query = query.where("subject_id", "==", subject_id)
-    if start_date:
-        dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-        query = query.where("timestamp", ">=", dt_start.isoformat())
-    if end_date:
-        dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
-        query = query.where("timestamp", "<=", dt_end.isoformat())
-
-    results = query.stream()
-    attendance_list = []
-    for doc in results:
-        doc_data = doc.to_dict()
-        doc_data["doc_id"] = doc.id
-        attendance_list.append(doc_data)
-
-    return jsonify(attendance_list)
-
-@app.route("/api/attendance/update", methods=["POST"])
-def update_attendance():
-    data = request.json
-    records = data.get("records", [])
-
-    for rec in records:
-        doc_id = rec.get("doc_id")
-        if not doc_id:
-            continue
-        update_data = {
-            "student_id": rec.get("student_id", ""),
-            "name": rec.get("name", ""),
-            "subject_id": rec.get("subject_id", ""),
-            "subject_name": rec.get("subject_name", ""),
-            "timestamp": rec.get("timestamp", ""),
-            "status": rec.get("status", ""),
-        }
-        db.collection("attendance").document(doc_id).update(update_data)
-
-    return jsonify({"message": "Attendance records updated successfully."})
-
-@app.route("/api/attendance/download", methods=["GET"])
-def download_attendance_excel():
-    student_id = request.args.get("student_id")
-    subject_id = request.args.get("subject_id")
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-
-    query = db.collection("attendance")
-    if student_id:
-        query = query.where("student_id", "==", student_id)
-    if subject_id:
-        query = query.where("subject_id", "==", subject_id)
-    if start_date:
-        dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-        query = query.where("timestamp", ">=", dt_start.isoformat())
-    if end_date:
-        dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
-        query = query.where("timestamp", "<=", dt_end.isoformat())
-
-    results = query.stream()
-    attendance_list = []
-    for doc in results:
-        doc_data = doc.to_dict()
-        doc_data["doc_id"] = doc.id
-        attendance_list.append(doc_data)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Attendance"
-    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
-    ws.append(headers)
-
-    for record in attendance_list:
-        row = [
-            record.get("doc_id", ""),
-            record.get("student_id", ""),
-            record.get("name", ""),
-            record.get("subject_id", ""),
-            record.get("subject_name", ""),
-            record.get("timestamp", ""),
-            record.get("status", ""),
-        ]
-        ws.append(row)
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        attachment_filename="attendance.xlsx",
-    )
-
-@app.route("/api/attendance/upload", methods=["POST"])
-def upload_attendance_excel():
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    file = request.files["file"]
-    if not file.filename.endswith(".xlsx"):
-        return jsonify({"error": "Please upload a .xlsx file"}), 400
-
-    wb = openpyxl.load_workbook(file)
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-
-    # Expecting columns in first row:
-    # doc_id, student_id, name, subject_id, subject_name, timestamp, status
-    headers = rows[0]
-    expected = ("doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status")
-    if headers != expected:
-        return jsonify({"error": "Incorrect template format"}), 400
-
-    for row in rows[1:]:
-        doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
-        if doc_id:
-            update_data = {
-                "student_id": student_id or "",
-                "name": name or "",
-                "subject_id": subject_id or "",
-                "subject_name": subject_name or "",
-                "timestamp": timestamp or "",
-                "status": status or "",
-            }
-            db.collection("attendance").document(doc_id).set(update_data, merge=True)
-        else:
-            new_data = {
-                "student_id": student_id or "",
-                "name": name or "",
-                "subject_id": subject_id or "",
-                "subject_name": subject_name or "",
-                "timestamp": timestamp or "",
-                "status": status or "",
-            }
-            db.collection("attendance").add(new_data)
-
-    return jsonify({"message": "Excel data imported successfully."})
-
-# -------------------------------------------------------------------
-# 10) Run the Flask app
-# -------------------------------------------------------------------
+# ========= RUN FLASK APP =========
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port)
