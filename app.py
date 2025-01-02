@@ -3,8 +3,10 @@ import base64
 import os
 from flask import Flask, request, jsonify, render_template
 import requests
-from PIL import Image
+from PIL import Image, ImageEnhance
 import io
+import cv2
+import numpy as np
 
 app = Flask(__name__)
 
@@ -58,8 +60,27 @@ def enhance_image_with_huggingface(image_bytes):
     if not response.content:
         raise Exception("No content in the response from Hugging Face API")
 
-    print("Enhancement successful. Returning enhanced image.")
     return response.content
+
+def enhance_image_locally(image_bytes):
+    """Enhance image quality using local methods."""
+    try:
+        # Convert bytes to numpy array
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        # Apply sharpening kernel
+        kernel = np.array([[0, -1, 0],
+                           [-1, 5,-1],
+                           [0, -1, 0]])
+        img = cv2.filter2D(img, -1, kernel)
+
+        # Convert back to bytes
+        _, buffer = cv2.imencode('.jpg', img)
+        return buffer.tobytes()
+    except Exception as e:
+        print(f"Local image enhancement error: {e}")
+        return image_bytes  # Return original if enhancement fails
 
 @app.route('/')
 def index():
@@ -68,18 +89,12 @@ def index():
 @app.route('/recognize', methods=['POST'])
 def recognize():
     try:
-        print("Incoming request to /recognize")
-        print(f"Request Files: {request.files}")
-
-        # Check if image is provided
         image = request.files.get('image')
         if not image:
-            print("No image provided in request.files")
             return jsonify({"message": "No image provided"}), 400
 
         # Read image bytes
         image_bytes = image.read()
-        print(f"Image received. Size: {len(image_bytes)} bytes")
 
         # Enhance the entire image
         try:
@@ -87,19 +102,14 @@ def recognize():
             print("Image enhancement completed.")
         except Exception as e:
             print(f"Image enhancement failed: {e}")
-            return jsonify({"message": "Image enhancement failed"}), 500
-
-        # Save enhanced image for debugging
-        with open("debug_enhanced_image.jpg", "wb") as f:
-            f.write(enhanced_image_bytes)
+            # Fallback to local enhancement
+            enhanced_image_bytes = enhance_image_locally(image_bytes)
 
         # Detect faces using AWS Rekognition
-        print("Detecting faces with AWS Rekognition...")
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
-        print(f"Rekognition response: {detect_response}")
 
         face_details = detect_response.get('FaceDetails', [])
         if not face_details:
@@ -108,6 +118,7 @@ def recognize():
         identified_people = []
 
         for idx, face in enumerate(face_details):
+            # Crop face using bounding box
             bounding_box = face['BoundingBox']
             width, height = Image.open(io.BytesIO(enhanced_image_bytes)).size
             left = int(bounding_box['Left'] * width)
@@ -115,15 +126,10 @@ def recognize():
             right = int((bounding_box['Left'] + bounding_box['Width']) * width)
             bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
 
-            # Crop face and save for debugging
             cropped_face = Image.open(io.BytesIO(enhanced_image_bytes)).crop((left, top, right, bottom))
             cropped_face_bytes = io.BytesIO()
             cropped_face.save(cropped_face_bytes, format="JPEG")
             cropped_face_bytes = cropped_face_bytes.getvalue()
-
-            # Save cropped face for debugging
-            with open(f"debug_cropped_face_{idx}.jpg", "wb") as f:
-                f.write(cropped_face_bytes)
 
             # Recognize the cropped face
             try:
