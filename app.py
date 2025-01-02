@@ -71,8 +71,8 @@ model = genai.GenerativeModel("models/gemini-1.5-flash")
 MAX_MEMORY = 20
 conversation_memory = []
 
-# A big system prompt describing the system with a slightly human/funny tone
-system_context = """You are Gemini, a witty, somewhat funny (but still polite) AI assistant. 
+# A big system prompt describing the system with a somewhat human/funny tone
+system_context = """You are Gemini, a witty, somewhat funny (but polite) AI assistant.
 Here is the entire Facial Recognition Attendance system you are helping with:
 
 1) AWS Rekognition:
@@ -93,11 +93,11 @@ Here is the entire Facial Recognition Attendance system you are helping with:
    - If multiple recognized people in the photo, each gets logged to attendance.
 
 5) Chat:
-   - You are the chat assistant, a bit humorous. 
-   - Answer user queries about the system's usage, code, or features. 
-   - Keep it friendly but not overly long.
+   - You are the chat assistant, a bit humorous.
+   - Answer user queries about the system's usage, code, or features.
+   - Keep it friendly but not too long.
 
-Be helpful and a tiny bit witty. 
+Be helpful and a touch witty.
 """
 
 # Start conversation with system message
@@ -109,33 +109,8 @@ conversation_memory.append({"role": "system", "content": system_context})
 app = Flask(__name__)
 
 # -----------------------------
-# 5) Image Enhancement
+# 5) Splitting Image for Multi-Face (No Enhancements)
 # -----------------------------
-def upscale_image(image_bytes, upscale_factor=2):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    upscaled_image = cv2.resize(image, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_CUBIC)
-    _, upscaled_image_bytes = cv2.imencode('.jpg', upscaled_image)
-    return upscaled_image_bytes.tobytes()
-
-def denoise_image(image_bytes):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    denoised_image = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
-    _, denoised_image_bytes = cv2.imencode('.jpg', denoised_image)
-    return denoised_image_bytes.tobytes()
-
-def equalize_image(image_bytes):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    l = cv2.equalizeHist(l)
-    lab = cv2.merge((l, a, b))
-    enhanced_image = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-    _, enhanced_image_bytes = cv2.imencode('.jpg', enhanced_image)
-    return enhanced_image_bytes.tobytes()
-
 def split_image(pil_image, grid_size=3):
     width, height = pil_image.size
     region_width = width // grid_size
@@ -167,8 +142,6 @@ INDEX_HTML = """
 
   <style>
     body { margin: 20px; }
-
-    /* Tabs */
     .nav-tabs .nav-link {
       color: #555;
     }
@@ -176,12 +149,9 @@ INDEX_HTML = """
       color: #000;
       font-weight: bold;
     }
-
-    /* Attendance table contenteditable highlight */
     #attendanceTable td[contenteditable="true"] {
       background-color: #fcf8e3;
     }
-
     /* Chatbot Toggle Button */
     #chatbotToggle {
       position: fixed;
@@ -203,7 +173,6 @@ INDEX_HTML = """
     #chatbotToggle:hover {
       background-color: #0b5ed7;
     }
-
     /* Chat Window */
     #chatbotWindow {
       position: fixed;
@@ -309,11 +278,11 @@ INDEX_HTML = """
   <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
     <h3>Register a Face</h3>
     <label class="form-label">Name</label>
-    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name">
+    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name" />
     <label class="form-label">Student ID</label>
-    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID">
+    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID" />
     <label class="form-label">Image</label>
-    <input type="file" id="reg_image" class="form-control" accept="image/*">
+    <input type="file" id="reg_image" class="form-control" accept="image/*" />
     <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
     <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
@@ -326,7 +295,7 @@ INDEX_HTML = """
       <option value="">-- No Subject --</option>
     </select>
     <label class="form-label">Image</label>
-    <input type="file" id="rec_image" class="form-control" accept="image/*">
+    <input type="file" id="rec_image" class="form-control" accept="image/*" />
     <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
     <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
@@ -335,10 +304,10 @@ INDEX_HTML = """
   <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
     <label class="form-label">New Subject Name:</label>
-    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics">
+    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
     <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <hr>
+    <hr />
     <h5>Existing Subjects</h5>
     <ul id="subjects_list"></ul>
   </div>
@@ -349,19 +318,19 @@ INDEX_HTML = """
     <div class="row mb-3">
       <div class="col-md-3">
         <label class="form-label">Student ID</label>
-        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234">
+        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
       </div>
       <div class="col-md-3">
         <label class="form-label">Subject ID</label>
-        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123">
+        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
       </div>
       <div class="col-md-3">
         <label class="form-label">Start Date</label>
-        <input type="date" id="filter_start" class="form-control">
+        <input type="date" id="filter_start" class="form-control" />
       </div>
       <div class="col-md-3">
         <label class="form-label">End Date</label>
-        <input type="date" id="filter_end" class="form-control">
+        <input type="date" id="filter_end" class="form-control" />
       </div>
     </div>
     <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
@@ -384,7 +353,7 @@ INDEX_HTML = """
       <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
       <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
       <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
-      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2">
+      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
       <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
     </div>
   </div>
@@ -512,7 +481,7 @@ INDEX_HTML = """
     });
   }
 
-  /* Recognize */
+  /* Recognize (No image enhancements) */
   function recognizeFace() {
     const file = document.getElementById('rec_image').files[0];
     const subjectId = document.getElementById('rec_subject_select').value;
@@ -769,7 +738,7 @@ def register_face():
 
     return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
-# RECOGNIZE
+# RECOGNIZE (No Enhancements)
 @app.route("/recognize", methods=["POST"])
 def recognize():
     data = request.json
@@ -778,6 +747,7 @@ def recognize():
     if not image_str:
         return jsonify({"message": "No image provided"}), 400
 
+    # Lookup subject name if given
     subject_name = ""
     if subject_id:
         sdoc = db.collection("subjects").document(subject_id).get()
@@ -786,21 +756,14 @@ def recognize():
         else:
             subject_name = "Unknown Subject"
 
+    # Decode the raw base64 image
     raw_bytes = base64.b64decode(image_str.split(",")[1])
-    raw_bytes = upscale_image(raw_bytes)
-    raw_bytes = denoise_image(raw_bytes)
-    raw_bytes = equalize_image(raw_bytes)
 
+    # Convert to PIL (no enhancement)
+    from PIL import Image
     pil_img = Image.open(io.BytesIO(raw_bytes))
-    enhancer = ImageEnhance.Contrast(pil_img)
-    pil_img = enhancer.enhance(1.5)
-    enhancer = ImageEnhance.Brightness(pil_img)
-    pil_img = enhancer.enhance(1.2)
 
-    buf = io.BytesIO()
-    pil_img.save(buf, format="JPEG")
-    final_bytes = buf.getvalue()
-
+    # Split image for multi-face
     regions = split_image(pil_img, grid_size=3)
     identified_people = []
     face_count = 0
@@ -860,7 +823,7 @@ def recognize():
 
             # Log attendance
             if recognized_id != "Unknown":
-                doc = {
+                record = {
                     "student_id": recognized_id,
                     "name": recognized_name,
                     "timestamp": datetime.utcnow().isoformat(),
@@ -868,7 +831,7 @@ def recognize():
                     "subject_name": subject_name,
                     "status": "PRESENT"
                 }
-                db.collection("attendance").add(doc)
+                db.collection("attendance").add(record)
 
     return jsonify({
         "message": f"{face_count} face(s) detected in the photo.",
@@ -983,7 +946,7 @@ def download_attendance_excel():
         output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name="attendance.xlsx"  # <-- use download_name instead of attachment_filename
+        download_name="attendance.xlsx"
     )
 
 @app.route("/api/attendance/template", methods=["GET"])
