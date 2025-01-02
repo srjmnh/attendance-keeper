@@ -6,23 +6,32 @@ import io
 from datetime import datetime
 import logging
 
-import cv2
-import numpy as np
+import boto3
+import firebase_admin
+from firebase_admin import credentials, firestore
 from PIL import Image
 from flask import Flask, request, jsonify, render_template_string, send_file
 
 # -----------------------------
-# 1) AWS Rekognition Setup
+# 1) AWS Configuration
 # -----------------------------
-import boto3
-
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 COLLECTION_ID = "students"
+S3_BUCKET = os.getenv('S3_BUCKET_NAME')  # Ensure this environment variable is set
 
+# Initialize AWS Rekognition Client
 rekognition_client = boto3.client(
     'rekognition',
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION
+)
+
+# Initialize AWS S3 Client
+s3_client = boto3.client(
+    's3',
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
@@ -40,9 +49,6 @@ create_collection_if_not_exists(COLLECTION_ID)
 # -----------------------------
 # 2) Firebase Firestore Setup
 # -----------------------------
-import firebase_admin
-from firebase_admin import credentials, firestore
-
 base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
 if not base64_cred_str:
     raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
@@ -77,7 +83,7 @@ Facial Recognition Attendance system features:
 1) AWS Rekognition:
    - We keep a 'students' collection on startup.
    - /register indexes a face by (name + student_id).
-   - /recognize detects faces in an uploaded image, logs attendance in Firestore if matched.
+   - /recognize detects faces in an uploaded image from S3, logs attendance in Firestore if matched.
 
 2) Attendance:
    - Firestore 'attendance' collection: { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
@@ -103,33 +109,7 @@ conversation_memory.append({"role": "system", "content": system_context})
 app = Flask(__name__)
 
 # -----------------------------
-# 5) Optional Enhancements (Removed)
-# -----------------------------
-# The following image enhancement functions have been removed to reduce computational load:
-# - upscale_image
-# - denoise_image
-# - equalize_image
-
-# -----------------------------
-# 6) Image Splitting Function (Retained)
-# -----------------------------
-def split_image(pil_image, grid_size=3):
-    """Split PIL image into grid_size x grid_size smaller regions."""
-    width, height = pil_image.size
-    region_width = width // grid_size
-    region_height = height // grid_size
-    regions = []
-    for row in range(grid_size):
-        for col in range(grid_size):
-            left = col * region_width
-            top = row * region_height
-            right = (col + 1) * region_width
-            bottom = (row + 1) * region_height
-            regions.append(pil_image.crop((left, top, right, bottom)))
-    return regions
-
-# -----------------------------
-# 7) Single-Page HTML + Chat Widget
+# 5) Single-Page HTML + Chat Widget
 # -----------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
@@ -267,7 +247,7 @@ INDEX_HTML = """
 
   <!-- RECOGNIZE -->
   <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
-    <h3>Recognize a Face</h3>
+    <h3>Recognize Faces</h3>
     <label class="form-label">Subject (optional)</label>
     <select id="rec_subject_select" class="form-control mb-2">
       <option value="">-- No Subject --</option>
@@ -394,7 +374,6 @@ INDEX_HTML = """
     })
     .then(res => res.json())
     .then(data => {
-      const div = document.getElementById('recognize_result');
       if (data.error) {
         addMessage("Error: " + data.error, 'assistant');
       } else {
@@ -459,7 +438,7 @@ INDEX_HTML = """
     });
   }
 
-  /* Recognize Face */
+  /* Recognize Faces */
   function recognizeFace() {
     const file = document.getElementById('rec_image').files[0];
     const subjectId = document.getElementById('rec_subject_select').value;
@@ -479,9 +458,9 @@ INDEX_HTML = """
         div.style.display = 'block';
         let text = data.message || data.error || JSON.stringify(data);
         if (data.identified_people) {
-          text += "\\n\\nIdentified People:\\n";
+          text += "\n\nIdentified People:\n";
           data.identified_people.forEach((p) => {
-            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\\n`;
+            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\n`;
           });
         }
         div.textContent = text;
@@ -661,7 +640,7 @@ INDEX_HTML = """
 """
 
 # -----------------------------
-# 7) Routes
+# 6) Routes
 # -----------------------------
 
 # Root route to avoid "URL not found" on /
@@ -687,14 +666,31 @@ def register_face():
     image_data = image.split(",")[1]
     image_bytes = base64.b64decode(image_data)
 
+    # Upload image to S3
+    image_key = f"registered_faces/{sanitized_name}_{student_id}_{int(datetime.utcnow().timestamp())}.jpg"
+    try:
+        s3_client.put_object(Bucket=S3_BUCKET, Key=image_key, Body=image_bytes, ContentType='image/jpeg')
+    except Exception as e:
+        return jsonify({"message": f"Failed to upload image to S3: {str(e)}"}), 500
+
+    # Index face in Rekognition using S3 Object
     external_image_id = f"{sanitized_name}_{student_id}"
-    response = rekognition_client.index_faces(
-        CollectionId=COLLECTION_ID,
-        Image={'Bytes': image_bytes},
-        ExternalImageId=external_image_id,
-        DetectionAttributes=['ALL'],
-        QualityFilter='AUTO'
-    )
+    try:
+        response = rekognition_client.index_faces(
+            CollectionId=COLLECTION_ID,
+            Image={
+                'S3Object': {
+                    'Bucket': S3_BUCKET,
+                    'Name': image_key
+                }
+            },
+            ExternalImageId=external_image_id,
+            DetectionAttributes=['ALL'],
+            QualityFilter='AUTO'
+        )
+    except Exception as e:
+        return jsonify({"message": f"Failed to index face: {str(e)}"}), 500
+
     if not response.get('FaceRecords'):
         return jsonify({"message": "No face detected in the image"}), 400
 
@@ -721,84 +717,118 @@ def recognize_face():
         else:
             subject_name = "Unknown Subject"
 
-    raw_bytes = base64.b64decode(image_str.split(",")[1])
+    # Upload image to S3
+    image_bytes = base64.b64decode(image_str.split(",")[1])
+    image_key = f"recognition_images/{int(datetime.utcnow().timestamp())}.jpg"
+    try:
+        s3_client.put_object(Bucket=S3_BUCKET, Key=image_key, Body=image_bytes, ContentType='image/jpeg')
+    except Exception as e:
+        return jsonify({"message": f"Failed to upload image to S3: {str(e)}"}), 500
 
-    pil_img = Image.open(io.BytesIO(raw_bytes))
-
-    # Split
-    regions = split_image(pil_img, grid_size=3)
-    identified_people = []
-    face_count = 0
-
-    for region in regions:
-        r_buf = io.BytesIO()
-        region.save(r_buf, format="JPEG")
-        region_bytes = r_buf.getvalue()
-
+    # Detect faces in the image using Rekognition
+    try:
         detect_response = rekognition_client.detect_faces(
-            Image={'Bytes': region_bytes},
+            Image={
+                'S3Object': {
+                    'Bucket': S3_BUCKET,
+                    'Name': image_key
+                }
+            },
             Attributes=['ALL']
         )
-        faces = detect_response.get('FaceDetails', [])
-        face_count += len(faces)
+    except Exception as e:
+        return jsonify({"message": f"Failed to detect faces: {str(e)}"}), 500
 
-        for face in faces:
-            bbox = face['BoundingBox']
-            w, h = region.size
-            left = int(bbox['Left'] * w)
-            top = int(bbox['Top'] * h)
-            right = int((bbox['Left'] + bbox['Width']) * w)
-            bottom = int((bbox['Top'] + bbox['Height']) * h)
+    faces = detect_response.get('FaceDetails', [])
+    face_count = len(faces)
+    identified_people = []
 
-            # Ensure bounding box coordinates are within image dimensions
-            bottom = int((bbox['Top'] + bbox['Height']) * h)
+    if face_count == 0:
+        return jsonify({
+            "message": "No faces detected in the image.",
+            "total_faces": face_count,
+            "identified_people": identified_people
+        }), 200
 
-            cropped_face = region.crop((left, top, right, bottom))
-            cbuf = io.BytesIO()
-            cropped_face.save(cbuf, format="JPEG")
-            cropped_face_bytes = cbuf.getvalue()
+    # Search each detected face in the Rekognition collection
+    for idx, face in enumerate(faces):
+        # Calculate bounding box coordinates
+        bbox = face['BoundingBox']
+        image_metadata = rekognition_client.get_image(
+            Image={
+                'S3Object': {
+                    'Bucket': S3_BUCKET,
+                    'Name': image_key
+                }
+            }
+        )
+        # Note: AWS Rekognition does not provide image dimensions via API; use PIL to get them
+        pil_img = Image.open(io.BytesIO(image_bytes))
+        img_width, img_height = pil_img.size
 
+        left = int(bbox['Left'] * img_width)
+        top = int(bbox['Top'] * img_height)
+        width = int(bbox['Width'] * img_width)
+        height = int(bbox['Height'] * img_height)
+        right = left + width
+        bottom = top + height
+
+        # Crop the face from the image
+        cropped_face = pil_img.crop((left, top, right, bottom))
+        buffer = io.BytesIO()
+        cropped_face.save(buffer, format="JPEG")
+        cropped_face_bytes = buffer.getvalue()
+
+        # Search for the face in the collection
+        try:
             search_response = rekognition_client.search_faces_by_image(
                 CollectionId=COLLECTION_ID,
                 Image={'Bytes': cropped_face_bytes},
                 MaxFaces=1,
                 FaceMatchThreshold=60
             )
-            matches = search_response.get('FaceMatches', [])
-            if not matches:
-                identified_people.append({
-                    "message": "Face not recognized",
-                    "confidence": "N/A"
-                })
-                continue
-
-            match = matches[0]
-            ext_id = match['Face']['ExternalImageId']
-            confidence = match['Face']['Confidence']
-
-            parts = ext_id.split("_", 1)
-            if len(parts) == 2:
-                rec_name, rec_id = parts
-            else:
-                rec_name, rec_id = ext_id, "Unknown"
-
+        except Exception as e:
             identified_people.append({
-                "name": rec_name,
-                "student_id": rec_id,
-                "confidence": confidence
+                "message": f"Error searching face {idx+1}: {str(e)}",
+                "confidence": "N/A"
             })
+            continue
 
-            # If recognized, log attendance
-            if rec_id != "Unknown":
-                doc = {
-                    "student_id": rec_id,
-                    "name": rec_name,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "subject_id": subject_id,
-                    "subject_name": subject_name,
-                    "status": "PRESENT"
-                }
-                db.collection("attendance").add(doc)
+        matches = search_response.get('FaceMatches', [])
+        if not matches:
+            identified_people.append({
+                "message": "Face not recognized",
+                "confidence": "N/A"
+            })
+            continue
+
+        match = matches[0]
+        ext_id = match['Face']['ExternalImageId']
+        confidence = match['Face']['Confidence']
+
+        parts = ext_id.split("_", 1)
+        if len(parts) == 2:
+            rec_name, rec_id = parts
+        else:
+            rec_name, rec_id = ext_id, "Unknown"
+
+        identified_people.append({
+            "name": rec_name,
+            "student_id": rec_id,
+            "confidence": confidence
+        })
+
+        # If recognized, log attendance
+        if rec_id != "Unknown":
+            doc = {
+                "student_id": rec_id,
+                "name": rec_name,
+                "timestamp": datetime.utcnow().isoformat(),
+                "subject_id": subject_id,
+                "subject_name": subject_name,
+                "status": "PRESENT"
+            }
+            db.collection("attendance").add(doc)
 
     return jsonify({
         "message": f"{face_count} face(s) detected in the photo.",
@@ -1014,7 +1044,7 @@ def upload_attendance_excel():
     return jsonify({"message": "Excel data imported successfully."})
 
 # -----------------------------
-# 8) Gemini Chat Endpoint
+# 7) Gemini Chat Endpoint
 # -----------------------------
 @app.route("/process_prompt", methods=["POST"])
 def process_prompt():
@@ -1037,12 +1067,16 @@ def process_prompt():
             conv_str += f"Assistant: {msg['content']}\n"
 
     # Call Gemini
-    response = model.generate_content(conv_str)
-    if not response.candidates:
-        assistant_reply = "Hmm, I'm having trouble responding right now."
+    try:
+        response = model.generate_content(conv_str)
+    except Exception as e:
+        assistant_reply = f"Error generating response: {str(e)}"
     else:
-        parts = response.candidates[0].content.parts
-        assistant_reply = "".join(part.text for part in parts).strip()
+        if not response.candidates:
+            assistant_reply = "Hmm, I'm having trouble responding right now."
+        else:
+            parts = response.candidates[0].content.parts
+            assistant_reply = "".join(part.text for part in parts).strip()
 
     # Add assistant reply
     conversation_memory.append({"role":"assistant","content":assistant_reply})
@@ -1053,7 +1087,7 @@ def process_prompt():
     return jsonify({"message": assistant_reply})
 
 # -----------------------------
-# 9) Run App
+# 8) Run App
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
