@@ -1521,5 +1521,29 @@ def process_prompt():
 # 14) Run App
 # -----------------------------
 if __name__ == "__main__":
+    # Create default admin if none exists
+    create_default_admin()
+    
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
+def create_default_admin():
+    admins_ref = db.collection("users").where("role", "==", "admin").stream()
+    admins = [admin for admin in admins_ref]
+
+    if not admins:
+        default_username = "admin"
+        default_password = "Admin123!"  # Change this password immediately after first login
+        password_hash = generate_password_hash(default_password, method="sha256")
+        
+        admin_data = {
+            "username": default_username,
+            "password_hash": password_hash,
+            "role": "admin",
+            # 'classes' field is optional for admin
+        }
+        
+        db.collection("users").add(admin_data)
+        print(f"Default admin user '{default_username}' created with password '{default_password}'.")
+    else:
+        print("Admin user already exists. No default admin created.")
