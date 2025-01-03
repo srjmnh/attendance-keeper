@@ -709,7 +709,7 @@ def delete_subject():
 @app.route("/get_subjects")
 def get_subjects():
     try:
-        print("Attempting to fetch subjects from Firebase...")  # Debug log
+        print("Fetching subjects from Firebase...")  # Debug log
         subjects = []
         docs = db.collection('subjects').stream()
         for doc in docs:

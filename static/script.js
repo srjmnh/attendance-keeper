@@ -29,22 +29,21 @@ function getBase64(file, callback) {
 
 // Modern alert message with animation
 function showAlert(message, type = 'success') {
+    console.log(`Showing alert: ${message} (${type})`);
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show animate__animated animate__fadeInDown glass-effect`;
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
-        <div class="d-flex align-items-center">
-            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
-            <div>${message}</div>
-        </div>
+        ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
     
-    // Auto dismiss after 5 seconds
-    setTimeout(() => {
-        alertDiv.classList.replace('animate__fadeInDown', 'animate__fadeOutUp');
-        setTimeout(() => alertDiv.remove(), 1000);
-    }, 5000);
+    const container = document.querySelector('.container');
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+        setTimeout(() => alertDiv.remove(), 5000);
+    } else {
+        console.error('Container element not found for alert!');
+    }
 }
 
 // Register function with enhanced UI feedback
@@ -251,15 +250,23 @@ function animateNumber(elementId, finalNumber) {
 // Load subjects into select with animation
 function loadSubjects() {
     console.log('Loading subjects...');
+    const select = document.getElementById('subject_select');
+    if (!select) {
+        console.error('Subject select element not found!');
+        return;
+    }
+
     fetch('/get_subjects')
         .then(response => {
-            console.log('Got response:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             return response.json();
         })
         .then(data => {
-            console.log('Subjects data:', data);
-            const select = document.getElementById('subject_select');
+            console.log('Subjects data received:', data);
             select.innerHTML = '<option value="">Select Subject</option>';
+            
             if (data.subjects && Array.isArray(data.subjects)) {
                 data.subjects.forEach(subject => {
                     const option = document.createElement('option');
@@ -267,13 +274,15 @@ function loadSubjects() {
                     option.textContent = subject.name;
                     select.appendChild(option);
                 });
+                console.log(`Added ${data.subjects.length} subjects to select`);
             } else {
-                console.error('Invalid subjects data:', data);
+                console.error('Invalid subjects data structure:', data);
             }
         })
         .catch(error => {
             console.error('Error loading subjects:', error);
-            showAlert('Failed to load subjects', 'danger');
+            select.innerHTML = '<option value="">Error loading subjects</option>';
+            showAlert('Failed to load subjects. Check console for details.', 'danger');
         });
 }
 
@@ -281,46 +290,87 @@ function loadSubjects() {
 function loadSubjectsTable() {
     console.log('Loading subjects table...');
     const tableBody = document.getElementById('subjectsTableBody');
-    tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading...</td></tr>';
+    if (!tableBody) {
+        console.error('Subjects table body not found!');
+        return;
+    }
+
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="3" class="text-center">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Loading subjects...
+            </td>
+        </tr>
+    `;
 
     fetch('/get_subjects')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            console.log('Subjects received:', data);
+            console.log('Subjects data received for table:', data);
             tableBody.innerHTML = '';
             
-            data.subjects.forEach(subject => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>
-                        <span class="subject-name">${subject.name}</span>
-                        <input type="text" class="form-control subject-name-input" 
-                               value="${subject.name}" style="display: none;">
-                    </td>
-                    <td>${subject.id}</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary edit-btn" 
-                                    onclick="editSubject('${subject.id}', this)">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-outline-success save-btn" 
-                                    onclick="saveSubject('${subject.id}', this)" 
-                                    style="display: none;">
-                                <i class="fas fa-save"></i>
-                            </button>
-                            <button class="btn btn-outline-danger" 
-                                    onclick="deleteSubject('${subject.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
+            if (data.subjects && Array.isArray(data.subjects)) {
+                if (data.subjects.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="text-center">
+                                No subjects found. Add your first subject!
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                data.subjects.forEach(subject => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <span class="subject-name">${subject.name}</span>
+                            <input type="text" class="form-control subject-name-input" 
+                                   value="${subject.name}" style="display: none;">
+                        </td>
+                        <td>${subject.id}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary edit-btn" 
+                                        onclick="editSubject('${subject.id}', this)">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-outline-success save-btn" 
+                                        onclick="saveSubject('${subject.id}', this)" 
+                                        style="display: none;">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button class="btn btn-outline-danger delete-btn" 
+                                        onclick="deleteSubject('${subject.id}')">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                console.error('Invalid subjects data structure:', data);
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="text-center text-danger">
+                            Error: Invalid data structure
+                        </td>
+                    </tr>
                 `;
-                tableBody.appendChild(row);
-            });
+            }
         })
         .catch(error => {
-            console.error('Error loading subjects:', error);
+            console.error('Error loading subjects table:', error);
             tableBody.innerHTML = `
                 <tr>
                     <td colspan="3" class="text-center text-danger">
@@ -328,6 +378,7 @@ function loadSubjectsTable() {
                     </td>
                 </tr>
             `;
+            showAlert('Failed to load subjects table. Check console for details.', 'danger');
         });
 }
 
@@ -442,7 +493,42 @@ document.getElementById('recognize_image').addEventListener('change', function()
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded - Initializing...');
+    
+    // Add click event listeners to buttons
+    document.querySelectorAll('button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            console.log('Button clicked:', e.target.innerText);
+        });
+    });
+    
+    // Initialize components
     loadSubjects();
     loadSubjectsTable();
     updateStats();
+    
+    // Add file input change listeners
+    const registerImage = document.getElementById('register_image');
+    if (registerImage) {
+        registerImage.addEventListener('change', function() {
+            console.log('Register image selected');
+            previewImage(this, 'register_image_preview');
+        });
+    }
+    
+    const recognizeImage = document.getElementById('recognize_image');
+    if (recognizeImage) {
+        recognizeImage.addEventListener('change', function() {
+            console.log('Recognize image selected');
+            previewImage(this, 'recognize_image_preview');
+        });
+    }
 });
+
+// Make sure all onclick handlers are properly defined
+window.addNewSubject = addNewSubject;
+window.editSubject = editSubject;
+window.saveSubject = saveSubject;
+window.deleteSubject = deleteSubject;
+window.recognize = recognize;
+window.register = register;
