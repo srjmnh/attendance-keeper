@@ -113,7 +113,7 @@ function recognize() {
         return;
     }
 
-    const recognizeBtn = event.target;
+    const recognizeBtn = document.querySelector('button[onclick="recognize()"]');
     recognizeBtn.disabled = true;
     recognizeBtn.innerHTML = `
         <div class="spinner-border spinner-border-sm me-2" role="status">
@@ -127,7 +127,6 @@ function recognize() {
     progressBar.style.display = 'block';
     progressBarInner.style.width = '0%';
     
-    // Simulate progress steps
     let progress = 0;
     const progressInterval = setInterval(() => {
         if (progress < 90) {
@@ -151,6 +150,11 @@ function recognize() {
 
             const recognizedFaces = document.getElementById('recognizedFaces');
             recognizedFaces.innerHTML = '';
+
+            if (data.error) {
+                showAlert(data.error, 'danger');
+                return;
+            }
 
             data.identified_people.forEach((person, index) => {
                 const card = document.createElement('div');
@@ -211,9 +215,11 @@ function recognize() {
 
 // Update dashboard stats with animation
 function updateStats() {
+    console.log('Updating stats...');
     fetch('/api/stats')
         .then(response => response.json())
         .then(data => {
+            console.log('Stats received:', data);
             animateNumber('totalStudents', data.total_students);
             animateNumber('todayAttendance', data.today_attendance);
             animateNumber('totalSubjects', data.total_subjects);
@@ -244,21 +250,185 @@ function animateNumber(elementId, finalNumber) {
 
 // Load subjects into select with animation
 function loadSubjects() {
+    console.log('Loading subjects...');
     fetch('/get_subjects')
-        .then(response => response.json())
+        .then(response => {
+            console.log('Got response:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('Subjects data:', data);
             const select = document.getElementById('subject_select');
             select.innerHTML = '<option value="">Select Subject</option>';
-            data.subjects.forEach((subject, index) => {
-                setTimeout(() => {
+            if (data.subjects && Array.isArray(data.subjects)) {
+                data.subjects.forEach(subject => {
                     const option = document.createElement('option');
                     option.value = subject.id;
                     option.textContent = subject.name;
                     select.appendChild(option);
-                }, index * 100);
+                });
+            } else {
+                console.error('Invalid subjects data:', data);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading subjects:', error);
+            showAlert('Failed to load subjects', 'danger');
+        });
+}
+
+// Load subjects into table
+function loadSubjectsTable() {
+    console.log('Loading subjects table...');
+    const tableBody = document.getElementById('subjectsTableBody');
+    tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading...</td></tr>';
+
+    fetch('/get_subjects')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Subjects received:', data);
+            tableBody.innerHTML = '';
+            
+            data.subjects.forEach(subject => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <span class="subject-name">${subject.name}</span>
+                        <input type="text" class="form-control subject-name-input" 
+                               value="${subject.name}" style="display: none;">
+                    </td>
+                    <td>${subject.id}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary edit-btn" 
+                                    onclick="editSubject('${subject.id}', this)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-outline-success save-btn" 
+                                    onclick="saveSubject('${subject.id}', this)" 
+                                    style="display: none;">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" 
+                                    onclick="deleteSubject('${subject.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
             });
         })
-        .catch(error => console.error('Error loading subjects:', error));
+        .catch(error => {
+            console.error('Error loading subjects:', error);
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="text-center text-danger">
+                        Error loading subjects. Please try again.
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+// Add new subject
+function addNewSubject() {
+    const name = prompt('Enter subject name:');
+    if (!name) return;
+
+    fetch('/add_subject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showAlert(data.error, 'danger');
+        } else {
+            showAlert('Subject added successfully!', 'success');
+            loadSubjectsTable();
+            loadSubjects(); // Reload dropdown
+            updateStats();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Failed to add subject', 'danger');
+    });
+}
+
+// Edit subject
+function editSubject(subjectId, btn) {
+    const row = btn.closest('tr');
+    const nameSpan = row.querySelector('.subject-name');
+    const nameInput = row.querySelector('.subject-name-input');
+    const editBtn = row.querySelector('.edit-btn');
+    const saveBtn = row.querySelector('.save-btn');
+
+    nameSpan.style.display = 'none';
+    nameInput.style.display = 'block';
+    editBtn.style.display = 'none';
+    saveBtn.style.display = 'inline-block';
+    nameInput.focus();
+}
+
+// Save subject changes
+function saveSubject(subjectId, btn) {
+    const row = btn.closest('tr');
+    const nameInput = row.querySelector('.subject-name-input');
+    const newName = nameInput.value.trim();
+
+    if (!newName) {
+        showAlert('Subject name cannot be empty', 'warning');
+        return;
+    }
+
+    fetch('/update_subject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: subjectId, name: newName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showAlert(data.error, 'danger');
+        } else {
+            showAlert('Subject updated successfully!', 'success');
+            loadSubjectsTable();
+            loadSubjects(); // Reload dropdown
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Failed to update subject', 'danger');
+    });
+}
+
+// Delete subject
+function deleteSubject(subjectId) {
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+
+    fetch('/delete_subject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: subjectId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showAlert(data.error, 'danger');
+        } else {
+            showAlert('Subject deleted successfully!', 'success');
+            loadSubjectsTable();
+            loadSubjects(); // Reload dropdown
+            updateStats();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Failed to delete subject', 'danger');
+    });
 }
 
 // Event listeners for image previews
@@ -273,5 +443,6 @@ document.getElementById('recognize_image').addEventListener('change', function()
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadSubjects();
+    loadSubjectsTable();
     updateStats();
 });

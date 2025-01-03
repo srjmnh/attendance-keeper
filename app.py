@@ -451,6 +451,34 @@ INDEX_HTML = """
                 <div id="recognizedFaces" class="row mt-4"></div>
             </div>
         </div>
+
+        <!-- Subjects Management Card -->
+        <div class="card animate__animated animate__fadeIn mt-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="m-0"><i class="fas fa-book me-2"></i>Manage Subjects</h3>
+                    <button class="btn btn-primary btn-sm" onclick="addNewSubject()">
+                        <i class="fas fa-plus me-2"></i>Add Subject
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Subject Name</th>
+                                <th>Subject Code</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subjectsTableBody">
+                            <!-- Subjects will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -626,25 +654,75 @@ def recognize_face():
 # SUBJECTS
 @app.route("/add_subject", methods=["POST"])
 def add_subject():
-    data = request.json
-    subject_name = data.get("subject_name")
-    if not subject_name:
-        return jsonify({"error": "No subject_name provided"}), 400
-    doc_ref = db.collection("subjects").document()
-    doc_ref.set({
-        "name": subject_name.strip(),
-        "created_at": datetime.utcnow().isoformat()
-    })
-    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
+    try:
+        data = request.json
+        name = data.get('name')
+        if not name:
+            return jsonify({"error": "Subject name is required"}), 400
 
-@app.route("/get_subjects", methods=["GET"])
+        # Add to Firebase
+        doc_ref = db.collection('subjects').add({
+            'name': name,
+            'created_at': datetime.utcnow().isoformat()
+        })
+        
+        return jsonify({"message": "Subject added successfully", "id": doc_ref.id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/update_subject", methods=["POST"])
+def update_subject():
+    try:
+        data = request.json
+        subject_id = data.get('id')
+        new_name = data.get('name')
+        
+        if not subject_id or not new_name:
+            return jsonify({"error": "Subject ID and name are required"}), 400
+
+        # Update in Firebase
+        db.collection('subjects').document(subject_id).update({
+            'name': new_name,
+            'updated_at': datetime.utcnow().isoformat()
+        })
+        
+        return jsonify({"message": "Subject updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/delete_subject", methods=["POST"])
+def delete_subject():
+    try:
+        data = request.json
+        subject_id = data.get('id')
+        
+        if not subject_id:
+            return jsonify({"error": "Subject ID is required"}), 400
+
+        # Delete from Firebase
+        db.collection('subjects').document(subject_id).delete()
+        
+        return jsonify({"message": "Subject deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/get_subjects")
 def get_subjects():
-    subs = db.collection("subjects").stream()
-    subj_list = []
-    for s in subs:
-        d = s.to_dict()
-        subj_list.append({"id": s.id, "name": d.get("name","")})
-    return jsonify({"subjects": subj_list}), 200
+    try:
+        print("Attempting to fetch subjects from Firebase...")  # Debug log
+        subjects = []
+        docs = db.collection('subjects').stream()
+        for doc in docs:
+            data = doc.to_dict()
+            subjects.append({
+                'id': doc.id,
+                'name': data.get('name', '')
+            })
+        print(f"Found {len(subjects)} subjects")  # Debug log
+        return jsonify({"subjects": subjects})
+    except Exception as e:
+        print(f"Error fetching subjects: {str(e)}")  # Debug log
+        return jsonify({"error": str(e)}), 500
 
 # ATTENDANCE
 import openpyxl
@@ -893,10 +971,27 @@ def get_stats():
             "total_subjects": subjects
         })
     except Exception as e:
+        print(f"Error getting stats: {str(e)}")
         return jsonify({
             "total_students": 0,
             "today_attendance": 0,
             "total_subjects": 0
+        })
+
+@app.route("/check_firebase")
+def check_firebase():
+    try:
+        # Try to list all collections
+        collections = db.collections()
+        collection_names = [collection.id for collection in collections]
+        return jsonify({
+            "status": "connected",
+            "collections": collection_names
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e)
         })
 
 # -----------------------------
