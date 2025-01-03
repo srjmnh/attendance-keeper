@@ -1316,6 +1316,50 @@ def dashboard():
 
     return render_template("dashboard.html", role=role, subjects=subjects, users=users, classes=classes)
 
+def create_default_admin():
+    """
+    Creates a default admin user if no admin exists in the Firestore database.
+    """
+    try:
+        # Query Firestore to check if any admin user exists
+        admins = db.collection("users").where("role", "==", "admin").stream()
+        admin_exists = False
+        for admin in admins:
+            admin_exists = True
+            break
+
+        if not admin_exists:
+            # Fetch default admin credentials from environment variables
+            default_admin_username = os.getenv("DEFAULT_ADMIN_USERNAME")
+            default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+
+            if not default_admin_username or not default_admin_password:
+                logger.error("Default admin credentials not set in environment variables.")
+                print("Default admin credentials not set in environment variables.")
+                return
+
+            # Hash the default admin password
+            password_hash = ph.hash(default_admin_password)
+
+            # Create admin user data
+            admin_data = {
+                "username": default_admin_username,
+                "password_hash": password_hash,
+                "role": "admin",
+                "classes": []  # Admins might not be assigned to any class
+            }
+
+            # Add the admin user to Firestore
+            db.collection("users").add(admin_data)
+            logger.info(f"Default admin user '{default_admin_username}' created successfully.")
+            print(f"Default admin user '{default_admin_username}' created successfully.")
+        else:
+            logger.info("Admin user already exists. No action needed.")
+            print("Admin user already exists. No action needed.")
+    except Exception as e:
+        logger.error(f"Error creating default admin: {str(e)}")
+        print(f"Error creating default admin: {str(e)}")
+
 if __name__ == "__main__":
     # Create default admin if none exists
     create_default_admin()
