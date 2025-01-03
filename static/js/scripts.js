@@ -1,0 +1,1 @@
+// Example: Custom scripts can be added here if not embedded in templates 

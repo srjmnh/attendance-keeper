@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Attendance Records</h2>
+    
+    <!-- Filters -->
+    <form method="GET" action="{{ url_for('get_attendance') }}" class="mb-4">
+        <div class="row">
+            <div class="col-md-3">
+                <label for="subject_id" class="form-label">Subject</label>
+                <select class="form-select" id="subject_id" name="subject_id">
+                    <option value="">-- All Subjects --</option>
+                    {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="class_id" class="form-label">Class</label>
+                <select class="form-select" id="class_id" name="class_id">
+                    <option value="">-- All Classes --</option>
+                    {% for cls in classes %}
+                        <option value="{{ cls }}">{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="start_date" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="start_date" name="start_date">
+            </div>
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="end_date" name="end_date">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Filter</button>
+    </form>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Subject ID</th>
+                <th>Subject Name</th>
+                <th>Class ID</th>
+                <th>Timestamp</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+                <tr>
+                    <td>{{ record.student_id }}</td>
+                    <td>{{ record.name }}</td>
+                    <td>{{ record.subject_id }}</td>
+                    <td>{{ record.subject_name }}</td>
+                    <td>{{ record.class_id }}</td>
+                    <td>{{ record.timestamp }}</td>
+                    <td>{{ record.status }}</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7">No attendance records found.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %} 
