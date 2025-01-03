@@ -16,24 +16,31 @@ from flask import Flask, request, jsonify, render_template_string, send_file
 # -----------------------------
 import boto3
 
+# Get AWS credentials from environment variables
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 COLLECTION_ID = "students"
 
+# Initialize the AWS Rekognition client
 rekognition_client = boto3.client(
-    'rekognition',1DB3-6F3Dss_key_id=AWS_ACCESS_KEY_ID,
+    service_name='rekognition',
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
 
+# Create collection if it doesn't exist
 def create_collection_if_not_exists(collection_id):
     try:
         rekognition_client.create_collection(CollectionId=collection_id)
         print(f"Collection '{collection_id}' created.")
     except rekognition_client.exceptions.ResourceAlreadyExistsException:
         print(f"Collection '{collection_id}' already exists.")
+    except Exception as e:
+        print(f"Error creating collection: {str(e)}")
 
+# Initialize collection
 create_collection_if_not_exists(COLLECTION_ID)
 
 # -----------------------------
