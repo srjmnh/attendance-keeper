@@ -1547,5 +1547,8 @@ def generate_attendance_report(subject_name):
 # 9) Run App with SocketIO
 # -----------------------------
 if __name__ == "__main__":
+    import eventlet
+    import eventlet.wsgi
+    
     port = int(os.getenv("PORT", 5000))
-    socketio.run(app, host="0.0.0.0", port=port, debug=True)
+    eventlet.wsgi.server(eventlet.listen(("0.0.0.0", port)), app)
