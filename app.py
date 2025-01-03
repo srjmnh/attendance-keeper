@@ -49,13 +49,8 @@ create_collection_if_not_exists(COLLECTION_ID)
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
-if not base64_cred_str:
-    raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
-
-decoded_cred_json = base64.b64decode(base64_cred_str)
-cred_dict = json.loads(decoded_cred_json)
-cred = credentials.Certificate(cred_dict)
+# Initialize Firebase with your credentials
+cred = credentials.Certificate("path/to/your/serviceAccountKey.json")  # Update this path
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
