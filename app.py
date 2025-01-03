@@ -33,6 +33,16 @@ from flask_login import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from argon2 import PasswordHasher
 
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG for more detailed logs if needed
+    format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
+    handlers=[
+        logging.StreamHandler()  # Logs will be output to the console
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # Initialize the Password Hasher
 ph = PasswordHasher()
 
@@ -1286,35 +1296,6 @@ def assign_class_to_student(username):
     # Example: Assign to a default class or based on some logic
     default_class = "General101"
     return default_class
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    role = current_user.role
-    subjects = []
-    users = []
-    classes = []
-
-    # Fetch subjects
-    subjects_ref = db.collection("subjects").stream()
-    for subj in subjects_ref:
-        subjects.append({'id': subj.id, 'name': subj.to_dict().get('name', 'N/A')})
-
-    # Admin functionalities
-    if role == 'admin':
-        users_ref = db.collection("users").stream()
-        for user in users_ref:
-            users.append({
-                'username': user.to_dict().get('username', 'N/A'),
-                'role': user.to_dict().get('role', 'N/A'),
-                'classes': user.to_dict().get('classes', [])
-            })
-
-        classes_ref = db.collection("classes").stream()
-        for cls in classes_ref:
-            classes.append(cls.to_dict().get('class_id', 'N/A'))
-
-    return render_template("dashboard.html", role=role, subjects=subjects, users=users, classes=classes)
 
 def create_default_admin():
     """
