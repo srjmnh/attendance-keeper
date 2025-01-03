@@ -1,0 +1,19 @@
+/* Custom Styles */
+.message {
+    margin-bottom: 10px;
+}
+
+.message.user {
+    text-align: right;
+}
+
+.message.assistant {
+    text-align: left;
+    color: #333;
+}
+
+/* Adjusting chatbot window */
+#chatbotWindow {
+    display: flex;
+    flex-direction: column;
+} 
