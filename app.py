@@ -236,32 +236,6 @@ def role_required(required_roles):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        username = request.form.get("username").strip()
-        password = request.form.get("password").strip()
-
-        # Fetch user from Firestore
-        users_ref = db.collection("users").where("username", "==", username).stream()
-        user_doc = next(users_ref, None)
-
-        if user_doc:
-            user_data = user_doc.to_dict()
-            try:
-                ph.verify(user_data['password_hash'], password)
-                # If verification is successful, proceed to log the user in
-                user = User(
-                    username=user_data['username'],
-                    role=user_data['role'],
-                    classes=user_data.get('classes', [])
-                )
-                login_user(user)
-                flash("Logged in successfully.", "success")
-                return redirect(url_for('dashboard'))
-            except:
-                flash("Invalid password.", "danger")
-        else:
-            flash("User not found.", "danger")
-
     return render_template("login.html")
 
 @app.route("/logout")
