@@ -33,6 +33,9 @@ from flask_login import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from argon2 import PasswordHasher
 
+# Initialize the Password Hasher
+ph = PasswordHasher()
+
 # -----------------------------
 # 1) AWS Rekognition Setup
 # -----------------------------
@@ -233,7 +236,9 @@ def login():
 
         if user_doc:
             user_data = user_doc.to_dict()
-            if check_password_hash(user_data['password_hash'], password):
+            try:
+                ph.verify(user_data['password_hash'], password)
+                # If verification is successful, proceed to log the user in
                 user = User(
                     username=user_data['username'],
                     role=user_data['role'],
@@ -242,7 +247,7 @@ def login():
                 login_user(user)
                 flash("Logged in successfully.", "success")
                 return redirect(url_for('dashboard'))
-            else:
+            except:
                 flash("Invalid password.", "danger")
         else:
             flash("User not found.", "danger")
