@@ -22,8 +22,7 @@ AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 COLLECTION_ID = "students"
 
 rekognition_client = boto3.client(
-    'rekognition',
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    'rekognition',1DB3-6F3Dss_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
@@ -271,6 +270,10 @@ INDEX_HTML = """
     <input type="file" id="rec_image" class="form-control" accept="image/*" />
     <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
     <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
+    <div class="progress mb-3" style="display:none;" id="recognizeProgress">
+      <div class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+    </div>
+    <div id="recognizedFaces" class="row mt-3"></div>
   </div>
 
   <!-- SUBJECTS -->
@@ -455,6 +458,11 @@ INDEX_HTML = """
 
   /* Recognize Faces */
   function recognizeFace() {
+    const progressBar = document.getElementById('recognizeProgress');
+    const recognizedFaces = document.getElementById('recognizedFaces');
+    progressBar.style.display = 'block';
+    recognizedFaces.innerHTML = '';
+    
     const file = document.getElementById('rec_image').files[0];
     const subjectId = document.getElementById('rec_subject_select').value;
     if (!file) {
@@ -469,16 +477,34 @@ INDEX_HTML = """
       })
       .then(res => res.json())
       .then(data => {
+        // Update progress bar
+        const progress = data.progress;
+        progressBar.querySelector('.progress-bar').style.width = `${progress.recognition}%`;
+        progressBar.querySelector('.progress-bar').textContent = `${Math.round(progress.recognition)}%`;
+        
+        // Display identified faces
+        data.identified_people.forEach(person => {
+          const card = document.createElement('div');
+          card.className = 'col-md-4 mb-3';
+          card.innerHTML = `
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">${person.name || 'Unknown'}</h5>
+                <p class="card-text">
+                  Student ID: ${person.student_id || 'N/A'}<br>
+                  Confidence: ${person.confidence}%<br>
+                  Status: ${person.student_id ? 'Attendance Recorded' : 'Not Registered'}
+                </p>
+              </div>
+            </div>
+          `;
+          recognizedFaces.appendChild(card);
+        });
+        
+        // Show result message
         const div = document.getElementById('recognize_result');
         div.style.display = 'block';
-        let text = data.message || data.error || JSON.stringify(data);
-        if (data.identified_people) {
-          text += "\\n\\nIdentified People:\\n";
-          data.identified_people.forEach((p) => {
-            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\\n`;
-          });
-        }
-        div.textContent = text;
+        div.textContent = data.message;
       })
       .catch(err => console.error(err));
     });
@@ -1081,6 +1107,32 @@ def process_prompt():
         conversation_memory.pop(0)
 
     return jsonify({"message": assistant_reply})
+
+@app.route("/api/stats")
+def get_stats():
+    try:
+        # Get total registered students
+        students = len(list(rekognition_client.list_faces(CollectionId=COLLECTION_ID)['Faces']))
+        
+        # Get today's attendance
+        today = datetime.utcnow().date().isoformat()
+        today_docs = db.collection('attendance').where('timestamp', '>=', today).stream()
+        today_attendance = len(list(today_docs))
+        
+        # Get total subjects
+        subjects = len(list(db.collection('subjects').stream()))
+        
+        return jsonify({
+            "total_students": students,
+            "today_attendance": today_attendance,
+            "total_subjects": subjects
+        })
+    except Exception as e:
+        return jsonify({
+            "total_students": 0,
+            "today_attendance": 0,
+            "total_subjects": 0
+        })
 
 # -----------------------------
 # 9) Run App

@@ -3,34 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Face Recognition</title>
+    <title>Smart Attendance System</title>
+    <!-- Modern UI Dependencies -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4895ef;
+            --success-color: #4cc9f0;
+            --background-color: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--background-color);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            padding: 1rem 2rem;
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 0.8rem;
+            border: 1px solid #dee2e6;
+        }
+
+        .form-control:focus {
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.25);
+        }
+
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+        }
+
+        .recognized-face-card {
+            border-radius: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .recognized-face-card:hover {
+            transform: scale(1.02);
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #fff, #f8f9fa);
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-bottom: 1rem;
+        }
+
+        .stats-number {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        /* Animation classes */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .slide-up {
+            animation: slideInUp 0.5s ease-out;
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center">Face Recognition System</h1>
-        
-        <div class="card mt-4">
-            <div class="card-body">
-                <h2>Register Student</h2>
-                <input type="text" id="name" class="form-control my-2" placeholder="Enter Name">
-                <input type="text" id="student_id" class="form-control my-2" placeholder="Enter Student ID">
-                <input type="file" id="register_image" class="form-control my-2">
-                <button class="btn btn-primary" onclick="register()">Register</button>
-                <p id="register_result" class="text-success mt-2"></p>
+    <!-- Modern Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-camera-retro me-2"></i>
+                Smart Attendance System
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Quick Stats -->
+        <div class="row mb-4 slide-up">
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalStudents">0</div>
+                    <div class="text-muted">Registered Students</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-number" id="todayAttendance">0</div>
+                    <div class="text-muted">Today's Attendance</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalSubjects">0</div>
+                    <div class="text-muted">Active Subjects</div>
+                </div>
             </div>
         </div>
 
-        <div class="card mt-4">
+        <!-- Register Card -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <h3 class="m-0"><i class="fas fa-user-plus me-2"></i>Register Student</h3>
+            </div>
             <div class="card-body">
-                <h2>Recognize Student</h2>
-                <input type="file" id="recognize_image" class="form-control my-2">
-                <button class="btn btn-primary" onclick="recognize()">Recognize</button>
-                <p id="recognize_result" class="text-success mt-2"></p>
-                <img id="detected_face" class="img-fluid mt-3" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Student Name</label>
+                            <input type="text" id="name" class="form-control" placeholder="Enter full name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Student ID</label>
+                            <input type="text" id="student_id" class="form-control" placeholder="Enter student ID">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Photo</label>
+                            <input type="file" id="register_image" class="form-control" accept="image/*">
+                        </div>
+                        <button class="btn btn-primary" onclick="register()">
+                            <i class="fas fa-save me-2"></i>Register Student
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="register_preview" class="text-center">
+                            <img id="register_image_preview" class="img-fluid rounded" style="max-height: 300px; display: none;">
+                        </div>
+                        <div id="register_result" class="alert alert-success mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recognize Card -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <h3 class="m-0"><i class="fas fa-camera me-2"></i>Recognize Students</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Subject</label>
+                            <select id="subject_select" class="form-control">
+                                <option value="">Select Subject</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Photo</label>
+                            <input type="file" id="recognize_image" class="form-control" accept="image/*">
+                        </div>
+                        <button class="btn btn-primary" onclick="recognize()">
+                            <i class="fas fa-search me-2"></i>Recognize
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="recognize_preview" class="text-center">
+                            <img id="recognize_image_preview" class="img-fluid rounded" style="max-height: 300px; display: none;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress mt-4" style="display: none;" id="recognizeProgress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"></div>
+                </div>
+
+                <!-- Results Area -->
+                <div id="recognize_result" class="mt-4"></div>
+                <div id="recognizedFaces" class="row mt-4"></div>
             </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/script.js"></script>
 </body>
 </html>
