@@ -339,7 +339,13 @@ ADMIN_HTML = """
           {% for user in users %}
             <tr>
               <td>{{ user.username }}</td>
-              <td>{{ user.role.capitalize() }}</td>
+              <td>
+                {% if user.role %}
+                  {{ user.role.capitalize() }}
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
               <td>
                 {% if user.classes %}
                   {{ ", ".join(user.classes) }}
@@ -371,22 +377,53 @@ ADMIN_HTML = """
 </html>
 """
 
-@app.route("/admin", methods=["GET"])
+@app.route("/admin/manage_users", methods=["GET", "POST"])
 @role_required(['admin'])
 def admin_panel():
-    # Fetch all users except admin
-    users_ref = db.collection("users")
-    users = users_ref.stream()
+    if request.method == "POST":
+        # Handle user creation logic
+        # Ensure role is assigned
+        username = request.form.get("username").strip()
+        password = request.form.get("password").strip()
+        role = request.form.get("role").strip()
+
+        if not username or not password or not role:
+            flash("All fields are required.", "warning")
+            return redirect(url_for('admin_panel'))
+
+        # Validate role
+        if role not in ['admin', 'teacher', 'student']:
+            flash("Invalid role selected.", "danger")
+            return redirect(url_for('admin_panel'))
+
+        # Hash the password
+        password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+
+        # Create user in Firestore
+        try:
+            db.collection("users").add({
+                "username": username,
+                "password_hash": password_hash,
+                "role": role,
+                "classes": []  # Initialize with empty classes
+            })
+            flash(f"User '{username}' with role '{role}' created successfully!", "success")
+        except Exception as e:
+            flash(f"Error creating user: {str(e)}", "danger")
+
+        return redirect(url_for('admin_panel'))
+
+    # GET request - display users
+    users = db.collection("users").stream()
     users_list = []
-    for user_doc in users:
-        user_data = user_doc.to_dict()
-        if user_data.get("role") == "admin":
-            continue  # Skip admin accounts
+    for user in users:
+        user_data = user.to_dict()
         users_list.append({
-            "username": user_data.get("username"),
-            "role": user_data.get("role"),
+            "username": user_data.get("username", "N/A"),
+            "role": user_data.get("role") if user_data.get("role") else "N/A",
             "classes": user_data.get("classes", [])
         })
+
     return render_template_string(ADMIN_HTML, users=users_list)
 
 @app.route("/admin/create_user", methods=["POST"])
@@ -395,38 +432,28 @@ def create_user():
     username = request.form.get("username").strip()
     password = request.form.get("password").strip()
     role = request.form.get("role").strip()
-    classes = request.form.get("classes", "").strip()
 
     if not username or not password or not role:
-        flash("Please fill in all required fields.", "warning")
+        flash("All fields are required.", "warning")
         return redirect(url_for('admin_panel'))
 
-    # Check if username already exists
-    users_ref = db.collection("users")
-    query = users_ref.where("username", "==", username).stream()
-    for doc in query:
-        flash("Username already exists. Please choose a different one.", "danger")
+    # Validate role
+    if role not in ['admin', 'teacher', 'student']:
+        flash("Invalid role selected.", "danger")
         return redirect(url_for('admin_panel'))
 
     # Hash the password
-    password_hash = generate_password_hash(password)
+    password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 
-    # Prepare user data
-    user_data = {
-        "username": username,
-        "password_hash": password_hash,
-        "role": role
-    }
-
-    if role == "teacher":
-        # Assign classes to teacher
-        class_list = [cls.strip() for cls in classes.split(",") if cls.strip()]
-        user_data["classes"] = class_list
-
-    # Add user to Firestore
+    # Create user in Firestore
     try:
-        users_ref.add(user_data)
-        flash(f"User '{username}' created successfully!", "success")
+        db.collection("users").add({
+            "username": username,
+            "password_hash": password_hash,
+            "role": role,
+            "classes": []  # Initialize with empty classes
+        })
+        flash(f"User '{username}' with role '{role}' created successfully!", "success")
     except Exception as e:
         flash(f"Error creating user: {str(e)}", "danger")
 
@@ -1599,38 +1626,35 @@ def manage_users():
 # -----------------------------
 
 @app.route("/admin/subjects", methods=["GET", "POST"])
-@login_required
 @role_required(['admin'])
 def manage_subjects():
     if request.method == "POST":
-        # Handle form submission for adding or updating a subject
-        subject_id = request.form.get("subject_id")
-        subject_name = request.form.get("subject_name")
-        subject_details = request.form.get("subject_details")  # Add other fields as necessary
-
-        if subject_id:
-            # Update existing subject
-            try:
-                subject_ref = db.collection("subjects").document(subject_id)
-                subject_ref.update({
-                    "name": subject_name,
-                    "details": subject_details
-                    # Add other fields as necessary
-                })
-                flash("Subject updated successfully.", "success")
-            except Exception as e:
-                flash(f"Error updating subject: {str(e)}", "danger")
-        else:
-            # Add new subject
-            try:
-                db.collection("subjects").add({
-                    "name": subject_name,
-                    "details": subject_details
-                    # Add other fields as necessary
-                })
-                flash("Subject added successfully.", "success")
-            except Exception as e:
-                flash(f"Error adding subject: {str(e)}", "danger")
+        # Handle adding a new subject
+        subject_name = request.form.get("subject_name").strip()
+        if not subject_name:
+            flash("Subject name cannot be empty.", "warning")
+            return redirect(url_for('manage_subjects'))
+        
+        # Generate a 3-letter subject code
+        subject_code = generate_subject_code(subject_name)
+        
+        # Check if subject_code is unique
+        subjects_ref = db.collection("subjects")
+        existing = subjects_ref.where("code", "==", subject_code).stream()
+        if any(existing):
+            flash(f"Subject code '{subject_code}' already exists. Please choose a different subject name.", "danger")
+            return redirect(url_for('manage_subjects'))
+        
+        # Add the new subject to Firestore
+        try:
+            subjects_ref.add({
+                "name": subject_name,
+                "code": subject_code.upper(),
+                "created_at": datetime.utcnow().isoformat()
+            })
+            flash(f"Subject '{subject_name}' with code '{subject_code}' added successfully!", "success")
+        except Exception as e:
+            flash(f"Error adding subject: {str(e)}", "danger")
         
         return redirect(url_for('manage_subjects'))
     
@@ -1641,12 +1665,12 @@ def manage_subjects():
         subject_data = subject.to_dict()
         subjects_list.append({
             'id': subject.id,
+            'code': subject_data.get('code', 'N/A'),
             'name': subject_data.get('name', 'N/A'),
-            'details': subject_data.get('details', ''),
-            # Add other fields as necessary
+            'created_at': subject_data.get('created_at', 'N/A')
         })
     
-    return render_template("manage_subjects.html", subjects=subjects_list)
+    return render_template_string(MANAGE_SUBJECTS_HTML, subjects=subjects_list)
 
 @app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
 @login_required
@@ -1658,6 +1682,44 @@ def delete_subject(subject_id):
     except Exception as e:
         flash(f"Error deleting subject: {str(e)}", "danger")
     return redirect(url_for('manage_subjects'))
+
+def generate_subject_code(subject_name):
+    """
+    Generates a 3-letter uppercase subject code based on the subject name.
+    Example: "Mathematics" -> "MAT"
+    """
+    # Take the first letter of up to three words
+    letters = [word[0] for word in subject_name.upper().split()[:3]]
+    code = ''.join(letters).ljust(3, 'X')  # Pad with 'X' if less than 3 letters
+    return code[:3]
+
+@app.route("/admin/update_subject", methods=["POST"])
+@role_required(['admin'])
+def update_subject():
+    data = request.get_json()
+    subject_id = data.get("subject_id")
+    new_name = data.get("name", "").strip()
+    
+    if not subject_id or not new_name:
+        return jsonify({"error": "Subject ID and new name are required."}), 400
+    
+    # Generate a new subject code based on the new name
+    new_code = generate_subject_code(new_name)
+    
+    # Check if the new_code is unique
+    subjects_ref = db.collection("subjects")
+    existing = subjects_ref.where("code", "==", new_code).stream()
+    if any(existing):
+        return jsonify({"error": f"Subject code '{new_code}' already exists. Please choose a different subject name."}), 400
+    
+    try:
+        subjects_ref.document(subject_id).update({
+            "name": new_name,
+            "code": new_code
+        })
+        return jsonify({"message": "Subject updated successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
 if __name__ == "__main__":
     # Create default admin if none exists
