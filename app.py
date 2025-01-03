@@ -630,3 +630,36 @@ def execute_admin_command(command):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
+from werkzeug.security import generate_password_hash
+
+@app.route('/create_initial_admin', methods=['GET'])
+def create_initial_admin():
+    # Check if any admin exists
+    admins = db.collection('users').where('role', '==', 'admin').stream()
+    admin_exists = False
+    for admin in admins:
+        admin_exists = True
+        break
+
+    if admin_exists:
+        return "Admin already exists. Cannot create another initial admin.", 400
+
+    # Define initial admin credentials
+    initial_admin_username = 'admin'  # Change as needed
+    initial_admin_password = 'AdminPassword123'  # Change as needed
+
+    # Hash the password
+    hashed_password = generate_password_hash(initial_admin_password, method='sha256')
+
+    # Create admin user document
+    admin_data = {
+        'username': initial_admin_username,
+        'password': hashed_password,
+        'role': 'admin',
+        'classes': []  # Not necessary for admin
+    }
+
+    db.collection('users').add(admin_data)
+
+    return f"Initial admin '{initial_admin_username}' created successfully.", 200
