@@ -1,24 +1,20 @@
-// Image preview functionality
+// Image preview with enhanced animation
 function previewImage(input, previewId) {
     const preview = document.getElementById(previewId);
+    const container = preview.parentElement;
+    
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
             preview.src = e.target.result;
-            preview.style.display = 'block';
+            preview.style.display = 'none'; // Hide initially for animation
+            preview.classList.add('animate__animated', 'animate__fadeIn');
+            preview.style.display = 'block'; // Show with animation
+            container.classList.add('has-image');
         }
         reader.readAsDataURL(input.files[0]);
     }
 }
-
-// Add event listeners for image previews
-document.getElementById('register_image').addEventListener('change', function() {
-    previewImage(this, 'register_image_preview');
-});
-
-document.getElementById('recognize_image').addEventListener('change', function() {
-    previewImage(this, 'recognize_image_preview');
-});
 
 // Enhanced getBase64 function with loading state
 function getBase64(file, callback) {
@@ -31,16 +27,24 @@ function getBase64(file, callback) {
     };
 }
 
-// Show alert message
+// Modern alert message with animation
 function showAlert(message, type = 'success') {
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show animate__animated animate__fadeInDown glass-effect`;
     alertDiv.innerHTML = `
-        ${message}
+        <div class="d-flex align-items-center">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
+            <div>${message}</div>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
-    setTimeout(() => alertDiv.remove(), 5000);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.classList.replace('animate__fadeInDown', 'animate__fadeOutUp');
+        setTimeout(() => alertDiv.remove(), 1000);
+    }, 5000);
 }
 
 // Register function with enhanced UI feedback
@@ -56,7 +60,12 @@ function register() {
 
     const registerBtn = event.target;
     registerBtn.disabled = true;
-    registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Registering...';
+    registerBtn.innerHTML = `
+        <div class="spinner-border spinner-border-sm me-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        Registering...
+    `;
 
     getBase64(file, (imageData) => {
         fetch('/register', {
@@ -67,17 +76,20 @@ function register() {
         .then(response => response.json())
         .then(data => {
             const resultDiv = document.getElementById('register_result');
-            resultDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
             resultDiv.innerHTML = `
-                <i class="fas fa-check-circle me-2"></i>
+                <i class="fas ${data.error ? 'fa-times-circle text-danger' : 'fa-check-circle text-success'} me-2"></i>
                 ${data.message || data.error}
             `;
+            resultDiv.classList.add('animate__animated', 'animate__fadeIn');
+            resultDiv.style.display = 'block';
+            
             if (!data.error) {
                 document.getElementById('name').value = '';
                 document.getElementById('student_id').value = '';
                 document.getElementById('register_image').value = '';
                 document.getElementById('register_image_preview').style.display = 'none';
-                updateStats(); // Update dashboard stats
+                updateStats();
             }
         })
         .catch(error => {
@@ -103,11 +115,27 @@ function recognize() {
 
     const recognizeBtn = event.target;
     recognizeBtn.disabled = true;
-    recognizeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+    recognizeBtn.innerHTML = `
+        <div class="spinner-border spinner-border-sm me-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        Processing...
+    `;
 
     const progressBar = document.getElementById('recognizeProgress');
-    progressBar.style.display = 'block';
     const progressBarInner = progressBar.querySelector('.progress-bar');
+    progressBar.style.display = 'block';
+    progressBarInner.style.width = '0%';
+    
+    // Simulate progress steps
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        if (progress < 90) {
+            progress += 10;
+            progressBarInner.style.width = `${progress}%`;
+            progressBarInner.textContent = `${progress}%`;
+        }
+    }, 500);
 
     getBase64(file, (imageData) => {
         fetch('/recognize', {
@@ -117,19 +145,19 @@ function recognize() {
         })
         .then(response => response.json())
         .then(data => {
-            // Update progress
+            clearInterval(progressInterval);
             progressBarInner.style.width = '100%';
             progressBarInner.textContent = '100%';
 
-            // Display results
             const recognizedFaces = document.getElementById('recognizedFaces');
             recognizedFaces.innerHTML = '';
 
-            data.identified_people.forEach(person => {
+            data.identified_people.forEach((person, index) => {
                 const card = document.createElement('div');
-                card.className = 'col-md-4 mb-3 slide-up';
+                card.className = 'col-md-4 mb-3';
                 card.innerHTML = `
-                    <div class="recognized-face-card card">
+                    <div class="recognized-face-card card animate__animated animate__fadeInUp" 
+                         style="animation-delay: ${index * 0.1}s">
                         <div class="card-body">
                             <h5 class="card-title">
                                 <i class="fas fa-user me-2"></i>
@@ -140,10 +168,19 @@ function recognize() {
                                     <i class="fas fa-id-card me-2"></i>
                                     Student ID: ${person.student_id || 'N/A'}
                                 </p>
-                                <p class="mb-1">
+                                <div class="mb-1">
                                     <i class="fas fa-percentage me-2"></i>
-                                    Confidence: ${person.confidence}%
-                                </p>
+                                    Confidence: 
+                                    <div class="progress glass-effect">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: ${person.confidence}%" 
+                                             aria-valuenow="${person.confidence}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            ${person.confidence}%
+                                        </div>
+                                    </div>
+                                </div>
                                 <p class="mb-0">
                                     <i class="fas ${person.student_id ? 'fa-check-circle text-success' : 'fa-times-circle text-danger'} me-2"></i>
                                     Status: ${person.student_id ? 'Attendance Recorded' : 'Not Registered'}
@@ -154,12 +191,12 @@ function recognize() {
                 `;
                 recognizedFaces.appendChild(card);
             });
-
-            updateStats(); // Update dashboard stats
+            updateStats();
         })
         .catch(error => {
             console.error('Error:', error);
             showAlert('Recognition failed. Please try again.', 'danger');
+            clearInterval(progressInterval);
         })
         .finally(() => {
             recognizeBtn.disabled = false;
@@ -172,34 +209,66 @@ function recognize() {
     });
 }
 
-// Update dashboard stats
+// Update dashboard stats with animation
 function updateStats() {
     fetch('/api/stats')
         .then(response => response.json())
         .then(data => {
-            document.getElementById('totalStudents').textContent = data.total_students;
-            document.getElementById('todayAttendance').textContent = data.today_attendance;
-            document.getElementById('totalSubjects').textContent = data.total_subjects;
+            animateNumber('totalStudents', data.total_students);
+            animateNumber('todayAttendance', data.today_attendance);
+            animateNumber('totalSubjects', data.total_subjects);
         })
         .catch(error => console.error('Error updating stats:', error));
 }
 
-// Load subjects into select
+// Animate number counting
+function animateNumber(elementId, finalNumber) {
+    const element = document.getElementById(elementId);
+    const start = parseInt(element.textContent);
+    const duration = 1000;
+    const steps = 20;
+    const increment = (finalNumber - start) / steps;
+    let current = start;
+    
+    const timer = setInterval(() => {
+        current += increment;
+        if ((increment >= 0 && current >= finalNumber) || 
+            (increment < 0 && current <= finalNumber)) {
+            clearInterval(timer);
+            element.textContent = finalNumber;
+        } else {
+            element.textContent = Math.round(current);
+        }
+    }, duration / steps);
+}
+
+// Load subjects into select with animation
 function loadSubjects() {
     fetch('/get_subjects')
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('subject_select');
             select.innerHTML = '<option value="">Select Subject</option>';
-            data.subjects.forEach(subject => {
-                const option = document.createElement('option');
-                option.value = subject.id;
-                option.textContent = subject.name;
-                select.appendChild(option);
+            data.subjects.forEach((subject, index) => {
+                setTimeout(() => {
+                    const option = document.createElement('option');
+                    option.value = subject.id;
+                    option.textContent = subject.name;
+                    select.appendChild(option);
+                }, index * 100);
             });
         })
         .catch(error => console.error('Error loading subjects:', error));
 }
+
+// Event listeners for image previews
+document.getElementById('register_image').addEventListener('change', function() {
+    previewImage(this, 'register_image_preview');
+});
+
+document.getElementById('recognize_image').addEventListener('change', function() {
+    previewImage(this, 'recognize_image_preview');
+});
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {

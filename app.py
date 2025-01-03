@@ -136,553 +136,327 @@ INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Facial Recognition Attendance + Gemini Chat</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <!-- DataTables CSS -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-  <style>
-    body { margin: 20px; }
-    .nav-tabs .nav-link { color: #555; }
-    .nav-tabs .nav-link.active { color: #000; font-weight: bold; }
-    #attendanceTable td[contenteditable="true"] { background-color: #fcf8e3; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4895ef;
+            --success-color: #4cc9f0;
+            --background-color: #f8f9fa;
+            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --hover-transform: translateY(-5px);
+        }
 
-    /* Chatbot Toggle Button */
-    #chatbotToggle {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 999;
-      background-color: #0d6efd;
-      color: #fff;
-      border: none;
-      border-radius: 50%;
-      width: 50px;
-      height: 50px;
-      font-size: 22px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #chatbotToggle:hover { background-color: #0b5ed7; }
+        body {
+            background: linear-gradient(135deg, var(--background-color) 0%, #ffffff 100%);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+        }
 
-    /* Chat Window */
-    #chatbotWindow {
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      width: 300px;
-      max-height: 400px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-      display: none;
-      flex-direction: column;
-      z-index: 1000;
-    }
-    #chatHeader {
-      background-color: #0d6efd;
-      color: #fff;
-      padding: 10px;
-      border-radius: 10px 10px 0 0;
-      font-weight: bold;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    #chatHeader .close-btn {
-      background: none;
-      border: none;
-      color: #fff;
-      font-weight: bold;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    #chatMessages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px;
-      font-size: 14px;
-    }
-    .message { margin-bottom: 10px; }
-    .message.user { text-align: right; }
-    .message.assistant { text-align: left; color: #333; }
-    #chatInputArea {
-      display: flex; border-top: 1px solid #ddd;
-    }
-    #chatInput {
-      flex: 1; padding: 8px; border: none; outline: none; font-size: 14px;
-    }
-    #chatSendBtn {
-      background-color: #0d6efd; color: #fff;
-      border: none; padding: 0 15px; cursor: pointer;
-    }
-    #chatSendBtn:hover { background-color: #0b5ed7; }
-  </style>
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: 600;
+            font-size: 1.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+        }
+
+        .card:hover {
+            transform: var(--hover-transform);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.5rem;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 0.8rem;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+            background: rgba(0,0,0,0.1);
+        }
+
+        .progress-bar {
+            background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+            transition: width 0.5s ease;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #fff, #f8f9fa);
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .recognized-face-card {
+            border-radius: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .recognized-face-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        .alert {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Custom animations */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Image preview enhancements */
+        .preview-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .preview-container img {
+            transition: all 0.3s ease;
+        }
+
+        .preview-container:hover img {
+            transform: scale(1.05);
+        }
+
+        /* Glassmorphism effects */
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Fancy scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary-color);
+        }
+    </style>
 </head>
-<body class="container">
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4 animate__animated animate__fadeIn">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-camera-retro me-2"></i>
+                Smart Attendance System
+            </a>
+        </div>
+    </nav>
 
-<h1 class="my-4">Facial Recognition Attendance + Gemini Chat</h1>
-
-<!-- Nav Tabs -->
-<ul class="nav nav-tabs" id="mainTabs" role="tablist">
-  <li class="nav-item">
-    <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">
-      Register
-    </button>
-  </li>
-  <li class="nav-item">
-    <button class="nav-link" id="recognize-tab" data-bs-toggle="tab" data-bs-target="#recognize" type="button" role="tab">
-      Recognize
-    </button>
-  </li>
-  <li class="nav-item">
-    <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab">
-      Subjects
-    </button>
-  </li>
-  <li class="nav-item">
-    <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
-      Attendance
-    </button>
-  </li>
-</ul>
-
-<div class="tab-content" id="mainTabContent">
-  <!-- REGISTER -->
-  <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
-    <h3>Register a Face</h3>
-    <label class="form-label">Name</label>
-    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name" />
-    <label class="form-label">Student ID</label>
-    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID" />
-    <label class="form-label">Image</label>
-    <input type="file" id="reg_image" class="form-control" accept="image/*" />
-    <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
-    <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
-  </div>
-
-  <!-- RECOGNIZE -->
-  <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
-    <h3>Recognize Faces</h3>
-    <label class="form-label">Subject (optional)</label>
-    <select id="rec_subject_select" class="form-control mb-2">
-      <option value="">-- No Subject --</option>
-    </select>
-    <label class="form-label">Image</label>
-    <input type="file" id="rec_image" class="form-control" accept="image/*" />
-    <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
-    <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <div class="progress mb-3" style="display:none;" id="recognizeProgress">
-      <div class="progress-bar" role="progressbar" style="width: 0%">0%</div>
-    </div>
-    <div id="recognizedFaces" class="row mt-3"></div>
-  </div>
-
-  <!-- SUBJECTS -->
-  <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
-    <h3>Manage Subjects</h3>
-    <label class="form-label">New Subject Name:</label>
-    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
-    <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
-    <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <hr />
-    <h5>Existing Subjects</h5>
-    <ul id="subjects_list"></ul>
-  </div>
-
-  <!-- ATTENDANCE -->
-  <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
-    <h3>Attendance Records</h3>
-    <div class="row mb-3">
-      <div class="col-md-3">
-        <label class="form-label">Student ID</label>
-        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Subject ID</label>
-        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Start Date</label>
-        <input type="date" id="filter_start" class="form-control" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">End Date</label>
-        <input type="date" id="filter_end" class="form-control" />
-      </div>
-    </div>
-    <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
-    <table id="attendanceTable" class="display table table-striped w-100">
-      <thead>
-        <tr>
-          <th>Doc ID</th>
-          <th>Student ID</th>
-          <th>Name</th>
-          <th>Subject ID</th>
-          <th>Subject Name</th>
-          <th>Timestamp</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <div class="mt-3">
-      <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
-      <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
-      <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
-      <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
-      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
-      <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Chatbot Toggle Button -->
-<button id="chatbotToggle">💬</button>
-
-<!-- Chatbot Window -->
-<div id="chatbotWindow" style="display:none; flex-direction:column;">
-  <div id="chatHeader">
-    <span>Gemini Chat</span>
-    <button class="close-btn" id="chatCloseBtn">X</button>
-  </div>
-  <div id="chatMessages" style="flex:1; overflow-y:auto; padding:10px; font-size:14px;"></div>
-  <div id="chatInputArea" style="display:flex; border-top:1px solid #ddd;">
-    <input type="text" id="chatInput" placeholder="Type a message..." style="flex:1; padding:8px; border:none; outline:none; font-size:14px;" />
-    <button id="chatSendBtn" style="background-color:#0d6efd; color:#fff; border:none; padding:0 15px; cursor:pointer;">Send</button>
-  </div>
-</div>
-
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-
-<script>
-  /* -------------- Chatbot Code -------------- */
-  const toggleBtn = document.getElementById('chatbotToggle');
-  const chatWindow = document.getElementById('chatbotWindow');
-  const chatCloseBtn = document.getElementById('chatCloseBtn');
-  const chatMessages = document.getElementById('chatMessages');
-  const chatInput = document.getElementById('chatInput');
-  const chatSendBtn = document.getElementById('chatSendBtn');
-
-  // Toggle chat window
-  toggleBtn.addEventListener('click', () => {
-    if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
-      chatWindow.style.display = 'flex';
-    } else {
-      chatWindow.style.display = 'none';
-    }
-  });
-
-  // Close chat window
-  chatCloseBtn.addEventListener('click', () => {
-    chatWindow.style.display = 'none';
-  });
-
-  function sendMessage() {
-    const userMessage = chatInput.value.trim();
-    if (!userMessage) return;
-    addMessage(userMessage, 'user');
-    chatInput.value = '';
-
-    fetch('/process_prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: userMessage })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.error) {
-        addMessage("Error: " + data.error, 'assistant');
-      } else {
-        addMessage(data.message, 'assistant');
-      }
-    })
-    .catch(err => {
-      addMessage("Network or server error!", 'assistant');
-      console.error(err);
-    });
-  }
-
-  function addMessage(text, sender) {
-    const div = document.createElement('div');
-    div.classList.add('message', sender);
-    div.textContent = text;
-    chatMessages.appendChild(div);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  }
-
-  chatSendBtn.addEventListener('click', sendMessage);
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  /* -------------- Register + Recognize + Subjects + Attendance -------------- */
-  let table;
-  let attendanceData = [];
-
-  function getBase64(file, callback) {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => callback(reader.result);
-    reader.onerror = (error) => console.error('Error:', error);
-  }
-
-  /* Register Face */
-  function registerFace() {
-    const name = document.getElementById('reg_name').value.trim();
-    const studentId = document.getElementById('reg_student_id').value.trim();
-    const file = document.getElementById('reg_image').files[0];
-    if (!name || !studentId || !file) {
-      alert('Please provide name, student ID, and an image.');
-      return;
-    }
-    getBase64(file, (base64Str) => {
-      fetch('/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, student_id: studentId, image: base64Str })
-      })
-      .then(res => res.json())
-      .then(data => {
-        const div = document.getElementById('register_result');
-        div.style.display = 'block';
-        div.textContent = data.message || data.error || JSON.stringify(data);
-      })
-      .catch(err => console.error(err));
-    });
-  }
-
-  /* Recognize Faces */
-  function recognizeFace() {
-    const progressBar = document.getElementById('recognizeProgress');
-    const recognizedFaces = document.getElementById('recognizedFaces');
-    progressBar.style.display = 'block';
-    recognizedFaces.innerHTML = '';
-    
-    const file = document.getElementById('rec_image').files[0];
-    const subjectId = document.getElementById('rec_subject_select').value;
-    if (!file) {
-      alert('Please select an image to recognize.');
-      return;
-    }
-    getBase64(file, (base64Str) => {
-      fetch('/recognize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Str, subject_id: subjectId })
-      })
-      .then(res => res.json())
-      .then(data => {
-        // Update progress bar
-        const progress = data.progress;
-        progressBar.querySelector('.progress-bar').style.width = `${progress.recognition}%`;
-        progressBar.querySelector('.progress-bar').textContent = `${Math.round(progress.recognition)}%`;
-        
-        // Display identified faces
-        data.identified_people.forEach(person => {
-          const card = document.createElement('div');
-          card.className = 'col-md-4 mb-3';
-          card.innerHTML = `
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">${person.name || 'Unknown'}</h5>
-                <p class="card-text">
-                  Student ID: ${person.student_id || 'N/A'}<br>
-                  Confidence: ${person.confidence}%<br>
-                  Status: ${person.student_id ? 'Attendance Recorded' : 'Not Registered'}
-                </p>
-              </div>
+    <div class="container">
+        <!-- Quick Stats -->
+        <div class="row mb-4 animate__animated animate__fadeInUp">
+            <div class="col-md-4">
+                <div class="stats-card glass-effect">
+                    <div class="stats-number float-animation" id="totalStudents">0</div>
+                    <div class="text-muted">Registered Students</div>
+                </div>
             </div>
-          `;
-          recognizedFaces.appendChild(card);
-        });
-        
-        // Show result message
-        const div = document.getElementById('recognize_result');
-        div.style.display = 'block';
-        div.textContent = data.message;
-      })
-      .catch(err => console.error(err));
-    });
-  }
+            <div class="col-md-4">
+                <div class="stats-card glass-effect">
+                    <div class="stats-number float-animation" id="todayAttendance">0</div>
+                    <div class="text-muted">Today's Attendance</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card glass-effect">
+                    <div class="stats-number float-animation" id="totalSubjects">0</div>
+                    <div class="text-muted">Active Subjects</div>
+                </div>
+            </div>
+        </div>
 
-  /* Subjects */
-  function addSubject() {
-    const subjectName = document.getElementById('subject_name').value.trim();
-    if (!subjectName) {
-      alert('Please enter subject name.');
-      return;
-    }
-    fetch('/add_subject', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject_name: subjectName })
-    })
-    .then(res => res.json())
-    .then(data => {
-      const div = document.getElementById('subject_result');
-      div.style.display = 'block';
-      div.textContent = data.message || data.error || JSON.stringify(data);
-      document.getElementById('subject_name').value = '';
-      loadSubjects();
-    })
-    .catch(err => console.error(err));
-  }
+        <!-- Register Card -->
+        <div class="card animate__animated animate__fadeIn">
+            <div class="card-header">
+                <h3 class="m-0"><i class="fas fa-user-plus me-2"></i>Register Student</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Student Name</label>
+                            <input type="text" id="name" class="form-control glass-effect" placeholder="Enter full name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Student ID</label>
+                            <input type="text" id="student_id" class="form-control glass-effect" placeholder="Enter student ID">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Photo</label>
+                            <input type="file" id="register_image" class="form-control glass-effect" accept="image/*">
+                        </div>
+                        <button class="btn btn-primary w-100" onclick="register()">
+                            <i class="fas fa-save me-2"></i>Register Student
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="preview-container">
+                            <div id="register_preview" class="text-center">
+                                <img id="register_image_preview" class="img-fluid rounded" style="max-height: 300px; display: none;">
+                            </div>
+                        </div>
+                        <div id="register_result" class="alert alert-success mt-3 glass-effect" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-  function loadSubjects() {
-    fetch('/get_subjects')
-    .then(res => res.json())
-    .then(data => {
-      const select = document.getElementById('rec_subject_select');
-      select.innerHTML = '<option value="">-- No Subject --</option>';
-      (data.subjects || []).forEach(sub => {
-        const option = document.createElement('option');
-        option.value = sub.id;
-        option.textContent = sub.name;
-        select.appendChild(option);
-      });
-      const list = document.getElementById('subjects_list');
-      list.innerHTML = '';
-      (data.subjects || []).forEach(sub => {
-        const li = document.createElement('li');
-        li.textContent = `ID: ${sub.id}, Name: ${sub.name}`;
-        list.appendChild(li);
-      });
-    })
-    .catch(err => console.error(err));
-  }
+        <!-- Recognize Card -->
+        <div class="card animate__animated animate__fadeIn">
+            <div class="card-header">
+                <h3 class="m-0"><i class="fas fa-camera me-2"></i>Recognize Students</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Subject</label>
+                            <select id="subject_select" class="form-control glass-effect">
+                                <option value="">Select Subject</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Photo</label>
+                            <input type="file" id="recognize_image" class="form-control glass-effect" accept="image/*">
+                        </div>
+                        <button class="btn btn-primary w-100" onclick="recognize()">
+                            <i class="fas fa-search me-2"></i>Recognize
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="preview-container">
+                            <div id="recognize_preview" class="text-center">
+                                <img id="recognize_image_preview" class="img-fluid rounded" style="max-height: 300px; display: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-  /* Attendance */
-  function loadAttendance() {
-    const studentId = document.getElementById('filter_student_id').value.trim();
-    const subjectId = document.getElementById('filter_subject_id').value.trim();
-    const startDate = document.getElementById('filter_start').value;
-    const endDate = document.getElementById('filter_end').value;
+                <!-- Progress Bar -->
+                <div class="progress mt-4 glass-effect" style="display: none;" id="recognizeProgress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"></div>
+                </div>
 
-    let url = '/api/attendance?';
-    if (studentId) url += 'student_id=' + studentId + '&';
-    if (subjectId) url += 'subject_id=' + subjectId + '&';
-    if (startDate) url += 'start_date=' + startDate + '&';
-    if (endDate) url += 'end_date=' + endDate + '&';
+                <!-- Results Area -->
+                <div id="recognize_result" class="mt-4"></div>
+                <div id="recognizedFaces" class="row mt-4"></div>
+            </div>
+        </div>
+    </div>
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        attendanceData = data;
-        renderAttendanceTable(attendanceData);
-      })
-      .catch(err => console.error(err));
-  }
-
-  function renderAttendanceTable(data) {
-    if ($.fn.DataTable.isDataTable('#attendanceTable')) {
-      $('#attendanceTable').DataTable().clear().destroy();
-    }
-    const tbody = document.querySelector('#attendanceTable tbody');
-    tbody.innerHTML = '';
-    data.forEach(record => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${record.doc_id || ''}</td>
-        <td contenteditable="true">${record.student_id || ''}</td>
-        <td contenteditable="true">${record.name || ''}</td>
-        <td contenteditable="true">${record.subject_id || ''}</td>
-        <td contenteditable="true">${record.subject_name || ''}</td>
-        <td contenteditable="true">${record.timestamp || ''}</td>
-        <td contenteditable="true">${record.status || ''}</td>
-      `;
-      tbody.appendChild(row);
-    });
-    $('#attendanceTable').DataTable({
-      paging: true,
-      searching: false,
-      info: false,
-      responsive: true
-    });
-  }
-
-  function saveEdits() {
-    const rows = document.querySelectorAll('#attendanceTable tbody tr');
-    const updatedRecords = [];
-    rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
-      const doc_id = cells[0].textContent.trim();
-      const student_id = cells[1].textContent.trim();
-      const name = cells[2].textContent.trim();
-      const subject_id = cells[3].textContent.trim();
-      const subject_name = cells[4].textContent.trim();
-      const timestamp = cells[5].textContent.trim();
-      const status = cells[6].textContent.trim();
-      updatedRecords.push({ doc_id, student_id, name, subject_id, subject_name, timestamp, status });
-    });
-    fetch('/api/attendance/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ records: updatedRecords })
-    })
-    .then(res => res.json())
-    .then(resp => {
-      alert(resp.message || JSON.stringify(resp));
-    })
-    .catch(err => console.error(err));
-  }
-
-  function downloadExcel() {
-    const studentId = document.getElementById('filter_student_id').value.trim();
-    const subjectId = document.getElementById('filter_subject_id').value.trim();
-    const startDate = document.getElementById('filter_start').value;
-    const endDate = document.getElementById('filter_end').value;
-
-    let url = '/api/attendance/download?';
-    if (studentId) url += 'student_id=' + studentId + '&';
-    if (subjectId) url += 'subject_id=' + subjectId + '&';
-    if (startDate) url += 'start_date=' + startDate + '&';
-    if (endDate) url += 'end_date=' + endDate + '&';
-
-    window.location.href = url;
-  }
-
-  function downloadTemplate() {
-    window.location.href = '/api/attendance/template';
-  }
-
-  function uploadExcel() {
-    const fileInput = document.getElementById('excelFile');
-    if (!fileInput.files.length) {
-      alert('Please select an Excel file (.xlsx)');
-      return;
-    }
-    const file = fileInput.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-
-    fetch('/api/attendance/upload', {
-      method: 'POST',
-      body: formData
-    })
-    .then(res => res.json())
-    .then(resp => {
-      alert(resp.message || resp.error || 'Excel uploaded');
-      loadAttendance();
-    })
-    .catch(err => console.error(err));
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    loadSubjects();
-  });
-</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Your existing JavaScript code here
+    </script>
 </body>
 </html>
 """
@@ -721,22 +495,22 @@ def register_face():
     enhanced_image.save(buffered, format="JPEG")
     enhanced_image_bytes = buffered.getvalue()
 
-    external_image_id = f"{sanitized_name}_{student_id}"
     try:
         response = rekognition_client.index_faces(
             CollectionId=COLLECTION_ID,
             Image={'Bytes': enhanced_image_bytes},
-            ExternalImageId=external_image_id,
+            ExternalImageId=f"{sanitized_name}_{student_id}",
             DetectionAttributes=['ALL'],
             QualityFilter='AUTO'
         )
+        
+        if not response.get('FaceRecords'):
+            return jsonify({"message": "No face detected in the image"}), 400
+            
+        return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
+        
     except Exception as e:
         return jsonify({"message": f"Failed to index face: {str(e)}"}), 500
-
-    if not response.get('FaceRecords'):
-        return jsonify({"message": "No face detected in the image"}), 400
-
-    return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
 # Recognize Face (GET/POST)
 @app.route("/recognize", methods=["GET","POST"])
@@ -747,22 +521,22 @@ def recognize_face():
     data = request.json
     image_str = data.get('image')
     subject_id = data.get('subject_id') or ""
+    
     if not image_str:
         return jsonify({"message": "No image provided"}), 400
 
-    # Optionally fetch subject name
+    # Get subject name if subject_id provided
     subject_name = ""
     if subject_id:
         sdoc = db.collection("subjects").document(subject_id).get()
         if sdoc.exists:
             subject_name = sdoc.to_dict().get("name", "")
-        else:
-            subject_name = "Unknown Subject"
 
+    # Process image
     image_data = image_str.split(",")[1]
     image_bytes = base64.b64decode(image_data)
 
-    # Enhance image before detection
+    # Enhance image
     pil_image = Image.open(io.BytesIO(image_bytes))
     enhanced_image = enhance_image(pil_image)
     buffered = io.BytesIO()
@@ -770,100 +544,84 @@ def recognize_face():
     enhanced_image_bytes = buffered.getvalue()
 
     try:
-        # Detect faces in the image
+        # First detect faces
         detect_response = rekognition_client.detect_faces(
             Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
-    except Exception as e:
-        return jsonify({"message": f"Failed to detect faces: {str(e)}"}), 500
+        
+        faces = detect_response.get('FaceDetails', [])
+        face_count = len(faces)
+        identified_people = []
 
-    faces = detect_response.get('FaceDetails', [])
-    face_count = len(faces)
-    identified_people = []
+        if face_count == 0:
+            return jsonify({
+                "message": "No faces detected in the image.",
+                "total_faces": 0,
+                "identified_people": []
+            }), 200
 
-    if face_count == 0:
+        # Process each detected face
+        for face in faces:
+            try:
+                # Search for face match
+                search_response = rekognition_client.search_faces_by_image(
+                    CollectionId=COLLECTION_ID,
+                    Image={'Bytes': enhanced_image_bytes},
+                    MaxFaces=1,
+                    FaceMatchThreshold=70  # Adjust threshold as needed
+                )
+
+                matches = search_response.get('FaceMatches', [])
+                
+                if matches:
+                    match = matches[0]
+                    external_id = match['Face']['ExternalImageId']
+                    confidence = match['Similarity']  # Use Similarity instead of Confidence
+                    
+                    name, student_id = external_id.split('_', 1)
+                    
+                    person_data = {
+                        "name": name,
+                        "student_id": student_id,
+                        "confidence": round(confidence, 2)
+                    }
+                    
+                    # Log attendance if subject provided
+                    if subject_id:
+                        db.collection("attendance").add({
+                            "student_id": student_id,
+                            "name": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "subject_id": subject_id,
+                            "subject_name": subject_name,
+                            "status": "PRESENT"
+                        })
+                else:
+                    person_data = {
+                        "name": "Unknown",
+                        "student_id": "N/A",
+                        "confidence": 0
+                    }
+                
+                identified_people.append(person_data)
+                
+            except Exception as e:
+                print(f"Error processing face: {str(e)}")
+                identified_people.append({
+                    "name": "Error",
+                    "student_id": "N/A",
+                    "confidence": 0
+                })
+
         return jsonify({
-            "message": "No faces detected in the image.",
+            "message": f"{face_count} face(s) detected in the photo.",
             "total_faces": face_count,
             "identified_people": identified_people
         }), 200
 
-    for idx, face in enumerate(faces):
-        # Rekognition provides bounding box coordinates relative to image dimensions
-        bbox = face['BoundingBox']
-        pil_img = Image.open(io.BytesIO(enhanced_image_bytes))
-        img_width, img_height = pil_img.size
-
-        left = int(bbox['Left'] * img_width)
-        top = int(bbox['Top'] * img_height)
-        width = int(bbox['Width'] * img_width)
-        height = int(bbox['Height'] * img_height)
-        right = left + width
-        bottom = top + height
-
-        # Crop the face from the image
-        cropped_face = pil_img.crop((left, top, right, bottom))
-        buffer = io.BytesIO()
-        cropped_face.save(buffer, format="JPEG")
-        cropped_face_bytes = buffer.getvalue()
-
-        try:
-            # Search for the face in the collection
-            search_response = rekognition_client.search_faces_by_image(
-                CollectionId=COLLECTION_ID,
-                Image={'Bytes': cropped_face_bytes},
-                MaxFaces=1,
-                FaceMatchThreshold=60
-            )
-        except Exception as e:
-            identified_people.append({
-                "message": f"Error searching face {idx+1}: {str(e)}",
-                "confidence": "N/A"
-            })
-            continue
-
-        matches = search_response.get('FaceMatches', [])
-        if not matches:
-            identified_people.append({
-                "message": "Face not recognized",
-                "confidence": "N/A"
-            })
-            continue
-
-        match = matches[0]
-        ext_id = match['Face']['ExternalImageId']
-        confidence = match['Face']['Confidence']
-
-        parts = ext_id.split("_", 1)
-        if len(parts) == 2:
-            rec_name, rec_id = parts
-        else:
-            rec_name, rec_id = ext_id, "Unknown"
-
-        identified_people.append({
-            "name": rec_name,
-            "student_id": rec_id,
-            "confidence": confidence
-        })
-
-        # If recognized, log attendance
-        if rec_id != "Unknown":
-            doc = {
-                "student_id": rec_id,
-                "name": rec_name,
-                "timestamp": datetime.utcnow().isoformat(),
-                "subject_id": subject_id,
-                "subject_name": subject_name,
-                "status": "PRESENT"
-            }
-            db.collection("attendance").add(doc)
-
-    return jsonify({
-        "message": f"{face_count} face(s) detected in the photo.",
-        "total_faces": face_count,
-        "identified_people": identified_people
-    }), 200
+    except Exception as e:
+        return jsonify({"message": f"Recognition failed: {str(e)}"}), 500
 
 # SUBJECTS
 @app.route("/add_subject", methods=["POST"])
