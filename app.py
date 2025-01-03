@@ -15,6 +15,7 @@ from flask import (
     Flask,
     request,
     jsonify,
+    render_template,
     render_template_string,
     send_file,
     redirect,
@@ -32,6 +33,7 @@ from flask_login import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 # Configure Logging
 logging.basicConfig(
@@ -1314,6 +1316,65 @@ def create_default_admin():
     except Exception as e:
         logger.error(f"Error creating default admin: {str(e)}")
         print(f"Error creating default admin: {str(e)}")
+
+def append_conversation(user_id, role, content):
+    user_doc = db.collection("users").document(user_id)
+    conversation = user_doc.get().to_dict().get("conversation_memory", [])
+    conversation.append({"role": role, "content": content})
+    if len(conversation) > MAX_MEMORY:
+        conversation.pop(0)
+    user_doc.update({"conversation_memory": conversation})
+
+def get_conversation(user_id):
+    user_doc = db.collection("users").document(user_id).get()
+    return user_doc.to_dict().get("conversation_memory", [])
+
+@app.route("/process_prompt", methods=["POST"])
+@login_required
+@role_required(['admin'])  # Only admin can use Gemini chat
+def process_prompt():
+    data = request.json
+    user_prompt = data.get("prompt", "").strip()
+    if not user_prompt:
+        return jsonify({"error": "No prompt provided"}), 400
+
+    user_id = current_user.id
+    append_conversation(user_id, "user", user_prompt)
+
+    # Retrieve updated conversation
+    conversation = get_conversation(user_id)
+    conv_str = ""
+    for msg in conversation:
+        if msg["role"] == "system":
+            conv_str += f"System: {msg['content']}\n"
+        elif msg["role"] == "user":
+            conv_str += f"User: {msg['content']}\n"
+        else:
+            conv_str += f"Assistant: {msg['content']}\n"
+
+    # Call Gemini
+    try:
+        response = model.generate_content(conv_str)
+    except Exception as e:
+        assistant_reply = f"Error generating response: {str(e)}"
+    else:
+        if not response.candidates:
+            assistant_reply = "Hmm, I'm having trouble responding right now."
+        else:
+            parts = response.candidates[0].content.parts
+            assistant_reply = "".join(part.text for part in parts).strip()
+
+    append_conversation(user_id, "assistant", assistant_reply)
+
+    return jsonify({"message": assistant_reply})
+
+@app.route("/change_password", methods=["GET", "POST"])
+@role_required(['admin', 'teacher', 'student'])  # Adjust roles as needed
+def change_password():
+    if request.method == "POST":
+        ...
+        return redirect(url_for('index'))
+    ...
 
 if __name__ == "__main__":
     # Create default admin if none exists
