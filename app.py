@@ -1579,6 +1579,86 @@ def change_password():
     
     return render_template("change_password.html")
 
+@app.route("/manage_users")
+@login_required
+@role_required(['admin'])
+def manage_users():
+    users = db.collection("users").stream()
+    user_list = []
+    for user in users:
+        user_data = user.to_dict()
+        user_list.append({
+            'username': user_data.get('username', 'N/A'),
+            'role': user_data.get('role', 'N/A'),
+            # Add other fields as necessary
+        })
+    return render_template("manage_users.html", users=user_list)
+
+# -----------------------------
+# Subjects Management Routes
+# -----------------------------
+
+@app.route("/admin/subjects", methods=["GET", "POST"])
+@login_required
+@role_required(['admin'])
+def manage_subjects():
+    if request.method == "POST":
+        # Handle form submission for adding or updating a subject
+        subject_id = request.form.get("subject_id")
+        subject_name = request.form.get("subject_name")
+        subject_details = request.form.get("subject_details")  # Add other fields as necessary
+
+        if subject_id:
+            # Update existing subject
+            try:
+                subject_ref = db.collection("subjects").document(subject_id)
+                subject_ref.update({
+                    "name": subject_name,
+                    "details": subject_details
+                    # Add other fields as necessary
+                })
+                flash("Subject updated successfully.", "success")
+            except Exception as e:
+                flash(f"Error updating subject: {str(e)}", "danger")
+        else:
+            # Add new subject
+            try:
+                db.collection("subjects").add({
+                    "name": subject_name,
+                    "details": subject_details
+                    # Add other fields as necessary
+                })
+                flash("Subject added successfully.", "success")
+            except Exception as e:
+                flash(f"Error adding subject: {str(e)}", "danger")
+        
+        return redirect(url_for('manage_subjects'))
+    
+    # GET request - display subjects
+    subjects = db.collection("subjects").stream()
+    subjects_list = []
+    for subject in subjects:
+        subject_data = subject.to_dict()
+        subjects_list.append({
+            'id': subject.id,
+            'name': subject_data.get('name', 'N/A'),
+            'details': subject_data.get('details', ''),
+            # Add other fields as necessary
+        })
+    
+    return render_template("manage_subjects.html", subjects=subjects_list)
+
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def delete_subject(subject_id):
+    try:
+        db.collection("subjects").document(subject_id).delete()
+        flash("Subject deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting subject: {str(e)}", "danger")
+    return redirect(url_for('manage_subjects'))
+
 if __name__ == "__main__":
     # Create default admin if none exists
     create_default_admin()
