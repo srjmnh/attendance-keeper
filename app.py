@@ -5,8 +5,6 @@ import json
 import io
 from datetime import datetime
 import logging
-import uuid
-from werkzeug.utils import secure_filename
 
 import cv2
 import numpy as np
@@ -15,7 +13,6 @@ from flask import (
     Flask,
     request,
     jsonify,
-    render_template,
     render_template_string,
     send_file,
     redirect,
@@ -32,21 +29,6 @@ from flask_login import (
     UserMixin,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
-
-# Configure Logging
-logging.basicConfig(
-    level=logging.INFO,  # Change to DEBUG for more detailed logs if needed
-    format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
-    handlers=[
-        logging.StreamHandler()  # Logs will be output to the console
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Initialize the Password Hasher
-ph = PasswordHasher()
 
 # -----------------------------
 # 1) AWS Rekognition Setup
@@ -238,14 +220,45 @@ def role_required(required_roles):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    return render_template("login.html")
+    if request.method == "POST":
+        username = request.form.get("username").strip()
+        password = request.form.get("password").strip()
+        if not username or not password:
+            flash("Please enter both username and password.", "warning")
+            return render_template_string(LOGIN_HTML)
+        
+        # Query Firestore for user
+        users_ref = db.collection("users")
+        query = users_ref.where("username", "==", username).stream()
+        user = None
+        for doc in query:
+            user_data = doc.to_dict()
+            if check_password_hash(user_data.get("password_hash", ""), password):
+                user = User(
+                    id=doc.id,
+                    username=user_data.get("username"),
+                    password_hash=user_data.get("password_hash"),
+                    role=user_data.get("role"),
+                    classes=user_data.get("classes", [])
+                )
+                break
+
+        if user:
+            login_user(user)
+            flash("Logged in successfully!", "success")
+            return redirect(url_for("index"))
+        else:
+            flash("Invalid username or password.", "danger")
+            return render_template_string(LOGIN_HTML)
+    else:
+        return render_template_string(LOGIN_HTML)
 
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     flash("You have been logged out.", "info")
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
 # -----------------------------
 # 7) Admin Routes for User Management
@@ -376,78 +389,48 @@ def admin_panel():
         })
     return render_template_string(ADMIN_HTML, users=users_list)
 
-@app.route("/admin/create_user", methods=["GET", "POST"])
-@login_required
+@app.route("/admin/create_user", methods=["POST"])
 @role_required(['admin'])
-def create_user_route():
-    if request.method == "POST":
-        username = request.form.get("username").strip()
-        password = request.form.get("password").strip()
-        role = request.form.get("role").strip().lower()
-        classes_input = request.form.get("classes").strip()  # Comma-separated for teachers
-        photo = request.files.get("photo")
+def create_user():
+    username = request.form.get("username").strip()
+    password = request.form.get("password").strip()
+    role = request.form.get("role").strip()
+    classes = request.form.get("classes", "").strip()
 
-        if not username or not password or role not in ['student', 'teacher']:
-            flash("Invalid input. Ensure username, password, and valid role are provided.", "danger")
-            return redirect(url_for('create_user_route'))
+    if not username or not password or not role:
+        flash("Please fill in all required fields.", "warning")
+        return redirect(url_for('admin_panel'))
 
-        # Check if user already exists
-        users_ref = db.collection("users").where("username", "==", username).stream()
-        if any(True for _ in users_ref):
-            flash("Username already exists. Choose a different username.", "danger")
-            return redirect(url_for('create_user_route'))
+    # Check if username already exists
+    users_ref = db.collection("users")
+    query = users_ref.where("username", "==", username).stream()
+    for doc in query:
+        flash("Username already exists. Please choose a different one.", "danger")
+        return redirect(url_for('admin_panel'))
 
-        # Handle photo upload for students
-        photo_filename = ""
-        if role == 'student':
-            if not photo or photo.filename == '':
-                flash("Student photo is required.", "danger")
-                return redirect(url_for('create_user_route'))
-            if photo and allowed_file(photo.filename):
-                filename = secure_filename(photo.filename)
-                unique_filename = f"{username}_{uuid.uuid4().hex[:8]}_{filename}"
-                photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
-                photo_filename = unique_filename
-            else:
-                flash("Invalid photo format. Allowed formats: png, jpg, jpeg.", "danger")
-                return redirect(url_for('create_user_route'))
+    # Hash the password
+    password_hash = generate_password_hash(password)
 
-        # Assign unique ID based on role
-        unique_id = generate_unique_id('S') if role == 'student' else generate_unique_id('T')
-        username = unique_id  # Overriding username with unique ID
+    # Prepare user data
+    user_data = {
+        "username": username,
+        "password_hash": password_hash,
+        "role": role
+    }
 
-        # Process classes
-        classes = []
-        if role == 'teacher':
-            classes = [cls.strip() for cls in classes_input.split(",") if cls.strip()]
-            if not classes:
-                flash("Teachers must be assigned to at least one class.", "danger")
-                return redirect(url_for('create_user_route'))
-        elif role == 'student':
-            # Auto assign class based on some logic, e.g., student ID
-            class_id = assign_class_to_student(username)
-            classes = [class_id]
+    if role == "teacher":
+        # Assign classes to teacher
+        class_list = [cls.strip() for cls in classes.split(",") if cls.strip()]
+        user_data["classes"] = class_list
 
-        # Hash the password
-        ph = PasswordHasher()
-        password_hash = ph.hash(password)
+    # Add user to Firestore
+    try:
+        users_ref.add(user_data)
+        flash(f"User '{username}' created successfully!", "success")
+    except Exception as e:
+        flash(f"Error creating user: {str(e)}", "danger")
 
-        # Create user data
-        user_data = {
-            "username": username,
-            "password_hash": password_hash,
-            "role": role,
-            "classes": classes
-        }
-        if role == 'student':
-            user_data["photo"] = photo_filename
-
-        # Add user to Firestore
-        db.collection("users").add(user_data)
-        flash(f"{role.capitalize()} user '{username}' created successfully.", "success")
-        return redirect(url_for('dashboard'))
-
-    return render_template("create_user.html")
+    return redirect(url_for('admin_panel'))
 
 # -----------------------------
 # 8) Single-Page HTML + Chat Widget with Role-Based Tabs
@@ -1198,153 +1181,315 @@ def recognize_face():
 
 # SUBJECTS
 @app.route("/add_subject", methods=["POST"])
-@login_required
-@role_required(['admin'])
+@role_required(['admin', 'teacher'])
 def add_subject():
-    data = request.get_json()
-    name = data.get('name', '').strip()
-    details = data.get('details', '').strip()
+    data = request.json
+    subject_name = data.get("subject_name")
+    if not subject_name:
+        return jsonify({"error": "No subject_name provided"}), 400
+    doc_ref = db.collection("subjects").document()
+    doc_ref.set({
+        "name": subject_name.strip(),
+        "created_at": datetime.utcnow().isoformat()
+    })
+    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
 
-    if not name:
-        return jsonify({'status': 'danger', 'message': 'Subject name is required.'}), 400
-
-    try:
-        db.collection("subjects").add({
-            "name": name,
-            "details": details
-        })
-        return jsonify({'status': 'success', 'message': 'Subject added successfully.'})
-    except Exception as e:
-        return jsonify({'status': 'danger', 'message': f'Error adding subject: {str(e)}'}), 500
-
-@app.route("/admin/update_subject/<subject_id>", methods=["POST"])
+@app.route("/get_subjects", methods=["GET"])
 @login_required
-@role_required(['admin'])
-def update_subject(subject_id):
-    data = request.get_json()
-    name = data.get('name', '').strip()
-    details = data.get('details', '').strip()
+def get_subjects():
+    if current_user.role == 'teacher':
+        # Teachers can see only subjects they teach
+        subjects = []
+        for cls in current_user.classes:
+            sub_doc = db.collection("subjects").where("name", "==", cls).stream()
+            for doc in sub_doc:
+                subjects.append({"id": doc.id, "name": doc.to_dict().get("name","")})
+        return jsonify({"subjects": subjects}), 200
+    else:
+        # Admin can see all subjects
+        subs = db.collection("subjects").stream()
+        subj_list = []
+        for s in subs:
+            d = s.to_dict()
+            subj_list.append({"id": s.id, "name": d.get("name","")})
+        return jsonify({"subjects": subj_list}), 200
 
-    if not name:
-        return jsonify({'status': 'danger', 'message': 'Subject name is required.'}), 400
+# ATTENDANCE
+import openpyxl
+from openpyxl import Workbook
 
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.update({
-            "name": name,
-            "details": details
-        })
-        return jsonify({'status': 'success', 'message': 'Subject updated successfully.'})
-    except Exception as e:
-        return jsonify({'status': 'danger', 'message': f'Error updating subject: {str(e)}'}), 500
-
-@app.route("/admin/delete_subject/<subject_id>", methods=["DELETE"])
+@app.route("/api/attendance", methods=["GET"])
 @login_required
-@role_required(['admin'])
-def delete_subject(subject_id):
+def get_attendance():
+    student_id = request.args.get("student_id")
+    subject_id = request.args.get("subject_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    query = db.collection("attendance")
+    if current_user.role == 'teacher':
+        # Teachers can view only their classes
+        query = query.where("subject_id", "in", current_user.classes)
+
+    if student_id:
+        query = query.where("student_id", "==", student_id)
+    if subject_id:
+        query = query.where("subject_id", "==", subject_id)
+    if start_date:
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where("timestamp", ">=", dt_start.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
+    if end_date:
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
+
+    # Execute query
     try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.delete()
-        return jsonify({'status': 'success', 'message': 'Subject deleted successfully.'})
+        results = query.stream()
     except Exception as e:
-        return jsonify({'status': 'danger', 'message': f'Error deleting subject: {str(e)}'}), 500
+        return jsonify({"error": f"Failed to retrieve attendance: {str(e)}"}), 500
 
-# Configuration for file uploads
-UPLOAD_FOLDER = '/path/to/your/static/uploads'  # Update this path accordingly
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+    out_list = []
+    for doc_ in results:
+        dd = doc_.to_dict()
+        dd["doc_id"] = doc_.id
+        out_list.append(dd)
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return jsonify(out_list)
 
-def generate_unique_id(prefix=''):
-    """
-    Generates a unique identifier with an optional prefix.
-    """
-    return f"{prefix}{uuid.uuid4().hex[:8]}"
+@app.route("/api/attendance/update", methods=["POST"])
+@role_required(['admin', 'teacher'])
+def update_attendance():
+    data = request.json
+    records = data.get("records", [])
+    for rec in records:
+        doc_id = rec.get("doc_id")
+        if not doc_id:
+            continue
+        # Teachers can update only their classes
+        record_doc = db.collection("attendance").document(doc_id).get()
+        if not record_doc.exists:
+            continue
+        record_data = record_doc.to_dict()
+        if current_user.role == 'teacher' and record_data.get("subject_id") not in current_user.classes:
+            continue  # Skip if subject not assigned to teacher
+        ref = db.collection("attendance").document(doc_id)
+        update_data = {
+            "student_id": rec.get("student_id",""),
+            "name": rec.get("name",""),
+            "subject_id": rec.get("subject_id",""),
+            "subject_name": rec.get("subject_name",""),
+            "timestamp": rec.get("timestamp",""),
+            "status": rec.get("status","")
+        }
+        try:
+            ref.update(update_data)
+        except Exception as e:
+            continue  # Optionally, handle errors
+    return jsonify({"message": "Attendance records updated successfully."})
 
-def assign_class_to_student(username):
-    """
-    Assigns a class to a student based on their username or other criteria.
-    Replace this logic with your actual class assignment process.
-    """
-    # Example: Assign to a default class or based on some logic
-    default_class = "General101"
-    return default_class
+@app.route("/api/attendance/download", methods=["GET"])
+@login_required
+def download_attendance_excel():
+    student_id = request.args.get("student_id")
+    subject_id = request.args.get("subject_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
 
-def create_default_admin():
-    """
-    Creates a default admin user if no admin exists in the Firestore database.
-    """
+    query = db.collection("attendance")
+    if current_user.role == 'teacher':
+        # Teachers can download only their classes
+        query = query.where("subject_id", "in", current_user.classes)
+
+    if student_id:
+        query = query.where("student_id", "==", student_id)
+    if subject_id:
+        query = query.where("subject_id", "==", subject_id)
+    if start_date:
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where("timestamp", ">=", dt_start.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
+    if end_date:
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
+
+    # Execute query
     try:
-        # Query Firestore to check if any admin user exists
-        admins = db.collection("users").where("role", "==", "admin").stream()
-        admin_exists = False
-        for admin in admins:
-            admin_exists = True
-            break
+        results = query.stream()
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve attendance: {str(e)}"}), 500
 
-        if not admin_exists:
-            # Fetch default admin credentials from environment variables
-            default_admin_username = os.getenv("DEFAULT_ADMIN_USERNAME")
-            default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+    att_list = []
+    for doc_ in results:
+        dd = doc_.to_dict()
+        dd["doc_id"] = doc_.id
+        att_list.append(dd)
 
-            if not default_admin_username or not default_admin_password:
-                logger.error("Default admin credentials not set in environment variables.")
-                print("Default admin credentials not set in environment variables.")
-                return
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance"
+    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
+    ws.append(headers)
 
-            # Hash the default admin password
-            password_hash = ph.hash(default_admin_password)
+    for record in att_list:
+        row = [
+            record.get("doc_id",""),
+            record.get("student_id",""),
+            record.get("name",""),
+            record.get("subject_id",""),
+            record.get("subject_name",""),
+            record.get("timestamp",""),
+            record.get("status","")
+        ]
+        ws.append(row)
 
-            # Create admin user data
-            admin_data = {
-                "username": default_admin_username,
-                "password_hash": password_hash,
-                "role": "admin",
-                "classes": []  # Admins might not be assigned to any class
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="attendance.xlsx"
+    )
+
+@app.route("/api/attendance/template", methods=["GET"])
+@login_required
+def download_template():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance Template"
+    headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
+    ws.append(headers)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="attendance_template.xlsx"
+    )
+
+@app.route("/api/attendance/upload", methods=["POST"])
+@role_required(['admin', 'teacher'])
+def upload_attendance_excel():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["file"]
+    if not file.filename.endswith(".xlsx"):
+        return jsonify({"error": "Please upload a .xlsx file"}), 400
+
+    try:
+        wb = openpyxl.load_workbook(file)
+    except Exception as e:
+        return jsonify({"error": f"Failed to read Excel file: {str(e)}"}), 400
+
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
+    if not rows or rows[0] != expected:
+        return jsonify({"error": "Incorrect template format"}), 400
+
+    for row in rows[1:]:
+        doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
+        if current_user.role == 'teacher' and subject_id not in current_user.classes:
+            continue  # Teachers cannot modify other classes' data
+        if doc_id:
+            doc_data = {
+                "student_id": student_id or "",
+                "name": name or "",
+                "subject_id": subject_id or "",
+                "subject_name": subject_name or "",
+                "timestamp": timestamp or "",
+                "status": status or ""
             }
-
-            # Add the admin user to Firestore
-            db.collection("users").add(admin_data)
-            logger.info(f"Default admin user '{default_admin_username}' created successfully.")
-            print(f"Default admin user '{default_admin_username}' created successfully.")
+            try:
+                db.collection("attendance").document(doc_id).set(doc_data, merge=True)
+            except Exception as e:
+                continue  # Optionally, handle errors
         else:
-            logger.info("Admin user already exists. No action needed.")
-            print("Admin user already exists. No action needed.")
-    except Exception as e:
-        logger.error(f"Error creating default admin: {str(e)}")
-        print(f"Error creating default admin: {str(e)}")
+            new_doc = {
+                "student_id": student_id or "",
+                "name": name or "",
+                "subject_id": subject_id or "",
+                "subject_name": subject_name or "",
+                "timestamp": timestamp or "",
+                "status": status or ""
+            }
+            try:
+                db.collection("attendance").add(new_doc)
+            except Exception as e:
+                continue  # Optionally, handle errors
 
-def append_conversation(user_id, role, content):
-    user_doc = db.collection("users").document(user_id)
-    conversation = user_doc.get().to_dict().get("conversation_memory", [])
-    conversation.append({"role": role, "content": content})
-    if len(conversation) > MAX_MEMORY:
-        conversation.pop(0)
-    user_doc.update({"conversation_memory": conversation})
+    return jsonify({"message": "Excel data imported successfully."})
 
-def get_conversation(user_id):
-    user_doc = db.collection("users").document(user_id).get()
-    return user_doc.to_dict().get("conversation_memory", [])
+# -----------------------------
+# 10) Admin Gemini Chat Integration
+# -----------------------------
 
+# Note: Since Gemini is integrated into the main chat widget, and Admin has access to /admin panel,
+# you can add additional chatbot functionalities within the Admin dashboard as needed.
+
+# -----------------------------
+# 11) Image Enhancement Function (Using OpenCV and Pillow)
+# -----------------------------
+def enhance_image(pil_image):
+    """
+    Enhance image quality to improve face detection in distant group photos.
+    This includes increasing brightness and contrast.
+    """
+    # Convert PIL image to OpenCV format
+    cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+    # Increase brightness and contrast
+    alpha = 1.2  # Contrast control (1.0-3.0)
+    beta = 30    # Brightness control (0-100)
+    enhanced_cv_image = cv2.convertScaleAbs(cv_image, alpha=alpha, beta=beta)
+
+    # Convert back to PIL Image
+    enhanced_pil_image = Image.fromarray(cv2.cvtColor(enhanced_cv_image, cv2.COLOR_BGR2RGB))
+
+    return enhanced_pil_image
+
+# -----------------------------
+# 12) Single-Page HTML + Chat Widget - Protected with Login
+# -----------------------------
+# Already handled above in INDEX_HTML with role-based tabs
+
+# -----------------------------
+# 13) Gemini Chat Endpoint
+# -----------------------------
 @app.route("/process_prompt", methods=["POST"])
 @login_required
 @role_required(['admin'])  # Only admin can use Gemini chat
 def process_prompt():
     data = request.json
-    user_prompt = data.get("prompt", "").strip()
+    user_prompt = data.get("prompt","").strip()
     if not user_prompt:
-        return jsonify({"error": "No prompt provided"}), 400
+        return jsonify({"error":"No prompt provided"}), 400
 
-    user_id = current_user.id
-    append_conversation(user_id, "user", user_prompt)
+    # Add user message
+    conversation_memory.append({"role":"user","content":user_prompt})
 
-    # Retrieve updated conversation
-    conversation = get_conversation(user_id)
+    # Build conversation string
     conv_str = ""
-    for msg in conversation:
+    for msg in conversation_memory:
         if msg["role"] == "system":
             conv_str += f"System: {msg['content']}\n"
         elif msg["role"] == "user":
@@ -1364,17 +1509,155 @@ def process_prompt():
             parts = response.candidates[0].content.parts
             assistant_reply = "".join(part.text for part in parts).strip()
 
-    append_conversation(user_id, "assistant", assistant_reply)
+    # Add assistant reply
+    conversation_memory.append({"role":"assistant","content":assistant_reply})
+
+    if len(conversation_memory) > MAX_MEMORY:
+        conversation_memory.pop(0)
 
     return jsonify({"message": assistant_reply})
+
+# -----------------------------
+# 14) Run App
+# -----------------------------
+def create_default_admin():
+    """
+    Creates a default admin user if no admin exists in the Firestore 'users' collection.
+    """
+    admins_ref = db.collection("users").where("role", "==", "admin").stream()
+    admins = [admin for admin in admins_ref]
+
+    if not admins:
+        default_username = "admin"
+        default_password = "Admin123!"  # **Change this password immediately after first login**
+        password_hash = generate_password_hash(default_password, method="pbkdf2:sha256")  # Updated method
+        
+        admin_data = {
+            "username": default_username,
+            "password_hash": password_hash,
+            "role": "admin",
+            # 'classes' field is optional for admin
+        }
+        
+        db.collection("users").add(admin_data)
+        print(f"Default admin user '{default_username}' created with password '{default_password}'.")
+    else:
+        print("Admin user already exists. No default admin created.")
 
 @app.route("/change_password", methods=["GET", "POST"])
 @role_required(['admin', 'teacher', 'student'])  # Adjust roles as needed
 def change_password():
     if request.method == "POST":
-        ...
-        return redirect(url_for('index'))
-    ...
+        current_password = request.form.get("current_password")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+        
+        if not current_password or not new_password or not confirm_password:
+            flash("All fields are required.", "danger")
+            return redirect(url_for('change_password'))
+        
+        if new_password != confirm_password:
+            flash("New passwords do not match.", "danger")
+            return redirect(url_for('change_password'))
+        
+        # Verify current password
+        user_doc = db.collection("users").where("username", "==", current_user.username).stream()
+        user = None
+        for usr in user_doc:
+            user = usr
+            break
+        
+        if user and check_password_hash(user.to_dict().get("password_hash"), current_password):
+            # Update password
+            new_password_hash = generate_password_hash(new_password, method="pbkdf2:sha256")
+            db.collection("users").document(user.id).update({"password_hash": new_password_hash})
+            flash("Password updated successfully.", "success")
+            return redirect(url_for('dashboard'))
+        else:
+            flash("Current password is incorrect.", "danger")
+            return redirect(url_for('change_password'))
+    
+    return render_template("change_password.html")
+
+@app.route("/manage_users")
+@login_required
+@role_required(['admin'])
+def manage_users():
+    users = db.collection("users").stream()
+    user_list = []
+    for user in users:
+        user_data = user.to_dict()
+        user_list.append({
+            'username': user_data.get('username', 'N/A'),
+            'role': user_data.get('role', 'N/A'),
+            # Add other fields as necessary
+        })
+    return render_template("manage_users.html", users=user_list)
+
+# -----------------------------
+# Subjects Management Routes
+# -----------------------------
+
+@app.route("/admin/subjects", methods=["GET", "POST"])
+@login_required
+@role_required(['admin'])
+def manage_subjects():
+    if request.method == "POST":
+        # Handle form submission for adding or updating a subject
+        subject_id = request.form.get("subject_id")
+        subject_name = request.form.get("subject_name")
+        subject_details = request.form.get("subject_details")  # Add other fields as necessary
+
+        if subject_id:
+            # Update existing subject
+            try:
+                subject_ref = db.collection("subjects").document(subject_id)
+                subject_ref.update({
+                    "name": subject_name,
+                    "details": subject_details
+                    # Add other fields as necessary
+                })
+                flash("Subject updated successfully.", "success")
+            except Exception as e:
+                flash(f"Error updating subject: {str(e)}", "danger")
+        else:
+            # Add new subject
+            try:
+                db.collection("subjects").add({
+                    "name": subject_name,
+                    "details": subject_details
+                    # Add other fields as necessary
+                })
+                flash("Subject added successfully.", "success")
+            except Exception as e:
+                flash(f"Error adding subject: {str(e)}", "danger")
+        
+        return redirect(url_for('manage_subjects'))
+    
+    # GET request - display subjects
+    subjects = db.collection("subjects").stream()
+    subjects_list = []
+    for subject in subjects:
+        subject_data = subject.to_dict()
+        subjects_list.append({
+            'id': subject.id,
+            'name': subject_data.get('name', 'N/A'),
+            'details': subject_data.get('details', ''),
+            # Add other fields as necessary
+        })
+    
+    return render_template("manage_subjects.html", subjects=subjects_list)
+
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def delete_subject(subject_id):
+    try:
+        db.collection("subjects").document(subject_id).delete()
+        flash("Subject deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting subject: {str(e)}", "danger")
+    return redirect(url_for('manage_subjects'))
 
 if __name__ == "__main__":
     # Create default admin if none exists

@@ -1,31 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-    <h2>Your Attendance Records</h2>
-    
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Subject ID</th>
-                <th>Subject Name</th>
-                <th>Date</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for record in records %}
-                <tr>
-                    <td>{{ record.subject_id }}</td>
-                    <td>{{ record.subject_name }}</td>
-                    <td>{{ record.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td>{{ record.status }}</td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="4">No attendance records found.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+<h2>Your Attendance Records</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Subject ID</th>
+            <th>Subject Name</th>
+            <th>Timestamp</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in records %}
+        <tr>
+            <td>{{ record.subject_id }}</td>
+            <td>{{ record.subject_name }}</td>
+            <td>{{ record.timestamp }}</td>
+            <td>{{ record.status }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% endblock %} 
