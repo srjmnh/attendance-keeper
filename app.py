@@ -3,7 +3,6 @@ import sys
 import base64
 import json
 import io
-import re  # Added import
 from datetime import datetime
 import logging
 
@@ -93,20 +92,15 @@ Facial Recognition Attendance system features:
 
 5) Chat:
    - You are the assistant, a bit humorous, guiding usage or code features.
-   - You can perform CRUD operations on Firebase Firestore based on user commands.
-   - You can generate analytics reports based on attendance data.
 """
 
 # Start the conversation with a system message
 conversation_memory.append({"role": "system", "content": system_context})
 
 # -----------------------------
-# 4) Flask App and SocketIO Setup
+# 4) Flask App
 # -----------------------------
-from flask_socketio import SocketIO, emit
-
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
 
 # -----------------------------
 # 5) Image Enhancement Function (Using OpenCV and Pillow)
@@ -143,27 +137,12 @@ INDEX_HTML = """
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <!-- DataTables CSS -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    body { 
-      margin: 20px; 
-      font-family: 'Roboto', sans-serif;
-      background-image: url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1950&q=80');
-      background-size: cover;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
-      color: #333;
-    }
-    .container {
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 20px;
-      border-radius: 10px;
-    }
+    body { margin: 20px; }
     .nav-tabs .nav-link { color: #555; }
     .nav-tabs .nav-link.active { color: #000; font-weight: bold; }
     #attendanceTable td[contenteditable="true"] { background-color: #fcf8e3; }
-    
+
     /* Chatbot Toggle Button */
     #chatbotToggle {
       position: fixed;
@@ -174,28 +153,27 @@ INDEX_HTML = """
       color: #fff;
       border: none;
       border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      font-size: 24px;
+      width: 50px;
+      height: 50px;
+      font-size: 22px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     #chatbotToggle:hover { background-color: #0b5ed7; }
-    
+
     /* Chat Window */
     #chatbotWindow {
       position: fixed;
-      bottom: 90px;
+      bottom: 80px;
       right: 20px;
-      width: 350px;
-      max-height: 500px;
+      width: 300px;
+      max-height: 400px;
       border: 1px solid #ccc;
       border-radius: 10px;
       background-color: #fff;
-      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
       display: none;
       flex-direction: column;
       z-index: 1000;
@@ -216,7 +194,7 @@ INDEX_HTML = """
       color: #fff;
       font-weight: bold;
       cursor: pointer;
-      font-size: 18px;
+      font-size: 16px;
     }
     #chatMessages {
       flex: 1;
@@ -231,248 +209,158 @@ INDEX_HTML = """
       display: flex; border-top: 1px solid #ddd;
     }
     #chatInput {
-      flex: 1; padding: 10px; border: none; outline: none; font-size: 14px;
+      flex: 1; padding: 8px; border: none; outline: none; font-size: 14px;
     }
     #chatSendBtn {
       background-color: #0d6efd; color: #fff;
-      border: none; padding: 0 20px; cursor: pointer;
+      border: none; padding: 0 15px; cursor: pointer;
     }
     #chatSendBtn:hover { background-color: #0b5ed7; }
-    
-    /* Progress Bar */
-    .progress {
-      height: 20px;
-      margin-top: 10px;
-      display: none;
-    }
-    
-    /* Recognized Faces Display */
-    #recognizedFaces {
-      margin-top: 20px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-    }
-    .face-card {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 10px;
-      width: 150px;
-      text-align: center;
-      background-color: #f9f9f9;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .face-card img {
-      width: 100%;
-      height: auto;
-      border-radius: 5px;
-    }
-    .face-info {
-      margin-top: 10px;
-    }
-    
-    /* Modern Button Styles */
-    .btn-primary, .btn-success, .btn-warning, .btn-danger {
-      border-radius: 25px;
-      padding: 10px 20px;
-      font-weight: 500;
-    }
-    
-    /* Editable Subjects */
-    .editable-subject {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    .editable-subject input {
-      flex: 1;
-      margin-right: 10px;
-    }
   </style>
 </head>
-<body>
-<div class="container">
-  <h1 class="text-center mb-4">Facial Recognition Attendance</h1>
-  
-  <!-- Nav Tabs -->
-  <ul class="nav nav-tabs" id="mainTabs" role="tablist">
-    <li class="nav-item">
-      <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">
-        Register
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="recognize-tab" data-bs-toggle="tab" data-bs-target="#recognize" type="button" role="tab">
-        Recognize
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab">
-        Subjects
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
-        Attendance
-      </button>
-    </li>
-  </ul>
-  
-  <div class="tab-content" id="mainTabContent">
-    <!-- REGISTER -->
-    <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
-      <h3>Register a Face</h3>
-      <label class="form-label">Name</label>
-      <input type="text" id="reg_name" class="form-control mb-2" placeholder="Enter Name" />
-      <label class="form-label">Student ID</label>
-      <input type="text" id="reg_student_id" class="form-control mb-2" placeholder="Enter Student ID" />
-      <label class="form-label">Image</label>
-      <input type="file" id="reg_image" class="form-control mb-2" accept="image/*" />
-      <button onclick="registerFace()" class="btn btn-primary">Register</button>
-      <div id="register_result" class="alert mt-3" style="display:none;"></div>
-      
-      <!-- Display Uploaded Image and Attendance Record -->
-      <div id="registered_info" class="mt-4" style="display:none;">
-        <h5>Registered Student:</h5>
-        <img id="registered_image" src="" alt="Registered Image" class="img-fluid rounded" />
-        <div id="registered_attendance" class="mt-2">
-          <!-- Attendance Record Will Appear Here -->
-        </div>
-      </div>
-    </div>
-  
-    <!-- RECOGNIZE -->
-    <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
-      <h3>Recognize Faces</h3>
-      <label class="form-label">Subject (optional)</label>
-      <select id="rec_subject_select" class="form-control mb-2">
-        <option value="">-- No Subject --</option>
-      </select>
-      <label class="form-label">Image</label>
-      <input type="file" id="rec_image" class="form-control mb-2" accept="image/*" />
-      <button onclick="recognizeFace()" class="btn btn-success">Recognize</button>
-      
-      <!-- Progress Bar -->
-      <div class="progress">
-        <div id="recognizeProgress" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
-      </div>
-      
-      <div id="recognize_result" class="alert mt-3" style="display:none;"></div>
-      
-      <!-- Recognized Faces Display -->
-      <div id="recognizedFaces"></div>
-    </div>
-  
-    <!-- SUBJECTS -->
-    <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
-      <h3>Manage Subjects</h3>
-      <div class="mb-3">
-        <label class="form-label">New Subject Name:</label>
-        <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
-        <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
-      </div>
-      <div id="subject_result" class="alert mt-3" style="display:none;"></div>
-      <hr />
-      <h5>Existing Subjects</h5>
-      <div id="subjects_list">
-        <!-- Editable Subjects Will Appear Here -->
-      </div>
-    </div>
-  
-    <!-- ATTENDANCE -->
-    <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
-      <h3>Attendance Records</h3>
-      <div class="row mb-3">
-        <div class="col-md-3">
-          <label class="form-label">Student ID</label>
-          <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Subject ID</label>
-          <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Start Date</label>
-          <input type="date" id="filter_start" class="form-control" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">End Date</label>
-          <input type="date" id="filter_end" class="form-control" />
-        </div>
-      </div>
-      <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
-      <table id="attendanceTable" class="display table table-striped w-100">
-        <thead>
-          <tr>
-            <th>Doc ID</th>
-            <th>Student ID</th>
-            <th>Name</th>
-            <th>Subject ID</th>
-            <th>Subject Name</th>
-            <th>Timestamp</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="mt-3">
-        <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
-        <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
-        <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
-        <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
-        <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
-        <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
-      </div>
-    </div>
+<body class="container">
+
+<h1 class="my-4">Facial Recognition Attendance + Gemini Chat</h1>
+
+<!-- Nav Tabs -->
+<ul class="nav nav-tabs" id="mainTabs" role="tablist">
+  <li class="nav-item">
+    <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">
+      Register
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="recognize-tab" data-bs-toggle="tab" data-bs-target="#recognize" type="button" role="tab">
+      Recognize
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab">
+      Subjects
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab">
+      Attendance
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content" id="mainTabContent">
+  <!-- REGISTER -->
+  <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
+    <h3>Register a Face</h3>
+    <label class="form-label">Name</label>
+    <input type="text" id="reg_name" class="form-control" placeholder="Enter Name" />
+    <label class="form-label">Student ID</label>
+    <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID" />
+    <label class="form-label">Image</label>
+    <input type="file" id="reg_image" class="form-control" accept="image/*" />
+    <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
+    <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
   </div>
-  
-  <!-- Chatbot Toggle Button -->
-  <button id="chatbotToggle">💬</button>
-  
-  <!-- Chatbot Window -->
-  <div id="chatbotWindow" style="display:none; flex-direction:column;">
-    <div id="chatHeader">
-      <span>Gemini Chat</span>
-      <button class="close-btn" id="chatCloseBtn">X</button>
+
+  <!-- RECOGNIZE -->
+  <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
+    <h3>Recognize Faces</h3>
+    <label class="form-label">Subject (optional)</label>
+    <select id="rec_subject_select" class="form-control mb-2">
+      <option value="">-- No Subject --</option>
+    </select>
+    <label class="form-label">Image</label>
+    <input type="file" id="rec_image" class="form-control" accept="image/*" />
+    <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
+    <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
+  </div>
+
+  <!-- SUBJECTS -->
+  <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
+    <h3>Manage Subjects</h3>
+    <label class="form-label">New Subject Name:</label>
+    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
+    <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
+    <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
+    <hr />
+    <h5>Existing Subjects</h5>
+    <ul id="subjects_list"></ul>
+  </div>
+
+  <!-- ATTENDANCE -->
+  <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
+    <h3>Attendance Records</h3>
+    <div class="row mb-3">
+      <div class="col-md-3">
+        <label class="form-label">Student ID</label>
+        <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Subject ID</label>
+        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Start Date</label>
+        <input type="date" id="filter_start" class="form-control" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">End Date</label>
+        <input type="date" id="filter_end" class="form-control" />
+      </div>
     </div>
-    <div id="chatMessages" style="flex:1; overflow-y:auto; padding:10px; font-size:14px;"></div>
-    <div id="chatInputArea" style="display:flex; border-top:1px solid #ddd;">
-      <input type="text" id="chatInput" placeholder="Type a message..." style="flex:1; padding:10px; border:none; outline:none; font-size:14px;" />
-      <button id="chatSendBtn" style="background-color:#0d6efd; color:#fff; border:none; padding:0 20px; cursor:pointer;">Send</button>
+    <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
+    <table id="attendanceTable" class="display table table-striped w-100">
+      <thead>
+        <tr>
+          <th>Doc ID</th>
+          <th>Student ID</th>
+          <th>Name</th>
+          <th>Subject ID</th>
+          <th>Subject Name</th>
+          <th>Timestamp</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="mt-3">
+      <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
+      <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
+      <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
+      <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
+      <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
+      <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
     </div>
   </div>
 </div>
 
-<!-- High-Quality Background Image (Optional) -->
-<div style="display:none;">
-  <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1950&q=80" alt="Background Image" />
+<!-- Chatbot Toggle Button -->
+<button id="chatbotToggle">💬</button>
+
+<!-- Chatbot Window -->
+<div id="chatbotWindow" style="display:none; flex-direction:column;">
+  <div id="chatHeader">
+    <span>Gemini Chat</span>
+    <button class="close-btn" id="chatCloseBtn">X</button>
+  </div>
+  <div id="chatMessages" style="flex:1; overflow-y:auto; padding:10px; font-size:14px;"></div>
+  <div id="chatInputArea" style="display:flex; border-top:1px solid #ddd;">
+    <input type="text" id="chatInput" placeholder="Type a message..." style="flex:1; padding:8px; border:none; outline:none; font-size:14px;" />
+    <button id="chatSendBtn" style="background-color:#0d6efd; color:#fff; border:none; padding:0 15px; cursor:pointer;">Send</button>
+  </div>
 </div>
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<!-- SocketIO -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"
-        integrity="sha512-Lu5VdC+PCsUwBrkgFVlrqe/tkKQ8cHgXLMi54nQVK3lfF1YbqA1cSYxUugwVxBAtzDdMx0A2Xb+ll96szm4vQw=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
-  /* -------------- Chatbot Code with SocketIO -------------- */
+  /* -------------- Chatbot Code -------------- */
   const toggleBtn = document.getElementById('chatbotToggle');
   const chatWindow = document.getElementById('chatbotWindow');
   const chatCloseBtn = document.getElementById('chatCloseBtn');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
-
-  // Initialize SocketIO
-  const socket = io();
-
-  // Listen for assistant messages
-  socket.on('assistant_reply', (data) => {
-    addMessage(data.message, 'assistant');
-  });
 
   // Toggle chat window
   toggleBtn.addEventListener('click', () => {
@@ -494,35 +382,20 @@ INDEX_HTML = """
     addMessage(userMessage, 'user');
     chatInput.value = '';
 
-    // Show progress bar
-    const progressBar = document.querySelector('.progress');
-    const recognizeProgress = document.getElementById('recognizeProgress');
-    progressBar.style.display = 'block';
-    recognizeProgress.style.width = '0%';
-    recognizeProgress.textContent = '0%';
-
     fetch('/process_prompt', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: userMessage })
     })
     .then(res => res.json())
     .then(data => {
-      // Hide progress bar
-      progressBar.style.display = 'none';
-
       if (data.error) {
         addMessage("Error: " + data.error, 'assistant');
+      } else {
+        addMessage(data.message, 'assistant');
       }
-      // Assistant's reply will be received via SocketIO
     })
     .catch(err => {
-      // Hide progress bar
-      progressBar.style.display = 'none';
-
       addMessage("Network or server error!", 'assistant');
       console.error(err);
     });
@@ -567,33 +440,14 @@ INDEX_HTML = """
     getBase64(file, (base64Str) => {
       fetch('/register', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, student_id: studentId, image: base64Str })
       })
       .then(res => res.json())
       .then(data => {
         const div = document.getElementById('register_result');
         div.style.display = 'block';
-        div.className = data.message.includes("successfully") ? "alert alert-success" : "alert alert-danger";
         div.textContent = data.message || data.error || JSON.stringify(data);
-
-        if (data.photo) {
-          // Display the uploaded photo
-          document.getElementById('registered_image').src = data.photo;
-          document.getElementById('registered_info').style.display = 'block';
-
-          // Display the attendance record
-          const attendanceDiv = document.getElementById('registered_attendance');
-          attendanceDiv.innerHTML = `
-            <p><strong>Name:</strong> ${name}</p>
-            <p><strong>Student ID:</strong> ${studentId}</p>
-            <p><strong>Status:</strong> PRESENT</p>
-            <p><strong>Timestamp:</strong> ${data.timestamp}</p>
-          `;
-        }
       })
       .catch(err => console.error(err));
     });
@@ -610,48 +464,23 @@ INDEX_HTML = """
     getBase64(file, (base64Str) => {
       fetch('/recognize', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64Str, subject_id: subjectId })
       })
       .then(res => res.json())
       .then(data => {
         const div = document.getElementById('recognize_result');
         div.style.display = 'block';
-        div.className = "alert alert-info";
         let text = data.message || data.error || JSON.stringify(data);
-        if (data.identified_people && data.identified_people.length > 0) {
-          text += "<br/><br/>Identified People:<br/>";
-          data.identified_people.forEach((p, index) => {
-            text += `- Name: ${p.name || "Unknown"}, ID: ${p.student_id || "N/A"}, Confidence: ${p.confidence || "N/A"}%<br/>`;
+        if (data.identified_people) {
+          text += "\\n\\nIdentified People:\\n";
+          data.identified_people.forEach((p) => {
+            text += `- ${p.name || "Unknown"} (ID: ${p.student_id || "N/A"}), Confidence: ${p.confidence}\\n`;
           });
-          div.innerHTML = text;
-
-          // Display Recognized Faces
-          displayRecognizedFaces(data.cropped_faces);
-        } else {
-          div.textContent = text;
         }
+        div.textContent = text;
       })
       .catch(err => console.error(err));
-    });
-  }
-
-  function displayRecognizedFaces(croppedFaces) {
-    const facesDiv = document.getElementById('recognizedFaces');
-    facesDiv.innerHTML = ''; // Clear previous faces
-    croppedFaces.forEach((face, index) => {
-      const faceCard = document.createElement('div');
-      faceCard.classList.add('face-card');
-
-      const img = document.createElement('img');
-      img.src = face;  // Base64 image
-      img.alt = `Face ${index + 1}`;
-      faceCard.appendChild(img);
-
-      facesDiv.appendChild(faceCard);
     });
   }
 
@@ -664,17 +493,13 @@ INDEX_HTML = """
     }
     fetch('/add_subject', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject_name: subjectName })
     })
     .then(res => res.json())
     .then(data => {
       const div = document.getElementById('subject_result');
       div.style.display = 'block';
-      div.className = data.message.includes("successfully") ? "alert alert-success" : "alert alert-danger";
       div.textContent = data.message || data.error || JSON.stringify(data);
       document.getElementById('subject_name').value = '';
       loadSubjects();
@@ -683,80 +508,24 @@ INDEX_HTML = """
   }
 
   function loadSubjects() {
-    fetch('/get_subjects', {
-      headers: { 
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      }
-    })
+    fetch('/get_subjects')
     .then(res => res.json())
     .then(data => {
+      const select = document.getElementById('rec_subject_select');
+      select.innerHTML = '<option value="">-- No Subject --</option>';
+      (data.subjects || []).forEach(sub => {
+        const option = document.createElement('option');
+        option.value = sub.id;
+        option.textContent = sub.name;
+        select.appendChild(option);
+      });
       const list = document.getElementById('subjects_list');
       list.innerHTML = '';
       (data.subjects || []).forEach(sub => {
-        const div = document.createElement('div');
-        div.classList.add('editable-subject');
-        
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = sub.name;
-        input.id = `subject_${sub.id}`;
-        
-        const saveBtn = document.createElement('button');
-        saveBtn.classList.add('btn', 'btn-sm', 'btn-success');
-        saveBtn.textContent = 'Save';
-        saveBtn.onclick = () => updateSubject(sub.id);
-        
-        const deleteBtn = document.createElement('button');
-        deleteBtn.classList.add('btn', 'btn-sm', 'btn-danger', 'ms-2');
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.onclick = () => deleteSubject(sub.id);
-        
-        div.appendChild(input);
-        div.appendChild(saveBtn);
-        div.appendChild(deleteBtn);
-        
-        list.appendChild(div);
+        const li = document.createElement('li');
+        li.textContent = `ID: ${sub.id}, Name: ${sub.name}`;
+        list.appendChild(li);
       });
-    })
-    .catch(err => console.error(err));
-  }
-
-  function updateSubject(subjectId) {
-    const newName = document.getElementById(`subject_${subjectId}`).value.trim();
-    if (!newName) {
-      alert('Subject name cannot be empty.');
-      return;
-    }
-    fetch('/update_subject', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      },
-      body: JSON.stringify({ subject_id: subjectId, new_name: newName })
-    })
-    .then(res => res.json())
-    .then(data => {
-      alert(data.message || data.error || 'Subject updated.');
-      loadSubjects();
-    })
-    .catch(err => console.error(err));
-  }
-
-  function deleteSubject(subjectId) {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
-    fetch('/delete_subject', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      },
-      body: JSON.stringify({ subject_id: subjectId })
-    })
-    .then(res => res.json())
-    .then(data => {
-      alert(data.message || data.error || 'Subject deleted.');
-      loadSubjects();
     })
     .catch(err => console.error(err));
   }
@@ -774,11 +543,7 @@ INDEX_HTML = """
     if (startDate) url += 'start_date=' + startDate + '&';
     if (endDate) url += 'end_date=' + endDate + '&';
 
-    fetch(url, {
-      headers: { 
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      }
-    })
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         attendanceData = data;
@@ -830,16 +595,12 @@ INDEX_HTML = """
     });
     fetch('/api/attendance/update', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ records: updatedRecords })
     })
     .then(res => res.json())
     .then(resp => {
       alert(resp.message || JSON.stringify(resp));
-      loadAttendance();
     })
     .catch(err => console.error(err));
   }
@@ -875,9 +636,6 @@ INDEX_HTML = """
 
     fetch('/api/attendance/upload', {
       method: 'POST',
-      headers: { 
-        'Authorization': 'Bearer your_secret_token_here'  // Replace with your actual token
-      },
       body: formData
     })
     .then(res => res.json())
@@ -900,20 +658,7 @@ INDEX_HTML = """
 # 7) Routes
 # -----------------------------
 
-# Authentication Decorator
-from functools import wraps
-
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization')
-        expected_token = os.getenv('CHATBOT_SECRET_TOKEN')
-        if not token or token != f"Bearer {expected_token}":
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-# Root route to serve the frontend
+# Root route to avoid "URL not found" on /
 @app.route("/", methods=["GET"])
 def index():
     # Return the single-page UI
@@ -921,7 +666,6 @@ def index():
 
 # Register Face (GET/POST)
 @app.route("/register", methods=["GET","POST"])
-@require_auth
 def register_face():
     if request.method == "GET":
         return "Welcome to /register. Please POST with {name, student_id, image} to register."
@@ -959,35 +703,10 @@ def register_face():
     if not response.get('FaceRecords'):
         return jsonify({"message": "No face detected in the image"}), 400
 
-    # Optionally, return the uploaded photo as base64
-    buffered_photo = io.BytesIO()
-    enhanced_image.save(buffered_photo, format="JPEG")
-    photo_base64 = base64.b64encode(buffered_photo.getvalue()).decode('utf-8')
-    photo_data_uri = f"data:image/jpeg;base64,{photo_base64}"
-
-    # Log attendance
-    doc = {
-        "student_id": student_id,
-        "name": name,
-        "timestamp": datetime.utcnow().isoformat(),
-        "subject_id": "",
-        "subject_name": "",
-        "status": "PRESENT"
-    }
-    db.collection("attendance").add(doc)
-
-    # Emit a chat message via SocketIO
-    socketio.emit('assistant_reply', {'message': f"Student {name} with ID {student_id} registered successfully!"})
-
-    return jsonify({
-        "message": f"Student {name} with ID {student_id} registered successfully!",
-        "photo": photo_data_uri,
-        "timestamp": doc["timestamp"]
-    }), 200
+    return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
 
 # Recognize Face (GET/POST)
 @app.route("/recognize", methods=["GET","POST"])
-@require_auth
 def recognize_face():
     if request.method == "GET":
         return "Welcome to /recognize. Please POST with {image, subject_id(optional)} to detect faces."
@@ -1029,14 +748,12 @@ def recognize_face():
     faces = detect_response.get('FaceDetails', [])
     face_count = len(faces)
     identified_people = []
-    cropped_faces = []
 
     if face_count == 0:
         return jsonify({
             "message": "No faces detected in the image.",
             "total_faces": face_count,
-            "identified_people": identified_people,
-            "cropped_faces": cropped_faces
+            "identified_people": identified_people
         }), 200
 
     for idx, face in enumerate(faces):
@@ -1057,11 +774,6 @@ def recognize_face():
         buffer = io.BytesIO()
         cropped_face.save(buffer, format="JPEG")
         cropped_face_bytes = buffer.getvalue()
-
-        # Convert cropped face to base64
-        cropped_face_base64 = base64.b64encode(cropped_face_bytes).decode('utf-8')
-        cropped_face_data_uri = f"data:image/jpeg;base64,{cropped_face_base64}"
-        cropped_faces.append(cropped_face_data_uri)
 
         try:
             # Search for the face in the collection
@@ -1114,239 +826,176 @@ def recognize_face():
             }
             db.collection("attendance").add(doc)
 
-    # Emit a chat message via SocketIO
-    socketio.emit('assistant_reply', {'message': f"{face_count} face(s) detected in the photo."})
-
     return jsonify({
         "message": f"{face_count} face(s) detected in the photo.",
         "total_faces": face_count,
-        "identified_people": identified_people,
-        "cropped_faces": cropped_faces
+        "identified_people": identified_people
     }), 200
 
-# Add Subject
+# SUBJECTS
 @app.route("/add_subject", methods=["POST"])
-@require_auth
 def add_subject():
     data = request.json
     subject_name = data.get("subject_name")
     if not subject_name:
         return jsonify({"error": "No subject_name provided"}), 400
-    try:
-        doc_ref = db.collection("subjects").document()
-        doc_ref.set({
-            "name": subject_name.strip(),
-            "created_at": datetime.utcnow().isoformat()
-        })
-        # Emit a chat message via SocketIO
-        socketio.emit('assistant_reply', {'message': f"Subject '{subject_name}' added successfully!"})
-        return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
+    doc_ref = db.collection("subjects").document()
+    doc_ref.set({
+        "name": subject_name.strip(),
+        "created_at": datetime.utcnow().isoformat()
+    })
+    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
 
-# Get Subjects
 @app.route("/get_subjects", methods=["GET"])
-@require_auth
 def get_subjects():
-    try:
-        subs = db.collection("subjects").stream()
-        subj_list = []
-        for s in subs:
-            d = s.to_dict()
-            subj_list.append({"id": s.id, "name": d.get("name","")})
-        return jsonify({"subjects": subj_list}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to retrieve subjects: {str(e)}"}), 500
-
-# Update Subject
-@app.route("/update_subject", methods=["POST"])
-@require_auth
-def update_subject():
-    data = request.json
-    subject_id = data.get("subject_id")
-    new_name = data.get("new_name")
-    if not subject_id or not new_name:
-        return jsonify({"error": "subject_id and new_name are required"}), 400
-    try:
-        doc_ref = db.collection("subjects").document(subject_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return jsonify({"error": "Subject not found"}), 404
-        doc_ref.update({"name": new_name.strip()})
-        # Emit a chat message via SocketIO
-        socketio.emit('assistant_reply', {'message': f"Subject updated to '{new_name}' successfully!"})
-        return jsonify({"message": f"Subject updated to '{new_name}' successfully!"}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
-# Delete Subject
-@app.route("/delete_subject", methods=["POST"])
-@require_auth
-def delete_subject():
-    data = request.json
-    subject_id = data.get("subject_id")
-    if not subject_id:
-        return jsonify({"error": "subject_id is required"}), 400
-    try:
-        doc_ref = db.collection("subjects").document(subject_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return jsonify({"error": "Subject not found"}), 404
-        doc_ref.delete()
-        # Emit a chat message via SocketIO
-        socketio.emit('assistant_reply', {'message': f"Subject with ID '{subject_id}' deleted successfully!"})
-        return jsonify({"message": f"Subject with ID '{subject_id}' deleted successfully!"}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+    subs = db.collection("subjects").stream()
+    subj_list = []
+    for s in subs:
+        d = s.to_dict()
+        subj_list.append({"id": s.id, "name": d.get("name","")})
+    return jsonify({"subjects": subj_list}), 200
 
 # ATTENDANCE
 import openpyxl
 from openpyxl import Workbook
 
 @app.route("/api/attendance", methods=["GET"])
-@require_auth
 def get_attendance():
     student_id = request.args.get("student_id")
     subject_id = request.args.get("subject_id")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
 
-    try:
-        query = db.collection("attendance")
-        if student_id:
-            query = query.where("student_id", "==", student_id)
-        if subject_id:
-            query = query.where("subject_id", "==", subject_id)
-        if start_date:
+    query = db.collection("attendance")
+    if student_id:
+        query = query.where("student_id", "==", student_id)
+    if subject_id:
+        query = query.where("subject_id", "==", subject_id)
+    if start_date:
+        try:
             dt_start = datetime.strptime(start_date, "%Y-%m-%d")
             query = query.where("timestamp", ">=", dt_start.isoformat())
-        if end_date:
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
+    if end_date:
+        try:
             dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                 hour=23, minute=59, second=59, microsecond=999999
             )
             query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
 
-        results = query.stream()
-        out_list = []
-        for doc_ in results:
-            dd = doc_.to_dict()
-            dd["doc_id"] = doc_.id
-            out_list.append(dd)
+    results = query.stream()
+    out_list = []
+    for doc_ in results:
+        dd = doc_.to_dict()
+        dd["doc_id"] = doc_.id
+        out_list.append(dd)
 
-        return jsonify(out_list)
-    except Exception as e:
-        return jsonify({"error": f"Failed to retrieve attendance records: {str(e)}"}), 500
+    return jsonify(out_list)
 
 @app.route("/api/attendance/update", methods=["POST"])
-@require_auth
 def update_attendance():
     data = request.json
     records = data.get("records", [])
-    try:
-        for rec in records:
-            doc_id = rec.get("doc_id")
-            if not doc_id:
-                continue
-            ref = db.collection("attendance").document(doc_id)
-            update_data = {
-                "student_id": rec.get("student_id",""),
-                "name": rec.get("name",""),
-                "subject_id": rec.get("subject_id",""),
-                "subject_name": rec.get("subject_name",""),
-                "timestamp": rec.get("timestamp",""),
-                "status": rec.get("status","")
-            }
-            ref.update(update_data)
-        # Emit a chat message via SocketIO
-        socketio.emit('assistant_reply', {'message': "Attendance records updated successfully."})
-        return jsonify({"message": "Attendance records updated successfully."})
-    except Exception as e:
-        return jsonify({"error": f"Failed to update attendance records: {str(e)}"}), 500
+    for rec in records:
+        doc_id = rec.get("doc_id")
+        if not doc_id:
+            continue
+        ref = db.collection("attendance").document(doc_id)
+        update_data = {
+            "student_id": rec.get("student_id",""),
+            "name": rec.get("name",""),
+            "subject_id": rec.get("subject_id",""),
+            "subject_name": rec.get("subject_name",""),
+            "timestamp": rec.get("timestamp",""),
+            "status": rec.get("status","")
+        }
+        ref.update(update_data)
+    return jsonify({"message": "Attendance records updated successfully."})
 
 @app.route("/api/attendance/download", methods=["GET"])
-@require_auth
 def download_attendance_excel():
     student_id = request.args.get("student_id")
     subject_id = request.args.get("subject_id")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
 
-    try:
-        query = db.collection("attendance")
-        if student_id:
-            query = query.where("student_id", "==", student_id)
-        if subject_id:
-            query = query.where("subject_id", "==", subject_id)
-        if start_date:
+    query = db.collection("attendance")
+    if student_id:
+        query = query.where("student_id", "==", student_id)
+    if subject_id:
+        query = query.where("subject_id", "==", subject_id)
+    if start_date:
+        try:
             dt_start = datetime.strptime(start_date, "%Y-%m-%d")
             query = query.where("timestamp", ">=", dt_start.isoformat())
-        if end_date:
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
+    if end_date:
+        try:
             dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                 hour=23, minute=59, second=59, microsecond=999999
             )
             query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
 
-        results = query.stream()
-        att_list = []
-        for doc_ in results:
-            dd = doc_.to_dict()
-            dd["doc_id"] = doc_.id
-            att_list.append(dd)
+    results = query.stream()
+    att_list = []
+    for doc_ in results:
+        dd = doc_.to_dict()
+        dd["doc_id"] = doc_.id
+        att_list.append(dd)
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Attendance"
-        headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
-        ws.append(headers)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance"
+    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
+    ws.append(headers)
 
-        for record in att_list:
-            row = [
-                record.get("doc_id",""),
-                record.get("student_id",""),
-                record.get("name",""),
-                record.get("subject_id",""),
-                record.get("subject_name",""),
-                record.get("timestamp",""),
-                record.get("status","")
-            ]
-            ws.append(row)
+    for record in att_list:
+        row = [
+            record.get("doc_id",""),
+            record.get("student_id",""),
+            record.get("name",""),
+            record.get("subject_id",""),
+            record.get("subject_name",""),
+            record.get("timestamp",""),
+            record.get("status","")
+        ]
+        ws.append(row)
 
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
-        return send_file(
-            output,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name="attendance.xlsx"
-        )
-    except Exception as e:
-        return jsonify({"error": f"Failed to download attendance records: {str(e)}"}), 500
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="attendance.xlsx"
+    )
 
 @app.route("/api/attendance/template", methods=["GET"])
-@require_auth
 def download_template():
-    try:
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Attendance Template"
-        headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
-        ws.append(headers)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance Template"
+    headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
+    ws.append(headers)
 
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
-        return send_file(
-            output,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name="attendance_template.xlsx"
-        )
-    except Exception as e:
-        return jsonify({"error": f"Failed to generate template: {str(e)}"}), 500
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="attendance_template.xlsx"
+    )
 
 @app.route("/api/attendance/upload", methods=["POST"])
-@require_auth
 def upload_attendance_excel():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
@@ -1356,47 +1005,44 @@ def upload_attendance_excel():
 
     try:
         wb = openpyxl.load_workbook(file)
-        ws = wb.active
-        rows = list(ws.iter_rows(values_only=True))
-        expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
-        if not rows or rows[0] != expected:
-            return jsonify({"error": "Incorrect template format"}), 400
-
-        for row in rows[1:]:
-            doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
-            if doc_id:
-                doc_data = {
-                    "student_id": student_id or "",
-                    "name": name or "",
-                    "subject_id": subject_id or "",
-                    "subject_name": subject_name or "",
-                    "timestamp": timestamp or "",
-                    "status": status or ""
-                }
-                db.collection("attendance").document(doc_id).set(doc_data, merge=True)
-            else:
-                new_doc = {
-                    "student_id": student_id or "",
-                    "name": name or "",
-                    "subject_id": subject_id or "",
-                    "subject_name": subject_name or "",
-                    "timestamp": timestamp or "",
-                    "status": status or ""
-                }
-                db.collection("attendance").add(new_doc)
-        
-        # Emit a chat message via SocketIO
-        socketio.emit('assistant_reply', {'message': "Excel data imported successfully."})
-
-        return jsonify({"message": "Excel data imported successfully."})
     except Exception as e:
-        return jsonify({"error": f"Failed to import Excel data: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to read Excel file: {str(e)}"}), 400
+
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
+    if not rows or rows[0] != expected:
+        return jsonify({"error": "Incorrect template format"}), 400
+
+    for row in rows[1:]:
+        doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
+        if doc_id:
+            doc_data = {
+                "student_id": student_id or "",
+                "name": name or "",
+                "subject_id": subject_id or "",
+                "subject_name": subject_name or "",
+                "timestamp": timestamp or "",
+                "status": status or ""
+            }
+            db.collection("attendance").document(doc_id).set(doc_data, merge=True)
+        else:
+            new_doc = {
+                "student_id": student_id or "",
+                "name": name or "",
+                "subject_id": subject_id or "",
+                "subject_name": subject_name or "",
+                "timestamp": timestamp or "",
+                "status": status or ""
+            }
+            db.collection("attendance").add(new_doc)
+
+    return jsonify({"message": "Excel data imported successfully."})
 
 # -----------------------------
 # 8) Gemini Chat Endpoint
 # -----------------------------
 @app.route("/process_prompt", methods=["POST"])
-@require_auth
 def process_prompt():
     data = request.json
     user_prompt = data.get("prompt","").strip()
@@ -1434,121 +1080,11 @@ def process_prompt():
     if len(conversation_memory) > MAX_MEMORY:
         conversation_memory.pop(0)
 
-    # Parse assistant_reply for actionable commands
-    perform_command(assistant_reply)
-
-    # Emit the assistant's reply to the client via SocketIO
-    socketio.emit('assistant_reply', {'message': assistant_reply})
-
     return jsonify({"message": assistant_reply})
 
-def perform_command(message):
-    """
-    Parses the assistant's message and performs Firebase operations based on recognized commands.
-    """
-    # Simple command parsing using regex
-    # You can enhance this with NLP techniques for better accuracy
-
-    # Example Commands:
-    # - "Add a new subject named 'Physics'"
-    # - "Delete the subject with ID 'abc123'"
-    # - "Update the subject 'Mathematics' to 'Advanced Mathematics'"
-    # - "Generate attendance report for 'Mathematics'"
-
-    add_subject_pattern = r"add a new subject named '(.*)'"
-    delete_subject_pattern = r"delete the subject with id '(.*)'"
-    update_subject_pattern = r"update the subject '(.*)' to '(.*)'"
-    generate_report_pattern = r"generate attendance report for '(.*)'"
-
-    if re.search(add_subject_pattern, message, re.IGNORECASE):
-        match = re.search(add_subject_pattern, message, re.IGNORECASE)
-        subject_name = match.group(1)
-        add_subject_to_firebase(subject_name)
-    elif re.search(delete_subject_pattern, message, re.IGNORECASE):
-        match = re.search(delete_subject_pattern, message, re.IGNORECASE)
-        subject_id = match.group(1)
-        delete_subject_from_firebase(subject_id)
-    elif re.search(update_subject_pattern, message, re.IGNORECASE):
-        match = re.search(update_subject_pattern, message, re.IGNORECASE)
-        old_name, new_name = match.group(1), match.group(2)
-        update_subject_in_firebase(old_name, new_name)
-    elif re.search(generate_report_pattern, message, re.IGNORECASE):
-        match = re.search(generate_report_pattern, message, re.IGNORECASE)
-        subject_name = match.group(1)
-        generate_attendance_report(subject_name)
-    # Add more command patterns as needed
-
-def add_subject_to_firebase(subject_name):
-    try:
-        doc_ref = db.collection("subjects").document()
-        doc_ref.set({
-            "name": subject_name.strip(),
-            "created_at": datetime.utcnow().isoformat()
-        })
-        # Emit a chat message via SocketIO
-        socketio.emit('assistant_reply', {'message': f"Subject '{subject_name}' added successfully!"})
-    except Exception as e:
-        socketio.emit('assistant_reply', {'message': f"Failed to add subject '{subject_name}': {str(e)}"})
-
-def delete_subject_from_firebase(subject_id):
-    try:
-        doc_ref = db.collection("subjects").document(subject_id)
-        doc = doc_ref.get()
-        if doc.exists:
-            doc_ref.delete()
-            socketio.emit('assistant_reply', {'message': f"Subject with ID '{subject_id}' deleted successfully!"})
-        else:
-            socketio.emit('assistant_reply', {'message': f"Subject with ID '{subject_id}' does not exist."})
-    except Exception as e:
-        socketio.emit('assistant_reply', {'message': f"Failed to delete subject '{subject_id}': {str(e)}"})
-
-def update_subject_in_firebase(old_name, new_name):
-    try:
-        subjects = db.collection("subjects").where("name", "==", old_name).stream()
-        updated = False
-        for sub in subjects:
-            sub.reference.update({"name": new_name.strip()})
-            updated = True
-        if updated:
-            socketio.emit('assistant_reply', {'message': f"Subject '{old_name}' updated to '{new_name}' successfully!"})
-        else:
-            socketio.emit('assistant_reply', {'message': f"Subject '{old_name}' not found."})
-    except Exception as e:
-        socketio.emit('assistant_reply', {'message': f"Failed to update subject '{old_name}': {str(e)}"})
-
-def generate_attendance_report(subject_name):
-    try:
-        # Fetch attendance records for the given subject
-        attendance = db.collection("attendance").where("subject_name", "==", subject_name).stream()
-        total_present = 0
-        total_records = 0
-        student_attendance = {}
-
-        for record in attendance:
-            total_records += 1
-            if record.to_dict().get("status") == "PRESENT":
-                total_present += 1
-            student_id = record.to_dict().get("student_id")
-            if student_id:
-                student_attendance[student_id] = student_attendance.get(student_id, 0) + 1
-
-        report = f"**Attendance Report for '{subject_name}':**\n"
-        report += f"Total Records: {total_records}\n"
-        report += f"Total Present: {total_present}\n"
-        report += "**Attendance by Student:**\n"
-        for student_id, count in student_attendance.items():
-            report += f"- ID: {student_id}, Days Present: {count}\n"
-
-        socketio.emit('assistant_reply', {'message': report})
-    except Exception as e:
-        socketio.emit('assistant_reply', {'message': f"Failed to generate attendance report for '{subject_name}': {str(e)}"})
-
 # -----------------------------
-# 9) Run App with SocketIO
+# 9) Run App
 # -----------------------------
 if __name__ == "__main__":
-    import eventlet
-    import eventlet.wsgi
-    
     port = int(os.getenv("PORT", 5000))
-    eventlet.wsgi.server(eventlet.listen(("0.0.0.0", port)), app)
+    app.run(host="0.0.0.0", port=port, debug=True)
