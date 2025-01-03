@@ -1530,7 +1530,7 @@ def create_default_admin():
     if not admins:
         default_username = "admin"
         default_password = "Admin123!"  # **Change this password immediately after first login**
-        password_hash = generate_password_hash(default_password, method="sha256")
+        password_hash = generate_password_hash(default_password, method="pbkdf2:sha256")  # Updated method
         
         admin_data = {
             "username": default_username,
@@ -1543,6 +1543,41 @@ def create_default_admin():
         print(f"Default admin user '{default_username}' created with password '{default_password}'.")
     else:
         print("Admin user already exists. No default admin created.")
+
+@app.route("/change_password", methods=["GET", "POST"])
+@role_required(['admin', 'teacher', 'student'])  # Adjust roles as needed
+def change_password():
+    if request.method == "POST":
+        current_password = request.form.get("current_password")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+        
+        if not current_password or not new_password or not confirm_password:
+            flash("All fields are required.", "danger")
+            return redirect(url_for('change_password'))
+        
+        if new_password != confirm_password:
+            flash("New passwords do not match.", "danger")
+            return redirect(url_for('change_password'))
+        
+        # Verify current password
+        user_doc = db.collection("users").where("username", "==", current_user.username).stream()
+        user = None
+        for usr in user_doc:
+            user = usr
+            break
+        
+        if user and check_password_hash(user.to_dict().get("password_hash"), current_password):
+            # Update password
+            new_password_hash = generate_password_hash(new_password, method="pbkdf2:sha256")
+            db.collection("users").document(user.id).update({"password_hash": new_password_hash})
+            flash("Password updated successfully.", "success")
+            return redirect(url_for('dashboard'))
+        else:
+            flash("Current password is incorrect.", "danger")
+            return redirect(url_for('change_password'))
+    
+    return render_template("change_password.html")
 
 if __name__ == "__main__":
     # Create default admin if none exists
