@@ -1,116 +1,147 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="mb-4">Dashboard</h1>
+<div class="container">
+    <h1 class="mb-4">Dashboard</h1>
 
-<!-- Tabs -->
-<ul class="nav nav-tabs" id="mainTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab" aria-controls="register" aria-selected="true">Register</button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="recognize-tab" data-bs-toggle="tab" data-bs-target="#recognize" type="button" role="tab" aria-controls="recognize" aria-selected="false">Recognize</button>
-    </li>
-    {% if current_user.role in ['admin', 'teacher'] %}
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab" aria-controls="subjects" aria-selected="false">Subjects</button>
-    </li>
-    {% endif %}
-    {% if current_user.role == 'admin' %}
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab" aria-controls="admin" aria-selected="false">Admin</button>
-    </li>
-    {% endif %}
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab" aria-controls="attendance" aria-selected="false">Attendance</button>
-    </li>
-</ul>
-
-<div class="tab-content" id="mainTabsContent">
-    <!-- REGISTER -->
-    <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
-        <h3>Register a Face</h3>
-        <label class="form-label">Name</label>
-        <input type="text" id="reg_name" class="form-control" placeholder="Enter Name" />
-        <label class="form-label">Student ID</label>
-        <input type="text" id="reg_student_id" class="form-control" placeholder="Enter Student ID" />
-        <label class="form-label">Image</label>
-        <input type="file" id="reg_image" class="form-control" accept="image/*" />
-        <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
-        <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
-    </div>
-
-    <!-- RECOGNIZE -->
-    <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
-        <h3>Recognize Faces</h3>
-        <label class="form-label">Subject (optional)</label>
-        <select id="rec_subject_select" class="form-select mb-2">
-            <option value="">-- No Subject --</option>
-            {% for subject in subjects %}
-                <option value="{{ subject.id }}">{{ subject.name }}</option>
-            {% endfor %}
-        </select>
-        <label class="form-label">Image</label>
-        <input type="file" id="rec_image" class="form-control" accept="image/*" />
-        <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
-        <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
-    </div>
-
-    <!-- SUBJECTS -->
-    {% if current_user.role in ['admin', 'teacher'] %}
-    <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
-        <h3>Manage Subjects</h3>
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab" aria-controls="register" aria-selected="true">Register</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab" aria-controls="attendance" aria-selected="false">View Attendance</button>
+        </li>
+        {% if current_user.role in ['admin', 'teacher'] %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab" aria-controls="subjects" aria-selected="false">Subjects</button>
+        </li>
+        {% endif %}
         {% if current_user.role == 'admin' %}
-            <button id="addSubjectBtn" class="btn btn-primary mb-3">Add Subject</button>
-            <div id="subject_result" class="alert" style="display:none;"></div>
-            <div class="table-responsive">
-                <table id="subjectsTable" class="table table-striped" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>Subject Code</th>
-                            <th>Subject Name</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- DataTables will populate this -->
-                    </tbody>
-                </table>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab" aria-controls="admin" aria-selected="false">Admin</button>
+        </li>
+        {% endif %}
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="myTabContent">
+        <!-- REGISTER -->
+        <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
+            <div class="row">
+                <div class="col-md-6">
+                    <h3>Register Attendance</h3>
+                    <form id="attendanceForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Select Subject</label>
+                            <select class="form-select" id="subject" name="subject" required>
+                                <option value="">Choose subject...</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.code }} - {{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Take Photo</label>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-primary" id="startCamera">Start Camera</button>
+                                <button type="button" class="btn btn-success" id="capturePhoto" style="display:none;">Capture Photo</button>
+                            </div>
+                            <video id="video" style="display:none; width:100%; margin-top:10px;" autoplay></video>
+                            <canvas id="canvas" style="display:none;"></canvas>
+                            <img id="photo" style="display:none; width:100%; margin-top:10px;">
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="submitAttendance">Submit Attendance</button>
+                    </form>
+                    <div id="result" class="alert mt-3" style="display:none;"></div>
+                </div>
+                <div class="col-md-6">
+                    <div id="chatWidget" class="mt-4">
+                        <h3>AI Assistant</h3>
+                        <div id="chatMessages" class="border p-3 mb-3" style="height: 300px; overflow-y: auto;"></div>
+                        <form id="chatForm" class="d-flex">
+                            <input type="text" id="userMessage" class="form-control me-2" placeholder="Ask a question...">
+                            <button type="submit" class="btn btn-primary">Send</button>
+                        </form>
+                    </div>
+                </div>
             </div>
+        </div>
+
+        <!-- ATTENDANCE -->
+        <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Attendance Records</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="attendanceTable" class="table table-striped table-bordered" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>Document ID</th>
+                                    <th>Student ID</th>
+                                    <th>Name</th>
+                                    <th>Subject ID</th>
+                                    <th>Subject Name</th>
+                                    <th>Timestamp</th>
+                                    <th>Status</th>
+                                    <th>Recorded By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- DataTables will populate this -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUBJECTS -->
+        {% if current_user.role in ['admin', 'teacher'] %}
+        <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Manage Subjects</h3>
+                    {% if current_user.role == 'admin' %}
+                    <button id="addSubjectBtn" class="btn btn-light">Add Subject</button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div id="subject_result" class="alert" style="display:none;"></div>
+                    <div class="table-responsive">
+                        <table id="subjectsTable" class="table table-striped table-bordered" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>Subject Code</th>
+                                    <th>Subject Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- DataTables will populate this -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ADMIN -->
+        {% if current_user.role == 'admin' %}
+        <div class="tab-pane fade mt-4" id="admin" role="tabpanel" aria-labelledby="admin-tab">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Admin Panel</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Admin-specific content goes here -->
+                </div>
+            </div>
+        </div>
         {% endif %}
     </div>
-    {% endif %}
-
-    <!-- ATTENDANCE -->
-    <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
-        <h3>Attendance Records</h3>
-        <div class="table-responsive">
-            <table id="attendanceTable" class="table table-striped" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Document ID</th>
-                        <th>Student ID</th>
-                        <th>Name</th>
-                        <th>Subject ID</th>
-                        <th>Subject Name</th>
-                        <th>Timestamp</th>
-                        <th>Status</th>
-                        <th>Recorded By</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- DataTables will populate this -->
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- ADMIN -->
-    {% if current_user.role == 'admin' %}
-    <div class="tab-pane fade mt-4" id="admin" role="tabpanel" aria-labelledby="admin-tab">
-        <h3>Admin Panel</h3>
-        <!-- Admin-specific content goes here -->
-    </div>
-    {% endif %}
 </div>
 
 <script>
