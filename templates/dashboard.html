@@ -72,7 +72,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Rows will be populated by DataTables -->
+                        <!-- DataTables will populate this -->
                     </tbody>
                 </table>
             </div>
@@ -82,25 +82,26 @@
 
     <!-- ATTENDANCE -->
     <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
-        <h3>Attendance</h3>
-        <!-- Attendance content goes here -->
-        <table id="attendanceTable" class="table table-striped" style="width:100%">
-            <thead>
-                <tr>
-                    <th>Document ID</th>
-                    <th>Student ID</th>
-                    <th>Name</th>
-                    <th>Subject ID</th>
-                    <th>Subject Name</th>
-                    <th>Timestamp</th>
-                    <th>Status</th>
-                    <th>Recorded By</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- DataTables will populate this -->
-            </tbody>
-        </table>
+        <h3>Attendance Records</h3>
+        <div class="table-responsive">
+            <table id="attendanceTable" class="table table-striped" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>Document ID</th>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Subject ID</th>
+                        <th>Subject Name</th>
+                        <th>Timestamp</th>
+                        <th>Status</th>
+                        <th>Recorded By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- DataTables will populate this -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- ADMIN -->

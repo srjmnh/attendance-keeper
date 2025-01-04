@@ -99,11 +99,19 @@ function initializeSubjectsTable() {
             }
         },
         "columns": [
-            { "data": "code" },
+            { 
+                "data": "code",
+                "render": function(data, type, row) {
+                    if (type === 'display' && currentUserRole === 'admin') {
+                        return `<input type="text" class="form-control subject-code-input" value="${data}" data-id="${row.id}">`;
+                    }
+                    return data;
+                }
+            },
             { 
                 "data": "name",
                 "render": function(data, type, row) {
-                    if (type === 'display') {
+                    if (type === 'display' && currentUserRole === 'admin') {
                         return `<input type="text" class="form-control subject-name-input" value="${data}" data-id="${row.id}">`;
                     }
                     return data;
@@ -112,6 +120,7 @@ function initializeSubjectsTable() {
             { 
                 "data": null,
                 "orderable": false,
+                "visible": currentUserRole === 'admin',
                 "render": function(data, type, row) {
                     return `
                         <button class="btn btn-primary btn-sm save-btn" data-id="${row.id}">Save</button>
@@ -256,6 +265,56 @@ $(document).ready(function() {
                                 Then, it can be accessed here.
                              */ 'admin'; // Placeholder, replace with actual role.
 
+    // Initialize DataTables
+    if (document.getElementById('attendanceTable')) {
+        initializeAttendanceTable();
+    }
+    
+    if (document.getElementById('subjectsTable')) {
+        initializeSubjectsTable();
+    }
+
+    // Add event handlers for subject operations
+    $(document).on('click', '.save-btn', function() {
+        const row = $(this).closest('tr');
+        const subjectId = $(this).data('id');
+        const newCode = row.find('.subject-code-input').val().trim();
+        const newName = row.find('.subject-name-input').val().trim();
+        
+        if (!newName || !newCode) {
+            alert('Subject code and name cannot be empty.');
+            return;
+        }
+        
+        saveSubjectEdit(subjectId, newCode, newName);
+    });
+    
+    $(document).on('click', '.delete-btn', function() {
+        if (confirm('Are you sure you want to delete this subject?')) {
+            const subjectId = $(this).data('id');
+            deleteSubject(subjectId);
+        }
+    });
+
+    // Add subject button handler
+    $('#addSubjectBtn').on('click', function() {
+        const name = prompt('Enter subject name:');
+        if (name) {
+            const code = name.substring(0, 3).toUpperCase();
+            addSubject(code, name);
+        }
+    });
+
+    loadSubjects();
+
+    // Initialize Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+});
+
+function initializeAttendanceTable() {
     attendanceTable = $('#attendanceTable').DataTable({
         "ajax": {
             "url": "/api/attendance/fetch",
@@ -277,17 +336,25 @@ $(document).ready(function() {
         ],
         "order": [[5, 'desc']], // Sort by timestamp by default
         "pageLength": 10,
-        "responsive": true
+        "responsive": true,
+        "dom": 'Bfrtip',
+        "buttons": ['copy', 'csv', 'excel', 'pdf', 'print'],
+        "initComplete": function () {
+            this.api().columns().every(function () {
+                let column = this;
+                let title = $(column.header()).text();
+                // Create the filter input
+                let input = $('<input type="text" class="form-control form-control-sm" placeholder="Filter ' + title + '" />')
+                    .appendTo($(column.header()))
+                    .on('keyup change', function () {
+                        if (column.search() !== this.value) {
+                            column.search(this.value).draw();
+                        }
+                    });
+            });
+        }
     });
-
-    loadSubjects();
-
-    // Initialize Bootstrap tooltips
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-    tooltipTriggerList.forEach(function(tooltipTriggerEl) {
-        new bootstrap.Tooltip(tooltipTriggerEl)
-    });
-});
+}
 
 function loadAttendance() {
     const studentId = document.getElementById('filter_student_id').value;
