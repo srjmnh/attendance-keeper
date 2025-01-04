@@ -1229,12 +1229,21 @@ def get_subjects():
             for cls in current_user.classes:
                 sub_docs = db.collection("subjects").where("name", "==", cls).stream()
                 for doc in sub_docs:
-                    subjects.append({"id": doc.id, "name": doc.to_dict().get("name", "")})
+                    subjects.append({
+                        "id": doc.id,
+                        "name": doc.to_dict().get("name", ""),
+                        "code": doc.to_dict().get("code", "N/A")
+                    })
             return jsonify({"subjects": subjects}), 200
         else:
             # Admin can see all subjects
             subs = db.collection("subjects").stream()
-            subj_list = [{"id": s.id, "name": s.to_dict().get("name", "")} for s in subs]
+            subj_list = [{
+                "id": s.id,
+                "code": s.to_dict().get("code", "N/A"),
+                "name": s.to_dict().get("name", ""),
+                "created_at": s.to_dict().get("created_at", "N/A")
+            } for s in subs]
             return jsonify({"subjects": subj_list}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500

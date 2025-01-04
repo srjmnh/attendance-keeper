@@ -124,7 +124,7 @@ function loadSubjectsList() {
             data.subjects.forEach(subject => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item';
-                li.innerText = subject.name;
+                li.innerText = `${subject.code} - ${subject.name}`;
                 subjectsList.appendChild(li);
             });
         } else if (data.error) {
@@ -194,9 +194,8 @@ $(document).on('click', '.delete-btn', function() {
     deleteSubject(subjectId);
 });
 
-document.getElementById('addSubjectBtn')?.addEventListener('click', function() {
-    const addSubjectModal = new bootstrap.Modal(document.getElementById('addSubjectModal'));
-    addSubjectModal.show();
+$('#addSubjectBtn').on('click', function() {
+    $('#addSubjectModal').modal('show');
 });
 
 document.getElementById('addSubjectForm')?.addEventListener('submit', function(e) {
@@ -220,15 +219,14 @@ document.getElementById('addSubjectForm')?.addEventListener('submit', function(e
     .then(data => {
         const resultDiv = document.getElementById('subject_result');
         if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.className = 'alert alert-success';
             resultDiv.innerText = data.message;
             resultDiv.style.display = 'block';
             document.getElementById('addSubjectForm').reset();
             $('#subjectsTable').DataTable().ajax.reload();
-            const addSubjectModal = bootstrap.Modal.getInstance(document.getElementById('addSubjectModal'));
-            addSubjectModal.hide();
+            $('#addSubjectModal').modal('hide');
         } else {
-            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.className = 'alert alert-danger';
             resultDiv.innerText = data.error;
             resultDiv.style.display = 'block';
         }
