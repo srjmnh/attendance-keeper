@@ -10,12 +10,12 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="recognize-tab" data-bs-toggle="tab" data-bs-target="#recognize" type="button" role="tab" aria-controls="recognize" aria-selected="false">Recognize</button>
     </li>
-    {% if role in ['admin', 'teacher'] %}
+    {% if current_user.role in ['admin', 'teacher'] %}
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab" aria-controls="subjects" aria-selected="false">Subjects</button>
     </li>
     {% endif %}
-    {% if role == 'admin' %}
+    {% if current_user.role == 'admin' %}
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab" aria-controls="admin" aria-selected="false">Admin</button>
     </li>
@@ -56,10 +56,10 @@
     </div>
 
     <!-- SUBJECTS -->
-    {% if role in ['admin', 'teacher'] %}
+    {% if current_user.role in ['admin', 'teacher'] %}
     <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
         <h3>Manage Subjects</h3>
-        {% if role == 'admin' %}
+        {% if current_user.role == 'admin' %}
             <button id="addSubjectBtn" class="btn btn-primary mb-3">Add Subject</button>
             <div id="subject_result" class="alert" style="display:none;"></div>
             <table id="subjectsTable" class="table table-striped" style="width:100%">
@@ -137,11 +137,15 @@
     </div>
 
     <!-- ADMIN -->
-    {% if role == 'admin' %}
+    {% if current_user.role == 'admin' %}
     <div class="tab-pane fade mt-4" id="admin" role="tabpanel" aria-labelledby="admin-tab">
         <h3>Admin Panel</h3>
         <!-- Admin-specific content goes here -->
     </div>
     {% endif %}
 </div>
+
+<script>
+    var currentUserRole = "{{ current_user.role }}";
+</script>
 {% endblock %} 
