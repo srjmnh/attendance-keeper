@@ -1212,7 +1212,7 @@ def recognize_face():
 # SUBJECTS
 @app.route("/add_subject", methods=["POST"])
 @role_required(['admin', 'teacher'])
-def add_subject():
+def add_subject_general():
     data = request.json
     subject_name = data.get("subject_name")
     if not subject_name:
@@ -1656,10 +1656,24 @@ def admin_view_subjects():
         return render_template('manage_subjects.html', subjects=[])
 
 @app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
+@login_required
 @role_required(['admin'])
-def add_subject():
-    # Function implementation
-    ...
+def admin_add_subject():
+    subject_name = request.form.get('subject_name', '').strip()
+    if not subject_name:
+        return jsonify({"error": "Subject name cannot be empty."}), 400
+
+    # Generate a subject code or use another method
+    subject_code = generate_subject_code(subject_name)
+
+    try:
+        db.collection("subjects").add({
+            "code": subject_code,
+            "name": subject_name
+        })
+        return jsonify({"message": "Subject added successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
 
 def generate_subject_code(subject_name):
     """
@@ -1678,8 +1692,9 @@ def generate_subject_code(subject_name):
     return unique_code
 
 @app.route("/admin/update_subject", methods=["POST"])
+@login_required
 @role_required(['admin'])
-def update_subject():
+def admin_update_subject():
     data = request.get_json()
     subject_id = data.get('subject_id', '').strip()
     new_name = data.get('name', '').strip()
@@ -1701,7 +1716,7 @@ def update_subject():
 @app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
 @login_required
 @role_required(['admin'])
-def delete_subject(subject_id):
+def admin_delete_subject(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
@@ -1853,10 +1868,10 @@ def fetch_subjects():
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
 # Add Subject
-@app.route("/admin/subjects", methods=["POST"])
+@app.route("/admin/subjects", methods=["POST"], endpoint="admin_add_subject")
 @login_required
 @role_required(['admin'])
-def add_subject():
+def admin_add_subject():
     subject_name = request.form.get('subject_name', '').strip()
     if not subject_name:
         return jsonify({"error": "Subject name cannot be empty."}), 400
@@ -1877,7 +1892,7 @@ def add_subject():
 @app.route("/admin/update_subject", methods=["POST"])
 @login_required
 @role_required(['admin'])
-def update_subject():
+def admin_update_subject():
     data = request.get_json()
     subject_id = data.get('subject_id', '').strip()
     new_name = data.get('name', '').strip()
