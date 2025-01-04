@@ -1731,9 +1731,42 @@ def dashboard():
 @login_required
 def fetch_attendance():
     try:
-        # Fetch attendance records from Firestore or your database
+        logging.info("Fetching attendance records...")
+
+        # Retrieve query parameters
+        student_id = request.args.get("student_id")
+        subject_id = request.args.get("subject_id")
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+
+        # Reference to the attendance collection
+        attendance_ref = db.collection("attendance")
+
+        # Apply filters if provided
+        if student_id:
+            attendance_ref = attendance_ref.where("student_id", "==", student_id)
+        if subject_id:
+            attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
+        if start_date:
+            try:
+                start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+                attendance_ref = attendance_ref.where("timestamp", ">=", start_datetime)
+            except ValueError:
+                logging.error("Invalid start_date format.")
+                return jsonify({"data": [], "error": "Invalid start date format."}), 400
+        if end_date:
+            try:
+                end_datetime = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                    hour=23, minute=59, second=59, microsecond=999999
+                )
+                attendance_ref = attendance_ref.where("timestamp", "<=", end_datetime)
+            except ValueError:
+                logging.error("Invalid end_date format.")
+                return jsonify({"data": [], "error": "Invalid end date format."}), 400
+
+        # Fetch and format attendance records
         attendance_records = []
-        for record in db.collection("attendance").stream():
+        for record in attendance_ref.stream():
             record_data = record.to_dict()
             attendance_records.append({
                 "doc_id": record.id,
@@ -1744,9 +1777,12 @@ def fetch_attendance():
                 "timestamp": record_data.get("timestamp").strftime("%Y-%m-%d %H:%M:%S") if record_data.get("timestamp") else "N/A",
                 "status": record_data.get("status", "N/A")
             })
+
+        logging.info(f"Fetched {len(attendance_records)} attendance records.")
         return jsonify({"data": attendance_records})
+
     except Exception as e:
-        print(f"Error fetching attendance records: {e}")
+        logging.error(f"Error fetching attendance records: {e}")
         return jsonify({"data": [], "error": "An error occurred while fetching attendance records."}), 500
 
 if __name__ == "__main__":
