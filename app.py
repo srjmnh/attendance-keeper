@@ -1691,25 +1691,25 @@ def generate_subject_code(subject_name):
     code = ''.join(letters).ljust(3, 'X')  # Pad with 'X' if less than 3 letters
     return code[:3]
 
-@app.route("/admin/update_subject", methods=["POST"])
+@app.route("/api/subjects/update", methods=["POST"])
 @role_required(['admin'])
-def admin_update_subject():
+def api_update_subject():
     data = request.get_json()
     subject_id = data.get("id")
     new_name = data.get("name", "").strip()
-    
+
     if not subject_id or not new_name:
         return jsonify({"error": "Subject ID and new name are required."}), 400
-    
+
     # Generate a new subject code based on the new name
     new_code = generate_subject_code(new_name)
-    
+
     # Check if the new_code is unique
     subjects_ref = db.collection("subjects")
     existing = subjects_ref.where("code", "==", new_code).stream()
     if any(existing):
         return jsonify({"error": f"Subject code '{new_code}' already exists. Please choose a different subject name."}), 400
-    
+
     try:
         subjects_ref.document(subject_id).update({
             "name": new_name,
@@ -1719,31 +1719,46 @@ def admin_update_subject():
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
-@app.route("/api/subjects/update", methods=["POST"])
+@app.route("/api/subjects/delete", methods=["POST"])
 @role_required(['admin'])
-def api_update_subject():
-    data = request.json
+def api_delete_subject():
+    data = request.get_json()
     subject_id = data.get("id")
-    new_name = data.get("name")
-    
-    if not subject_id or not new_name:
-        return jsonify({"error": "Subject ID and new name are required."}), 400
+
+    if not subject_id:
+        return jsonify({"error": "Subject ID is required."}), 400
 
     try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject = subject_ref.get()
-        if not subject.exists:
-            return jsonify({"error": "Subject not found."}), 404
-
-        # Optionally, validate if the new_name already exists
-        existing_subjects = db.collection("subjects").where("name", "==", new_name).stream()
-        if any([sub.id != subject_id for sub in existing_subjects]):
-            return jsonify({"error": f"Subject name '{new_name}' already exists."}), 400
-
-        subject_ref.update({"name": new_name.strip()})
-        return jsonify({"message": "Subject updated successfully."}), 200
+        db.collection("subjects").document(subject_id).delete()
+        return jsonify({"message": "Subject deleted successfully."}), 200
     except Exception as e:
-        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+
+@app.route("/api/subjects/add", methods=["POST"])
+@role_required(['admin'])
+def api_add_subject():
+    data = request.get_json()
+    code = data.get("code", "").strip()
+    name = data.get("name", "").strip()
+
+    if not code or not name:
+        return jsonify({"error": "Subject code and name are required."}), 400
+
+    # Check if the subject code already exists
+    subjects_ref = db.collection("subjects")
+    existing = subjects_ref.where("code", "==", code).stream()
+    if any(existing):
+        return jsonify({"error": f"Subject code '{code}' already exists. Please choose a different code."}), 400
+
+    try:
+        subjects_ref.add({
+            "code": code,
+            "name": name,
+            # Add other fields as necessary
+        })
+        return jsonify({"message": "Subject added successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
 
 if __name__ == "__main__":
     # Create default admin if none exists
