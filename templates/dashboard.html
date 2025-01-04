@@ -4,34 +4,29 @@
 
 <!-- Tabs -->
 <ul class="nav nav-tabs" id="mainTabs" role="tablist">
-    {% if role in ['admin', 'teacher'] %}
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab" aria-controls="register" aria-selected="true">Register</button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="recognize-tab" data-bs-toggle="tab" data-bs-target="#recognize" type="button" role="tab" aria-controls="recognize" aria-selected="false">Recognize</button>
     </li>
-    {% endif %}
-    
     {% if role in ['admin', 'teacher'] %}
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab" aria-controls="subjects" aria-selected="true">Subjects</button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab" aria-controls="attendance" aria-selected="false">Attendance</button>
+        <button class="nav-link" id="subjects-tab" data-bs-toggle="tab" data-bs-target="#subjects" type="button" role="tab" aria-controls="subjects" aria-selected="false">Subjects</button>
     </li>
     {% endif %}
-    
     {% if role == 'admin' %}
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button" role="tab" aria-controls="admin" aria-selected="false">Admin</button>
     </li>
     {% endif %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="attendance-tab" data-bs-toggle="tab" data-bs-target="#attendance" type="button" role="tab" aria-controls="attendance" aria-selected="false">Attendance</button>
+    </li>
 </ul>
 
-<div class="tab-content" id="mainTabContent">
+<div class="tab-content" id="mainTabsContent">
     <!-- REGISTER -->
-    {% if role in ['admin', 'teacher'] %}
     <div class="tab-pane fade show active mt-4" id="register" role="tabpanel" aria-labelledby="register-tab">
         <h3>Register a Face</h3>
         <label class="form-label">Name</label>
@@ -43,10 +38,8 @@
         <button onclick="registerFace()" class="btn btn-primary mt-2">Register</button>
         <div id="register_result" class="alert alert-info mt-3" style="display:none;"></div>
     </div>
-    {% endif %}
 
     <!-- RECOGNIZE -->
-    {% if role in ['admin', 'teacher', 'student'] %}
     <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
         <h3>Recognize Faces</h3>
         {% if role in ['admin', 'teacher'] %}
@@ -63,11 +56,10 @@
         <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
         <div id="recognize_result" class="alert alert-info mt-3" style="display:none;"></div>
     </div>
-    {% endif %}
 
     <!-- SUBJECTS -->
     {% if role in ['admin', 'teacher'] %}
-    <div class="tab-pane fade show active mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
+    <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
         <h3>Manage Subjects</h3>
         {% if role == 'admin' %}
             <button id="addSubjectBtn" class="btn btn-primary mb-3">Add Subject</button>
@@ -84,10 +76,39 @@
                     <!-- Rows will be populated by JavaScript -->
                 </tbody>
             </table>
+
+            <!-- Add Subject Modal -->
+            <div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel" aria-hidden="true">
+              <div class="modal-dialog">
+                <form id="addSubjectForm">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add New Subject</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="new_subject_code" class="form-label">Subject Code</label>
+                                <input type="text" class="form-control" id="new_subject_code" name="code" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="new_subject_name" class="form-label">Subject Name</label>
+                                <input type="text" class="form-control" id="new_subject_name" name="name" required>
+                            </div>
+                            <!-- Add other fields as necessary -->
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-success">Add Subject</button>
+                        </div>
+                    </div>
+                </form>
+              </div>
+            </div>
         {% else %}
             <ul id="subjects_list" class="list-group">
                 {% for subject in subjects %}
-                    <li class="list-group-item">{{ subject.name }}</li>
+                    <li class="list-group-item">{{ subject.code }} - {{ subject.name }}</li>
                 {% endfor %}
             </ul>
         {% endif %}
@@ -95,154 +116,34 @@
     {% endif %}
 
     <!-- ATTENDANCE -->
-    {% if role in ['admin', 'teacher'] %}
     <div class="tab-pane fade mt-4" id="attendance" role="tabpanel" aria-labelledby="attendance-tab">
-        <h3>Attendance Records</h3>
-        <div class="row mb-3">
-            <div class="col-md-3">
-                <label class="form-label">Student ID</label>
-                <input type="text" id="filter_student_id" class="form-control" placeholder="e.g. 1234" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Subject ID</label>
-                <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Start Date</label>
-                <input type="date" id="filter_start" class="form-control" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">End Date</label>
-                <input type="date" id="filter_end" class="form-control" />
-            </div>
-        </div>
-        <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
-        <table id="attendanceTable" class="display table table-striped w-100">
+        <h3>Attendance</h3>
+        <!-- Attendance content goes here -->
+        <table id="attendanceTable" class="table table-striped" style="width:100%">
             <thead>
                 <tr>
-                    <th>Doc ID</th>
+                    <th>Document ID</th>
                     <th>Student ID</th>
                     <th>Name</th>
                     <th>Subject ID</th>
                     <th>Subject Name</th>
                     <th>Timestamp</th>
                     <th>Status</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-        <div class="mt-3">
-            <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
-            <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
-            <button class="btn btn-link" onclick="downloadTemplate()">Download Template</button>
-            <label class="form-label d-block mt-3">Upload Excel (template must match columns):</label>
-            <input type="file" id="excelFile" accept=".xlsx" class="form-control mb-2" />
-            <button class="btn btn-dark" onclick="uploadExcel()">Upload Excel</button>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Admin Panel -->
-    {% if role == 'admin' %}
-    <div class="tab-pane fade mt-4" id="admin" role="tabpanel" aria-labelledby="admin-tab">
-        <h3>Admin Panel</h3>
-        <a href="{{ url_for('create_user') }}" class="btn btn-primary mb-3">Create New User</a>
-        <h4>Existing Users</h4>
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Role</th>
-                    <th>Classes (if Teacher)</th>
+                    <th>Recorded By</th>
                 </tr>
             </thead>
             <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.role.capitalize() }}</td>
-                    <td>
-                        {% if user.classes %}
-                            {{ user.classes | join(", ") }}
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
+                <!-- DataTables will populate this -->
             </tbody>
         </table>
-        <h4>Manage Classes</h4>
-        <form method="POST" action="{{ url_for('add_class') }}" class="mb-3">
-            <div class="mb-3">
-                <label for="class_id" class="form-label">New Class ID:</label>
-                <input type="text" id="class_id" name="class_id" class="form-control" placeholder="e.g. Physics101" required>
-            </div>
-            <button type="submit" class="btn btn-success">Add Class</button>
-        </form>
-        <h5>Existing Classes</h5>
-        <ul>
-            {% for class in classes %}
-                <li>{{ class }}</li>
-            {% endfor %}
-        </ul>
+    </div>
+
+    <!-- ADMIN -->
+    {% if role == 'admin' %}
+    <div class="tab-pane fade mt-4" id="admin" role="tabpanel" aria-labelledby="admin-tab">
+        <h3>Admin Panel</h3>
+        <!-- Admin-specific content goes here -->
     </div>
     {% endif %}
 </div>
-
-<!-- Chatbot Toggle Button -->
-<button id="chatbotToggle" class="btn btn-primary rounded-circle">💬</button>
-
-<!-- Chatbot Window -->
-<div id="chatbotWindow" class="card" style="position: fixed; bottom: 80px; right: 20px; width: 300px; max-height: 400px; display: none; flex-direction: column;">
-    <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-        <span>Gemini Chat</span>
-        <button class="btn btn-sm btn-light" id="chatCloseBtn">X</button>
-    </div>
-    <div class="card-body overflow-auto" id="chatMessages"></div>
-    <div class="card-footer">
-        <div class="input-group">
-            <input type="text" id="chatInput" class="form-control" placeholder="Type a message..." />
-            <button class="btn btn-primary" id="chatSendBtn">Send</button>
-        </div>
-    </div>
-</div>
-
-<!-- Add Subject Modal (Admin Only) -->
-{% if role == 'admin' %}
-<div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form id="addSubjectForm">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add New Subject</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="new_subject_code" class="form-label">Subject Code</label>
-                    <input type="text" class="form-control" id="new_subject_code" name="code" required>
-                </div>
-                <div class="mb-3">
-                    <label for="new_subject_name" class="form-label">Subject Name</label>
-                    <input type="text" class="form-control" id="new_subject_name" name="name" required>
-                </div>
-                <!-- Add other fields as necessary -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="submit" class="btn btn-success">Add Subject</button>
-            </div>
-        </div>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-
-<script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %} 

@@ -110,7 +110,8 @@ function initializeSubjectsTable() {
                 }
             }
         ],
-        "order": [[0, 'asc']]
+        "order": [[0, 'asc']],
+        "destroy": true
     });
 }
 
@@ -183,19 +184,19 @@ function deleteSubject(subjectId) {
     .catch(error => console.error('Error:', error));
 }
 
+function addSubject() {
+    $('#addSubjectModal').modal('show');
+}
+
 $(document).on('click', '.save-btn', function() {
     const subjectId = $(this).data('id');
-    const newName = $(this).closest('tr').find('.subject-name-input').val();
+    const newName = $(`input.subject-name-input[data-id="${subjectId}"]`).val();
     saveSubjectEdit(subjectId, newName);
 });
 
 $(document).on('click', '.delete-btn', function() {
     const subjectId = $(this).data('id');
     deleteSubject(subjectId);
-});
-
-$('#addSubjectBtn').on('click', function() {
-    $('#addSubjectModal').modal('show');
 });
 
 document.getElementById('addSubjectForm')?.addEventListener('submit', function(e) {
