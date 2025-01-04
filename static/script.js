@@ -136,11 +136,6 @@ function loadSubjectsList() {
 }
 
 function saveSubjectEdit(subjectId, newName) {
-    if (!newName.trim()) {
-        alert('Subject name cannot be empty.');
-        return;
-    }
-
     fetch('/api/subjects/update', {
         method: 'POST',
         headers: {
@@ -150,20 +145,23 @@ function saveSubjectEdit(subjectId, newName) {
     })
     .then(response => response.json())
     .then(data => {
+        const resultDiv = document.getElementById('subject_result');
         if (data.message) {
-            alert(data.message);
+            resultDiv.className = 'alert alert-success';
+            resultDiv.innerText = data.message;
+            resultDiv.style.display = 'block';
             $('#subjectsTable').DataTable().ajax.reload();
         } else {
-            alert(`Error: ${data.error}`);
+            resultDiv.className = 'alert alert-danger';
+            resultDiv.innerText = data.error;
+            resultDiv.style.display = 'block';
         }
     })
     .catch(error => console.error('Error:', error));
 }
 
 function deleteSubject(subjectId) {
-    if (!confirm('Are you sure you want to delete this subject?')) {
-        return;
-    }
+    if (!confirm('Are you sure you want to delete this subject?')) return;
 
     fetch('/api/subjects/delete', {
         method: 'POST',
@@ -174,29 +172,38 @@ function deleteSubject(subjectId) {
     })
     .then(response => response.json())
     .then(data => {
+        const resultDiv = document.getElementById('subject_result');
         if (data.message) {
-            alert(data.message);
+            resultDiv.className = 'alert alert-success';
+            resultDiv.innerText = data.message;
+            resultDiv.style.display = 'block';
             $('#subjectsTable').DataTable().ajax.reload();
         } else {
-            alert(`Error: ${data.error}`);
+            resultDiv.className = 'alert alert-danger';
+            resultDiv.innerText = data.error;
+            resultDiv.style.display = 'block';
         }
     })
     .catch(error => console.error('Error:', error));
 }
 
-function addSubject() {
-    $('#addSubjectModal').modal('show');
-}
-
 $(document).on('click', '.save-btn', function() {
     const subjectId = $(this).data('id');
-    const newName = $(`input.subject-name-input[data-id="${subjectId}"]`).val();
+    const newName = $(`.subject-name-input[data-id="${subjectId}"]`).val().trim();
+    if (!newName) {
+        alert('Subject name cannot be empty.');
+        return;
+    }
     saveSubjectEdit(subjectId, newName);
 });
 
 $(document).on('click', '.delete-btn', function() {
     const subjectId = $(this).data('id');
     deleteSubject(subjectId);
+});
+
+document.getElementById('addSubjectBtn')?.addEventListener('click', function() {
+    $('#addSubjectModal').modal('show');
 });
 
 document.getElementById('addSubjectForm')?.addEventListener('submit', function(e) {

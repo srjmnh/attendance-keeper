@@ -42,7 +42,6 @@
     <!-- RECOGNIZE -->
     <div class="tab-pane fade mt-4" id="recognize" role="tabpanel" aria-labelledby="recognize-tab">
         <h3>Recognize Faces</h3>
-        {% if role in ['admin', 'teacher'] %}
         <label class="form-label">Subject (optional)</label>
         <select id="rec_subject_select" class="form-select mb-2">
             <option value="">-- No Subject --</option>
@@ -50,7 +49,6 @@
                 <option value="{{ subject.id }}">{{ subject.name }}</option>
             {% endfor %}
         </select>
-        {% endif %}
         <label class="form-label">Image</label>
         <input type="file" id="rec_image" class="form-control" accept="image/*" />
         <button onclick="recognizeFace()" class="btn btn-success mt-2">Recognize</button>
