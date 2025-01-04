@@ -1028,7 +1028,7 @@ INDEX_HTML = """
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    subjects = get_subjects()  # Define this function to fetch subjects from Firestore
+    subjects = get_subjects()
     return render_template('dashboard.html', role=current_user.role, subjects=subjects)
 
 # -----------------------------
@@ -1719,6 +1719,19 @@ def update_subject():
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+
+@app.route('/')
+@login_required
+def home():
+    return redirect(url_for('dashboard'))
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('500.html'), 500
 
 if __name__ == "__main__":
     # Create default admin if none exists
