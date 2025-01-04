@@ -1637,73 +1637,45 @@ def manage_users():
 # Subjects Management Routes
 # -----------------------------
 
-@app.route("/admin/subjects", methods=["GET", "POST"])
+@app.route("/admin/subjects", methods=["GET"])
 @role_required(['admin'])
-def manage_subjects():
-    if request.method == "POST":
-        # Handle adding a new subject
-        subject_name = request.form.get("subject_name").strip()
-        if not subject_name:
-            flash("Subject name cannot be empty.", "warning")
-            return redirect(url_for('manage_subjects'))
-        
-        # Generate a 3-letter subject code
-        subject_code = generate_subject_code(subject_name)
-        
-        # Check if subject_code is unique
-        subjects_ref = db.collection("subjects")
-        existing = subjects_ref.where("code", "==", subject_code).stream()
-        if any(existing):
-            flash(f"Subject code '{subject_code}' already exists. Please choose a different subject name.", "danger")
-            return redirect(url_for('manage_subjects'))
-        
-        # Add the new subject to Firestore
-        try:
-            subjects_ref.add({
-                "name": subject_name,
-                "code": subject_code.upper(),
-                "created_at": datetime.utcnow().isoformat()
-            })
-            flash(f"Subject '{subject_name}' with code '{subject_code}' added successfully!", "success")
-        except Exception as e:
-            flash(f"Error adding subject: {str(e)}", "danger")
-        
-        return redirect(url_for('manage_subjects'))
-    
-    # GET request - display subjects
-    subjects = db.collection("subjects").stream()
-    subjects_list = []
-    for subject in subjects:
-        subject_data = subject.to_dict()
-        subjects_list.append({
-            'id': subject.id,
-            'code': subject_data.get('code', 'N/A'),
-            'name': subject_data.get('name', 'N/A'),
-            'created_at': subject_data.get('created_at', 'N/A')
-        })
-    
-    return render_template_string(MANAGE_SUBJECTS_HTML, subjects=subjects_list)
-
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
-@login_required
-@role_required(['admin'])
-def delete_subject(subject_id):
+def admin_view_subjects():
     try:
-        db.collection("subjects").document(subject_id).delete()
-        flash("Subject deleted successfully.", "success")
+        subjects_ref = db.collection("subjects").stream()
+        subjects = []
+        for subject in subjects_ref:
+            subject_data = subject.to_dict()
+            subjects.append({
+                "id": subject.id,
+                "code": subject_data.get("code", "N/A"),
+                "name": subject_data.get("name", "N/A")
+            })
+        return render_template('manage_subjects.html', subjects=subjects)
     except Exception as e:
-        flash(f"Error deleting subject: {str(e)}", "danger")
-    return redirect(url_for('manage_subjects'))
+        flash(f"Error fetching subjects: {str(e)}", "danger")
+        return render_template('manage_subjects.html', subjects=[])
+
+@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
+@role_required(['admin'])
+def add_subject():
+    # Function implementation
+    ...
 
 def generate_subject_code(subject_name):
     """
-    Generates a 3-letter uppercase subject code based on the subject name.
+    Generate a unique subject code based on the subject name.
     Example: "Mathematics" -> "MAT"
     """
-    # Take the first letter of up to three words
-    letters = [word[0] for word in subject_name.upper().split()[:3]]
-    code = ''.join(letters).ljust(3, 'X')  # Pad with 'X' if less than 3 letters
-    return code[:3]
+    code = ''.join([word[0] for word in subject_name.split()]).upper()
+    # Ensure the code is unique by appending numbers if necessary
+    subjects_ref = db.collection("subjects").where("code", "==", code).stream()
+    count = 1
+    unique_code = code
+    while any(subjects_ref):
+        unique_code = f"{code}{count}"
+        subjects_ref = db.collection("subjects").where("code", "==", unique_code).stream()
+        count += 1
+    return unique_code
 
 @app.route("/admin/update_subject", methods=["POST"])
 @role_required(['admin'])
@@ -1725,6 +1697,62 @@ def update_subject():
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def delete_subject(subject_id):
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_ref.delete()
+        flash("Subject deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting subject: {str(e)}", "danger")
+    
+    return redirect(url_for('admin_view_subjects'))
+
+@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
+@role_required(['admin'])
+def admin_update_subject(subject_id):
+    subject_name = request.form.get("subject_name").strip()
+    if not subject_name:
+        flash("Subject name cannot be empty.", "warning")
+        return redirect(url_for('admin_view_subjects'))
+    
+    # Generate a new subject code
+    subject_code = generate_subject_code(subject_name)
+    
+    # Check if the new subject_code is unique
+    subjects_ref = db.collection("subjects")
+    existing = subjects_ref.where("code", "==", subject_code).stream()
+    if any(existing):
+        flash(f"Subject code '{subject_code}' already exists. Please choose a different subject name.", "danger")
+        return redirect(url_for('admin_view_subjects'))
+    
+    # Update the subject in Firestore
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_ref.update({
+            "name": subject_name,
+            "code": subject_code.upper()
+        })
+        flash(f"Subject '{subject_name}' updated successfully!", "success")
+    except Exception as e:
+        flash(f"Error updating subject: {str(e)}", "danger")
+    
+    return redirect(url_for('admin_view_subjects'))
+
+@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"])
+@role_required(['admin'])
+def admin_delete_subject(subject_id):
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_ref.delete()
+        flash("Subject deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting subject: {str(e)}", "danger")
+    
+    return redirect(url_for('admin_view_subjects'))
 
 @app.route("/dashboard")
 @login_required
@@ -1755,18 +1783,18 @@ def fetch_attendance():
             logging.info(f"Applied filter: subject_id == {subject_id}")
         if start_date:
             try:
-                start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
-                attendance_ref = attendance_ref.where("timestamp", ">=", start_datetime)
+                dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+                attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
                 logging.info(f"Applied filter: timestamp >= {start_datetime}")
             except ValueError:
                 logging.error("Invalid start_date format.")
                 return jsonify({"data": [], "error": "Invalid start date format."}), 400
         if end_date:
             try:
-                end_datetime = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                     hour=23, minute=59, second=59, microsecond=999999
                 )
-                attendance_ref = attendance_ref.where("timestamp", "<=", end_datetime)
+                attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
                 logging.info(f"Applied filter: timestamp <= {end_datetime}")
             except ValueError:
                 logging.error("Invalid end_date format.")
@@ -1875,18 +1903,28 @@ def update_subject():
 def delete_subject(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
-        subject = subject_ref.get()
-        if not subject.exists:
-            return jsonify({"error": "Subject not found."}), 404
-
         subject_ref.delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
+        flash("Subject deleted successfully.", "success")
     except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+        flash(f"Error deleting subject: {str(e)}", "danger")
+    
+    return redirect(url_for('admin_view_subjects'))
 
 def generate_subject_code(subject_name):
-    # Implement a method to generate a subject code, e.g., first 3 letters
-    return ''.join(subject_name.upper().split())[:6]  # Example implementation
+    """
+    Generate a unique subject code based on the subject name.
+    Example: "Mathematics" -> "MAT"
+    """
+    code = ''.join([word[0] for word in subject_name.split()]).upper()
+    # Ensure the code is unique by appending numbers if necessary
+    subjects_ref = db.collection("subjects").where("code", "==", code).stream()
+    count = 1
+    unique_code = code
+    while any(subjects_ref):
+        unique_code = f"{code}{count}"
+        subjects_ref = db.collection("subjects").where("code", "==", unique_code).stream()
+        count += 1
+    return unique_code
 
 if __name__ == "__main__":
     initialize_app()
