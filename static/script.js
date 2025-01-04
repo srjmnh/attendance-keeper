@@ -97,32 +97,66 @@ function loadSubjects() {
 }
 
 function addSubject() {
-    const subjectName = document.getElementById('subject_name').value;
+    const subjectName = document.getElementById('new_subject_name').value.trim();
 
     if (!subjectName) {
         alert('Please enter a subject name.');
         return;
     }
 
-    fetch('/subjects', {
+    fetch('/api/subjects', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: 'add', subject_name: subjectName }),
+        body: JSON.stringify({ name: subjectName }),
     })
     .then(response => response.json())
     .then(data => {
-        const resultDiv = document.getElementById('subject_result');
+        const resultDiv = document.getElementById('add_subject_result');
         if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.className = 'alert alert-success mt-2';
             resultDiv.innerText = data.message;
-            document.getElementById('subject_name').value = '';
-            loadSubjects();
+            document.getElementById('new_subject_name').value = '';
+            // Add new row to Subjects DataTable
+            subjectsTable.row.add([
+                data.subject.id,
+                data.subject.name,
+                `<button onclick="saveSubject('${data.subject.id}')" class="btn btn-sm btn-success">Save</button>
+                 <button onclick="deleteSubject('${data.subject.id}')" class="btn btn-sm btn-danger">Delete</button>`
+            ]).draw(false);
         } else {
-            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.className = 'alert alert-danger mt-2';
             resultDiv.innerText = data.error;
         }
+        resultDiv.style.display = 'block';
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function saveSubject(subjectId) {
+    const row = $(`tr[data-subject-id='${subjectId}']`);
+    const subjectName = row.find('td:eq(1)').text().trim();
+
+    fetch(`/api/subjects/${subjectId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: subjectName }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('subjects_result');
+        if (data.message) {
+            resultDiv.className = 'alert alert-success mt-2';
+            resultDiv.innerText = data.message;
+            subjectsTable.row(row).invalidate().draw(false);
+        } else {
+            resultDiv.className = 'alert alert-danger mt-2';
+            resultDiv.innerText = data.error;
+        }
+        resultDiv.style.display = 'block';
     })
     .catch(error => console.error('Error:', error));
 }
@@ -130,29 +164,30 @@ function addSubject() {
 function deleteSubject(subjectId) {
     if (!confirm('Are you sure you want to delete this subject?')) return;
 
-    fetch('/subjects', {
-        method: 'POST',
+    fetch(`/api/subjects/${subjectId}`, {
+        method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: 'delete', subject_id: subjectId }),
     })
     .then(response => response.json())
     .then(data => {
-        const resultDiv = document.getElementById('subject_result');
+        const resultDiv = document.getElementById('subjects_result');
         if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.className = 'alert alert-success mt-2';
             resultDiv.innerText = data.message;
-            loadSubjects();
+            subjectsTable.row($(`tr[data-subject-id='${subjectId}']`)).remove().draw(false);
         } else {
-            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.className = 'alert alert-danger mt-2';
             resultDiv.innerText = data.error;
         }
+        resultDiv.style.display = 'block';
     })
     .catch(error => console.error('Error:', error));
 }
 
 let attendanceTable;
+let subjectsTable;
 
 $(document).ready(function() {
     attendanceTable = $('#attendanceTable').DataTable({
@@ -169,6 +204,16 @@ $(document).ready(function() {
             { "data": "timestamp" },
             { "data": "status" },
             { "data": "recorded_by" }
+        ]
+    });
+
+    // Initialize Subjects DataTable
+    subjectsTable = $('#subjectsTable').DataTable({
+        "paging": true,
+        "searching": true,
+        "ordering": true,
+        "columnDefs": [
+            { "orderable": false, "targets": 2 } // Disable ordering on Actions column
         ]
     });
 

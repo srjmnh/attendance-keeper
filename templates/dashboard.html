@@ -69,21 +69,39 @@
     {% if role in ['admin', 'teacher'] %}
     <div class="tab-pane fade mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
         <h3>Manage Subjects</h3>
-        <form method="POST" action="{{ url_for('manage_subjects') }}">
-            <div class="mb-3">
-                <label for="subject_name" class="form-label">New Subject Name:</label>
-                <input type="text" id="subject_name" name="subject_name" class="form-control" placeholder="e.g. Mathematics" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Add Subject</button>
-        </form>
-        <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-        <hr />
-        <h5>Existing Subjects</h5>
-        <ul>
-            {% for subject in subjects %}
-                <li>{{ subject.name }}</li>
-            {% endfor %}
-        </ul>
+        
+        <!-- Add New Subject Form -->
+        <div class="mb-4">
+            <label for="new_subject_name" class="form-label">New Subject Name:</label>
+            <input type="text" id="new_subject_name" class="form-control" placeholder="e.g. Mathematics" />
+            <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
+            <div id="add_subject_result" class="alert alert-info mt-2" style="display:none;"></div>
+        </div>
+        
+        <!-- Editable Subjects Table -->
+        <table id="subjectsTable" class="display table table-bordered w-100">
+            <thead>
+                <tr>
+                    <th>Subject ID</th>
+                    <th>Subject Name</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for subject in subjects %}
+                <tr data-subject-id="{{ subject.id }}">
+                    <td>{{ subject.id }}</td>
+                    <td contenteditable="true">{{ subject.name }}</td>
+                    <td>
+                        <button onclick="saveSubject('{{ subject.id }}')" class="btn btn-sm btn-success">Save</button>
+                        <button onclick="deleteSubject('{{ subject.id }}')" class="btn btn-sm btn-danger">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div id="subjects_result" class="alert alert-info mt-2" style="display:none;"></div>
     </div>
     {% endif %}
 
