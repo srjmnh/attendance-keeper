@@ -62,53 +62,20 @@
         {% if current_user.role == 'admin' %}
             <button id="addSubjectBtn" class="btn btn-primary mb-3">Add Subject</button>
             <div id="subject_result" class="alert" style="display:none;"></div>
-            <table id="subjectsTable" class="table table-striped" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Subject Code</th>
-                        <th>Subject Name</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Rows will be populated by JavaScript -->
-                </tbody>
-            </table>
-
-            <!-- Add Subject Modal -->
-            <div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel" aria-hidden="true">
-              <div class="modal-dialog">
-                <form id="addSubjectForm">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Add New Subject</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label for="new_subject_code" class="form-label">Subject Code</label>
-                                <input type="text" class="form-control" id="new_subject_code" name="code" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="new_subject_name" class="form-label">Subject Name</label>
-                                <input type="text" class="form-control" id="new_subject_name" name="name" required>
-                            </div>
-                            <!-- Add other fields as necessary -->
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-success">Add Subject</button>
-                        </div>
-                    </div>
-                </form>
-              </div>
+            <div class="table-responsive">
+                <table id="subjectsTable" class="table table-striped" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Subject Code</th>
+                            <th>Subject Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be populated by DataTables -->
+                    </tbody>
+                </table>
             </div>
-        {% else %}
-            <ul id="subjects_list" class="list-group">
-                {% for subject in subjects %}
-                    <li class="list-group-item">{{ subject.code }} - {{ subject.name }}</li>
-                {% endfor %}
-            </ul>
         {% endif %}
     </div>
     {% endif %}

@@ -90,13 +90,23 @@ function loadSubjects() {
 
 function initializeSubjectsTable() {
     $('#subjectsTable').DataTable({
-        "ajax": "/get_subjects",
+        "ajax": {
+            "url": "/get_subjects",
+            "dataSrc": "data",
+            "error": function(xhr, error, thrown) {
+                console.error('Error loading subjects:', error);
+                alert('Error loading subjects. Please try again.');
+            }
+        },
         "columns": [
             { "data": "code" },
             { 
                 "data": "name",
                 "render": function(data, type, row) {
-                    return `<input type="text" class="form-control subject-name-input" value="${data}" data-id="${row.id}" />`;
+                    if (type === 'display') {
+                        return `<input type="text" class="form-control subject-name-input" value="${data}" data-id="${row.id}">`;
+                    }
+                    return data;
                 }
             },
             { 
@@ -111,7 +121,27 @@ function initializeSubjectsTable() {
             }
         ],
         "order": [[0, 'asc']],
+        "pageLength": 10,
+        "responsive": true,
         "destroy": true
+    });
+
+    $(document).on('click', '.save-btn', function() {
+        const subjectId = $(this).data('id');
+        const row = $(this).closest('tr');
+        const newName = row.find('.subject-name-input').val().trim();
+        
+        if (!newName) {
+            alert('Subject name cannot be empty.');
+            return;
+        }
+        
+        saveSubjectEdit(subjectId, newName);
+    });
+    
+    $(document).on('click', '.delete-btn', function() {
+        const subjectId = $(this).data('id');
+        deleteSubject(subjectId);
     });
 }
 
@@ -187,59 +217,31 @@ function deleteSubject(subjectId) {
     .catch(error => console.error('Error:', error));
 }
 
-$(document).on('click', '.save-btn', function() {
-    const subjectId = $(this).data('id');
-    const newName = $(`.subject-name-input[data-id="${subjectId}"]`).val().trim();
-    if (!newName) {
-        alert('Subject name cannot be empty.');
-        return;
+$(document).on('click', '#addSubjectBtn', function() {
+    const name = prompt('Enter subject name:');
+    if (name) {
+        const code = name.substring(0, 3).toUpperCase();
+        fetch('/api/subjects/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: name, code: code }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                $('#subject_result').removeClass().addClass('alert alert-success').text(data.message).show();
+                $('#subjectsTable').DataTable().ajax.reload();
+            } else {
+                $('#subject_result').removeClass().addClass('alert alert-danger').text(data.error).show();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            $('#subject_result').removeClass().addClass('alert alert-danger').text('An error occurred').show();
+        });
     }
-    saveSubjectEdit(subjectId, newName);
-});
-
-$(document).on('click', '.delete-btn', function() {
-    const subjectId = $(this).data('id');
-    deleteSubject(subjectId);
-});
-
-document.getElementById('addSubjectBtn')?.addEventListener('click', function() {
-    $('#addSubjectModal').modal('show');
-});
-
-document.getElementById('addSubjectForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const code = document.getElementById('new_subject_code').value.trim();
-    const name = document.getElementById('new_subject_name').value.trim();
-
-    if (!code || !name) {
-        alert('Subject code and name are required.');
-        return;
-    }
-
-    fetch('/api/subjects/add', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code: code, name: name }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('subject_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-success';
-            resultDiv.innerText = data.message;
-            resultDiv.style.display = 'block';
-            document.getElementById('addSubjectForm').reset();
-            $('#subjectsTable').DataTable().ajax.reload();
-            $('#addSubjectModal').modal('hide');
-        } else {
-            resultDiv.className = 'alert alert-danger';
-            resultDiv.innerText = data.error;
-            resultDiv.style.display = 'block';
-        }
-    })
-    .catch(error => console.error('Error:', error));
 });
 
 let attendanceTable;
@@ -257,7 +259,11 @@ $(document).ready(function() {
     attendanceTable = $('#attendanceTable').DataTable({
         "ajax": {
             "url": "/api/attendance/fetch",
-            "dataSrc": ""
+            "dataSrc": "",
+            "error": function(xhr, error, thrown) {
+                console.error('Error loading attendance data:', error);
+                alert('Error loading attendance data. Please try again.');
+            }
         },
         "columns": [
             { "data": "doc_id" },
@@ -268,7 +274,10 @@ $(document).ready(function() {
             { "data": "timestamp" },
             { "data": "status" },
             { "data": "recorded_by" }
-        ]
+        ],
+        "order": [[5, 'desc']], // Sort by timestamp by default
+        "pageLength": 10,
+        "responsive": true
     });
 
     loadSubjects();

@@ -1778,6 +1778,28 @@ def api_add_subject():
     except Exception as e:
         return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
 
+@app.route("/api/attendance/fetch")
+@login_required
+def fetch_attendance():
+    try:
+        attendance_ref = db.collection("attendance").stream()
+        attendance_list = []
+        for record in attendance_ref:
+            data = record.to_dict()
+            attendance_list.append({
+                "doc_id": record.id,
+                "student_id": data.get("student_id", ""),
+                "name": data.get("name", ""),
+                "subject_id": data.get("subject_id", ""),
+                "subject_name": data.get("subject_name", ""),
+                "timestamp": data.get("timestamp", ""),
+                "status": data.get("status", ""),
+                "recorded_by": data.get("recorded_by", "")
+            })
+        return jsonify(attendance_list)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     # Create default admin if none exists
     create_default_admin()
