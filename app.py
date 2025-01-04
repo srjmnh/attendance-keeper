@@ -1214,15 +1214,19 @@ def recognize_face():
 @role_required(['admin', 'teacher'])
 def add_subject_general():
     data = request.json
-    subject_name = data.get("subject_name")
+    subject_name = data.get("subject_name", "").strip()
     if not subject_name:
         return jsonify({"error": "No subject_name provided"}), 400
-    doc_ref = db.collection("subjects").document()
-    doc_ref.set({
-        "name": subject_name.strip(),
-        "created_at": datetime.utcnow().isoformat()
-    })
-    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
+    subject_code = generate_subject_code(subject_name)
+    try:
+        db.collection("subjects").add({
+            "name": subject_name,
+            "code": subject_code,
+            "created_at": datetime.utcnow().isoformat()
+        })
+        return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
 
 @app.route("/get_subjects", methods=["GET"])
 @login_required
@@ -1726,48 +1730,37 @@ def admin_delete_subject(subject_id):
     
     return redirect(url_for('admin_view_subjects'))
 
-@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
+@app.route("/admin/subjects/update/<subject_id>", methods=["POST"], endpoint="admin_update_subject")
+@login_required
 @role_required(['admin'])
 def admin_update_subject(subject_id):
-    subject_name = request.form.get("subject_name").strip()
-    if not subject_name:
-        flash("Subject name cannot be empty.", "warning")
-        return redirect(url_for('admin_view_subjects'))
-    
-    # Generate a new subject code
-    subject_code = generate_subject_code(subject_name)
-    
-    # Check if the new subject_code is unique
-    subjects_ref = db.collection("subjects")
-    existing = subjects_ref.where("code", "==", subject_code).stream()
-    if any(existing):
-        flash(f"Subject code '{subject_code}' already exists. Please choose a different subject name.", "danger")
-        return redirect(url_for('admin_view_subjects'))
-    
-    # Update the subject in Firestore
+    data = request.form  # Changed from get_json to form for URL-encoded data
+    new_name = data.get('name', '').strip()
+
+    if not subject_id or not new_name:
+        return jsonify({"error": "Subject ID and new name are required."}), 400
+
     try:
         subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.update({
-            "name": subject_name,
-            "code": subject_code.upper()
-        })
-        flash(f"Subject '{subject_name}' updated successfully!", "success")
-    except Exception as e:
-        flash(f"Error updating subject: {str(e)}", "danger")
-    
-    return redirect(url_for('admin_view_subjects'))
+        subject = subject_ref.get()
+        if not subject.exists:
+            return jsonify({"error": "Subject not found."}), 404
 
-@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"])
+        subject_ref.update({"name": new_name})
+        return jsonify({"message": "Subject updated successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject")
+@login_required
 @role_required(['admin'])
 def admin_delete_subject(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
-        flash("Subject deleted successfully.", "success")
+        return jsonify({"message": "Subject deleted successfully."}), 200
     except Exception as e:
-        flash(f"Error deleting subject: {str(e)}", "danger")
-    
-    return redirect(url_for('admin_view_subjects'))
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
 @app.route("/dashboard")
 @login_required
