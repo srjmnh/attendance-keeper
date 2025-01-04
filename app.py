@@ -1709,26 +1709,19 @@ def generate_subject_code(subject_name):
 @role_required(['admin'])
 def update_subject():
     data = request.get_json()
-    subject_id = data.get("subject_id")
-    new_name = data.get("name", "").strip()
-    
+    subject_id = data.get('subject_id', '').strip()
+    new_name = data.get('name', '').strip()
+
     if not subject_id or not new_name:
         return jsonify({"error": "Subject ID and new name are required."}), 400
-    
-    # Generate a new subject code based on the new name
-    new_code = generate_subject_code(new_name)
-    
-    # Check if the new_code is unique
-    subjects_ref = db.collection("subjects")
-    existing = subjects_ref.where("code", "==", new_code).stream()
-    if any(existing):
-        return jsonify({"error": f"Subject code '{new_code}' already exists. Please choose a different subject name."}), 400
-    
+
     try:
-        subjects_ref.document(subject_id).update({
-            "name": new_name,
-            "code": new_code
-        })
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject = subject_ref.get()
+        if not subject.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
+        subject_ref.update({"name": new_name})
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
@@ -1812,6 +1805,88 @@ def fetch_attendance():
 def save_attendance():
     # TODO: Implement the save_attendance functionality
     pass  # Placeholder to prevent IndentationError
+
+# Fetch Subjects
+@app.route("/api/subjects/fetch", methods=["GET"])
+@login_required
+def fetch_subjects():
+    try:
+        subjects_ref = db.collection("subjects").stream()
+        subjects = []
+        for subject in subjects_ref:
+            subject_data = subject.to_dict()
+            subjects.append({
+                "id": subject.id,
+                "code": subject_data.get("code", "N/A"),
+                "name": subject_data.get("name", "N/A")
+            })
+        return jsonify({"subjects": subjects}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
+
+# Add Subject
+@app.route("/admin/subjects", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def add_subject():
+    subject_name = request.form.get('subject_name', '').strip()
+    if not subject_name:
+        return jsonify({"error": "Subject name cannot be empty."}), 400
+
+    # Generate a subject code or use another method
+    subject_code = generate_subject_code(subject_name)
+
+    try:
+        db.collection("subjects").add({
+            "code": subject_code,
+            "name": subject_name
+        })
+        return jsonify({"message": "Subject added successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
+
+# Edit Subject
+@app.route("/admin/update_subject", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def update_subject():
+    data = request.get_json()
+    subject_id = data.get('subject_id', '').strip()
+    new_name = data.get('name', '').strip()
+
+    if not subject_id or not new_name:
+        return jsonify({"error": "Subject ID and new name are required."}), 400
+
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject = subject_ref.get()
+        if not subject.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
+        subject_ref.update({"name": new_name})
+        return jsonify({"message": "Subject updated successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+
+# Delete Subject
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def delete_subject(subject_id):
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject = subject_ref.get()
+        if not subject.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
+        subject_ref.delete()
+        return jsonify({"message": "Subject deleted successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+
+def generate_subject_code(subject_name):
+    # Implement a method to generate a subject code, e.g., first 3 letters
+    return ''.join(subject_name.upper().split())[:6]  # Example implementation
 
 if __name__ == "__main__":
     initialize_app()
