@@ -425,7 +425,7 @@ def admin_panel():
 
     return render_template_string(ADMIN_HTML, users=users_list)
 
-@app.route("/admin/create_user", methods=["POST"])
+@app.route("/create_user", methods=["GET", "POST"])
 @role_required(['admin'])
 def create_user():
     username = request.form.get("username").strip()
