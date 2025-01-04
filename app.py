@@ -1693,7 +1693,7 @@ def generate_subject_code(subject_name):
 
 @app.route("/admin/update_subject", methods=["POST"])
 @role_required(['admin'])
-def update_subject():
+def admin_update_subject():
     data = request.get_json()
     subject_id = data.get("id")
     new_name = data.get("name", "").strip()
@@ -1721,11 +1721,11 @@ def update_subject():
 
 @app.route("/api/subjects/update", methods=["POST"])
 @role_required(['admin'])
-def update_subject():
+def api_update_subject():
     data = request.json
     subject_id = data.get("id")
     new_name = data.get("name")
-
+    
     if not subject_id or not new_name:
         return jsonify({"error": "Subject ID and new name are required."}), 400
 

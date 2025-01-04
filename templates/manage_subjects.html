@@ -24,7 +24,7 @@
         <tbody>
             {% for subject in subjects %}
                 <tr>
-                    <form method="POST" action="{{ url_for('manage_subjects') }}">
+                    <form method="POST" action="{{ url_for('admin_update_subject') }}">
                         <input type="hidden" name="subject_id" value="{{ subject.id }}">
                         <td>
                             <input type="text" name="subject_name" value="{{ subject.name | default('') }}" class="form-control" required>
