@@ -18,8 +18,7 @@ from flask import (
     redirect,
     url_for,
     flash,
-    session,
-    render_template
+    session
 )
 from flask_login import (
     LoginManager,
@@ -207,12 +206,14 @@ LOGIN_HTML = """
 #define role_required decorator
 from functools import wraps
 
-def role_required(roles):
+def role_required(required_roles):
     def decorator(f):
         @wraps(f)
+        @login_required
         def wrapped(*args, **kwargs):
-            if current_user.role not in roles:
-                return jsonify({"error": "Access denied."}), 403
+            if current_user.role not in required_roles:
+                flash("You do not have permission to access this page.", "danger")
+                return redirect(url_for('index'))
             return f(*args, **kwargs)
         return wrapped
     return decorator
@@ -425,7 +426,7 @@ def admin_panel():
 
     return render_template_string(ADMIN_HTML, users=users_list)
 
-@app.route("/create_user", methods=["GET", "POST"])
+@app.route("/admin/create_user", methods=["POST"])
 @role_required(['admin'])
 def create_user():
     username = request.form.get("username").strip()
@@ -1024,19 +1025,12 @@ INDEX_HTML = """
 </html>
 """
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 @login_required
 def index():
-    subjects = db.collection("subjects").stream()
-    subjects_list = []
-    for subject in subjects:
-        subject_data = subject.to_dict()
-        subjects_list.append({
-            'id': subject.id,
-            'code': subject_data.get('code', ''),
-            'name': subject_data.get('name', '')
-        })
-    return render_template('dashboard.html', subjects=subjects_list)
+    # Determine which tab is active based on query parameter
+    active_tab = request.args.get("tab", "recognize")
+    return render_template_string(INDEX_HTML, active_tab=active_tab)
 
 # -----------------------------
 # 9) Routes (Register, Recognize, Subjects, Attendance)
@@ -1230,32 +1224,22 @@ def add_subject():
 @app.route("/get_subjects", methods=["GET"])
 @login_required
 def get_subjects():
-    try:
-        if current_user.role == 'teacher':
-            # Teachers can see only subjects they teach
-            subjects = []
-            subjects_ref = db.collection("subjects")
-            for subject_id in current_user.classes:  # Assuming `current_user.classes` is a list of subject IDs
-                subject = subjects_ref.document(subject_id).get()
-                if subject.exists:
-                    subject_data = subject.to_dict()
-                    subjects.append({
-                        "id": subject.id,
-                        "code": subject_data.get("code", "N/A"),
-                        "name": subject_data.get("name", "")
-                    })
-            return jsonify({"subjects": subjects}), 200
-        else:
-            # Admin can see all subjects
-            subs = db.collection("subjects").stream()
-            subj_list = [{
-                "id": s.id,
-                "code": s.to_dict().get("code", "N/A"),
-                "name": s.to_dict().get("name", "")
-            } for s in subs]
-            return jsonify({"subjects": subj_list}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
+    if current_user.role == 'teacher':
+        # Teachers can see only subjects they teach
+        subjects = []
+        for cls in current_user.classes:
+            sub_doc = db.collection("subjects").where("name", "==", cls).stream()
+            for doc in sub_doc:
+                subjects.append({"id": doc.id, "name": doc.to_dict().get("name","")})
+        return jsonify({"subjects": subjects}), 200
+    else:
+        # Admin can see all subjects
+        subs = db.collection("subjects").stream()
+        subj_list = []
+        for s in subs:
+            d = s.to_dict()
+            subj_list.append({"id": s.id, "name": d.get("name","")})
+        return jsonify({"subjects": subj_list}), 200
 
 # ATTENDANCE
 import openpyxl
@@ -1709,25 +1693,25 @@ def generate_subject_code(subject_name):
     code = ''.join(letters).ljust(3, 'X')  # Pad with 'X' if less than 3 letters
     return code[:3]
 
-@app.route("/api/subjects/update", methods=["POST"])
+@app.route("/admin/update_subject", methods=["POST"])
 @role_required(['admin'])
-def api_update_subject():
+def update_subject():
     data = request.get_json()
-    subject_id = data.get("id")
+    subject_id = data.get("subject_id")
     new_name = data.get("name", "").strip()
-
+    
     if not subject_id or not new_name:
         return jsonify({"error": "Subject ID and new name are required."}), 400
-
+    
     # Generate a new subject code based on the new name
-    new_code = new_name[:3].upper()  # Example: Take first 3 letters as code
-
+    new_code = generate_subject_code(new_name)
+    
     # Check if the new_code is unique
     subjects_ref = db.collection("subjects")
     existing = subjects_ref.where("code", "==", new_code).stream()
-    if any([sub for sub in existing if sub.id != subject_id]):
+    if any(existing):
         return jsonify({"error": f"Subject code '{new_code}' already exists. Please choose a different subject name."}), 400
-
+    
     try:
         subjects_ref.document(subject_id).update({
             "name": new_name,
@@ -1736,69 +1720,6 @@ def api_update_subject():
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
-@app.route("/api/subjects/delete", methods=["POST"])
-@role_required(['admin'])
-def api_delete_subject():
-    data = request.get_json()
-    subject_id = data.get("id")
-
-    if not subject_id:
-        return jsonify({"error": "Subject ID is required."}), 400
-
-    try:
-        db.collection("subjects").document(subject_id).delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
-
-@app.route("/api/subjects/add", methods=["POST"])
-@role_required(['admin'])
-def api_add_subject():
-    data = request.get_json()
-    code = data.get("code", "").strip()
-    name = data.get("name", "").strip()
-
-    if not code or not name:
-        return jsonify({"error": "Subject code and name are required."}), 400
-
-    # Check if the subject code already exists
-    subjects_ref = db.collection("subjects")
-    existing = subjects_ref.where("code", "==", code).stream()
-    if any(existing):
-        return jsonify({"error": f"Subject code '{code}' already exists. Please choose a different code."}), 400
-
-    try:
-        subjects_ref.add({
-            "code": code,
-            "name": name,
-            # Add other fields as necessary
-        })
-        return jsonify({"message": "Subject added successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
-
-@app.route("/api/attendance/fetch")
-@login_required
-def fetch_attendance():
-    try:
-        attendance_ref = db.collection("attendance").stream()
-        attendance_list = []
-        for record in attendance_ref:
-            data = record.to_dict()
-            attendance_list.append({
-                "doc_id": record.id,
-                "student_id": data.get("student_id", ""),
-                "name": data.get("name", ""),
-                "subject_id": data.get("subject_id", ""),
-                "subject_name": data.get("subject_name", ""),
-                "timestamp": data.get("timestamp", ""),
-                "status": data.get("status", ""),
-                "recorded_by": data.get("recorded_by", "")
-            })
-        return jsonify(attendance_list)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     # Create default admin if none exists
