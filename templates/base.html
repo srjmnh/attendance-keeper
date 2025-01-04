@@ -8,18 +8,10 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <style>
         body {
-            /* Set the background image */
             background-image: url('https://source.unsplash.com/random/1920x1080');
             background-size: cover;
             background-repeat: no-repeat;
             background-attachment: fixed;
-
-            /* Optional: Apply a background color overlay for better readability */
-            /* Uncomment the following lines if needed */
-            /* 
-            background-color: rgba(0, 0, 0, 0.5);
-            background-blend-mode: darken;
-            */
         }
 
         /* Adjust table background for better readability */
@@ -40,7 +32,7 @@
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">Your App</a>
+            <a class="navbar-brand" href="{{ url_for('index') }}">Your App</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
                     aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -49,7 +41,7 @@
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                            <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
                         </li>
                         {% if current_user.role == 'admin' %}
                             <li class="nav-item">

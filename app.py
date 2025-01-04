@@ -1224,21 +1224,28 @@ def add_subject():
 def get_subjects():
     try:
         if current_user.role == 'teacher':
-            # Assuming teachers have associated subjects
-            subjects_ref = db.collection("subjects").where("teacher_id", "==", current_user.id).stream()
+            # Teachers can see only subjects they teach
+            subjects = []
+            subjects_ref = db.collection("subjects")
+            for subject_id in current_user.subjects:  # Assuming `current_user.subjects` is a list of subject IDs
+                subject = subjects_ref.document(subject_id).get()
+                if subject.exists:
+                    subject_data = subject.to_dict()
+                    subjects.append({
+                        "id": subject.id,
+                        "code": subject_data.get("code", "N/A"),
+                        "name": subject_data.get("name", "")
+                    })
+            return jsonify({"subjects": subjects}), 200
         else:
             # Admin can see all subjects
-            subjects_ref = db.collection("subjects").stream()
-
-        subjects = []
-        for subject in subjects_ref:
-            subject_data = subject.to_dict()
-            subjects.append({
-                "id": subject.id,
-                "code": subject_data.get("code", ""),
-                "name": subject_data.get("name", "")
-            })
-        return jsonify({"subjects": subjects}), 200
+            subs = db.collection("subjects").stream()
+            subj_list = [{
+                "id": s.id,
+                "code": s.to_dict().get("code", "N/A"),
+                "name": s.to_dict().get("name", "")
+            } for s in subs]
+            return jsonify({"subjects": subj_list}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
