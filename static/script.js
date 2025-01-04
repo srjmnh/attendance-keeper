@@ -189,7 +189,7 @@ $(document).ready(function() {
 function editSubject(subjectId, currentName) {
     const newName = prompt("Enter the new subject name:", currentName);
     if (newName && newName.trim() !== "") {
-        fetch(`/admin/subjects/update/${subjectId}`, {  // Updated endpoint
+        fetch(`/admin/subjects/update/${subjectId}`, {  // Updated endpoint to match app.py
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -245,7 +245,7 @@ function deleteSubject(subjectId) {
 
 // Function to load the subjects list
 function loadSubjectsList() {
-    fetch('/api/subjects/fetch')  // Updated endpoint to match app.py
+    fetch('/api/subjects/fetch')  // Ensure this endpoint exists and returns data in { subjects: [...] } format
     .then(response => response.json())
     .then(data => {
         const subjectsList = document.getElementById('subjects_list');
@@ -329,7 +329,7 @@ function sendAdminCommand() {
 }
 
 window.onload = function() {
-    loadSubjects();
+    loadSubjectsList();
 };
 
 function redirectToDashboard() {

@@ -1,90 +1,48 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="container">
-    <h1>Manage Subjects</h1>
+<div class="container mt-5">
+    <h2>Manage Subjects</h2>
 
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
-    <!-- Subjects Table -->
-    <table class="table table-striped">
+    <!-- Subject List -->
+    <table id="subjectsTable" class="table table-striped">
         <thead>
             <tr>
-                <th>Subject Name</th>
-                <th>Details</th>
+                <th>Code</th>
+                <th>Name</th>
+                {% if current_user.role == 'admin' %}
                 <th>Actions</th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
-            {% for subject in subjects %}
-                <tr>
-                    <form method="POST" action="{{ url_for('manage_subjects') }}">
-                        <input type="hidden" name="subject_id" value="{{ subject.id }}">
-                        <td>
-                            <input type="text" name="subject_name" value="{{ subject.name | default('') }}" class="form-control" required>
-                        </td>
-                        <td>
-                            <input type="text" name="subject_details" value="{{ subject.details | default('') }}" class="form-control">
-                        </td>
-                        <td>
-                            <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                        </form>
-                            <form method="POST" action="{{ url_for('admin_delete_subject', subject_id=subject.id) }}" style="display:inline;">
-                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this subject?');">Delete</button>
-                            </form>
-                        </td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="3">No subjects found.</td>
-                </tr>
-            {% endfor %}
+            <!-- Data populated by DataTables -->
         </tbody>
     </table>
 
-    <!-- Add Subject Form -->
+    <!-- Feedback Message -->
     {% if current_user.role == 'admin' %}
-    <form method="POST" action="{{ url_for('admin_add_subject') }}" class="mb-4">
-        <div class="row g-3 align-items-center">
-            <div class="col-auto">
-                <label for="subject_name" class="col-form-label">Subject Name</label>
-            </div>
-            <div class="col-auto">
-                <input type="text" id="subject_name" name="subject_name" class="form-control" required>
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-primary">Add Subject</button>
-            </div>
-        </div>
-    </form>
+    <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
     {% endif %}
 
-    <!-- Update Subject Form -->
-    {% if current_user.role == 'admin' %}
-    <form method="POST" action="{{ url_for('admin_update_subject_route', subject_id=subject.id) }}">
-        <div class="row g-3 align-items-center">
-            <div class="col-auto">
-                <label for="new_name_{{ subject.id }}" class="col-form-label">New Subject Name</label>
-            </div>
-            <div class="col-auto">
-                <input type="text" id="new_name_{{ subject.id }}" name="name" class="form-control" required>
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-success">Update Subject</button>
-            </div>
-        </div>
-    </form>
-    {% endif %}
+    <!-- Optional: List of Subjects -->
+    <ul id="subjects_list" class="list-group mt-4">
+        <!-- Subjects will be dynamically loaded here -->
+    </ul>
+</div>
 
-    <!-- Delete Subject Form -->
-    <form method="POST" action="{{ url_for('admin_delete_subject', subject_id=subject.id) }}" style="display:inline;">
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this subject?');">Delete</button>
+<!-- Optional: Modal for Adding a Subject -->
+{% if current_user.role == 'admin' %}
+<div class="container mt-5">
+    <h3>Add New Subject</h3>
+    <form id="addSubjectForm">
+        <div class="mb-3">
+            <label for="subject_name" class="form-label">Subject Name</label>
+            <input type="text" class="form-control" id="subject_name" name="subject_name" required>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="addSubject()">Add Subject</button>
     </form>
 </div>
+{% endif %}
+
 {% endblock %} 

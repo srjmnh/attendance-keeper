@@ -1659,15 +1659,15 @@ def admin_view_subjects():
         flash(f"Error fetching subjects: {str(e)}", "danger")
         return render_template('manage_subjects.html', subjects=[])
 
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
+@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject_route")
 @login_required
 @role_required(['admin'])
-def admin_add_subject():
+def admin_add_subject_route():
     subject_name = request.form.get('subject_name', '').strip()
     if not subject_name:
         return jsonify({"error": "Subject name cannot be empty."}), 400
 
-    # Generate a subject code or use another method
+    # Generate a subject code
     subject_code = generate_subject_code(subject_name)
 
     try:
@@ -1695,40 +1695,37 @@ def generate_subject_code(subject_name):
         count += 1
     return unique_code
 
-@app.route("/admin/update_subject", methods=["POST"])
+@app.route("/admin/subjects/update/<subject_id>", methods=["POST"], endpoint="admin_update_subject_route")
 @login_required
 @role_required(['admin'])
-def admin_update_subject():
-    data = request.get_json()
-    subject_id = data.get('subject_id', '').strip()
-    new_name = data.get('name', '').strip()
+def admin_update_subject_route(subject_id):
+    new_name = request.form.get('name', '').strip()
 
     if not subject_id or not new_name:
         return jsonify({"error": "Subject ID and new name are required."}), 400
 
     try:
         subject_ref = db.collection("subjects").document(subject_id)
-        subject = subject_ref.get()
-        if not subject.exists:
+        subject_doc = subject_ref.get()
+        if not subject_doc.exists:
             return jsonify({"error": "Subject not found."}), 404
 
+        # Update the subject's name
         subject_ref.update({"name": new_name})
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+    
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
 @login_required
 @role_required(['admin'])
-def admin_delete_subject(subject_id):
+def admin_delete_subject_route(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
-        flash("Subject deleted successfully.", "success")
+        return jsonify({"message": "Subject deleted successfully."}), 200
     except Exception as e:
-        flash(f"Error deleting subject: {str(e)}", "danger")
-    
-    return redirect(url_for('admin_view_subjects'))
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
 @app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject_route")
 @login_required
@@ -1752,10 +1749,10 @@ def admin_edit_subject_route(subject_id):
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject")
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
 @login_required
 @role_required(['admin'])
-def admin_delete_subject(subject_id):
+def admin_delete_subject_route(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
@@ -1862,15 +1859,15 @@ def fetch_subjects():
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
 # Add Subject
-@app.route("/admin/subjects", methods=["POST"], endpoint="admin_add_subject")
+@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject_route")
 @login_required
 @role_required(['admin'])
-def admin_add_subject():
+def admin_add_subject_route():
     subject_name = request.form.get('subject_name', '').strip()
     if not subject_name:
         return jsonify({"error": "Subject name cannot be empty."}), 400
 
-    # Generate a subject code or use another method
+    # Generate a subject code
     subject_code = generate_subject_code(subject_name)
 
     try:
@@ -1906,34 +1903,16 @@ def admin_update_subject():
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
 # Delete Subject
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
 @login_required
 @role_required(['admin'])
-def delete_subject(subject_id):
+def admin_delete_subject_route(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
-        flash("Subject deleted successfully.", "success")
+        return jsonify({"message": "Subject deleted successfully."}), 200
     except Exception as e:
-        flash(f"Error deleting subject: {str(e)}", "danger")
-    
-    return redirect(url_for('admin_view_subjects'))
-
-def generate_subject_code(subject_name):
-    """
-    Generate a unique subject code based on the subject name.
-    Example: "Mathematics" -> "MAT"
-    """
-    code = ''.join([word[0] for word in subject_name.split()]).upper()
-    # Ensure the code is unique by appending numbers if necessary
-    subjects_ref = db.collection("subjects").where("code", "==", code).stream()
-    count = 1
-    unique_code = code
-    while any(subjects_ref):
-        unique_code = f"{code}{count}"
-        subjects_ref = db.collection("subjects").where("code", "==", unique_code).stream()
-        count += 1
-    return unique_code
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
 if __name__ == "__main__":
     initialize_app()
