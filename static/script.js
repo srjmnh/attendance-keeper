@@ -81,82 +81,85 @@ function recognizeFace() {
 }
 
 function loadSubjects() {
-    fetch('/subjects')
+    fetch('/get_subjects')
     .then(response => response.json())
     .then(data => {
-        const subjectsList = document.getElementById('subjects_list');
-        subjectsList.innerHTML = '';
-        data.subjects.forEach(subject => {
-            const li = document.createElement('li');
-            li.innerHTML = `${subject.name} 
-                <button onclick="deleteSubject('${subject.id}')" class="btn btn-sm btn-danger ms-2">Delete</button>`;
-            subjectsList.appendChild(li);
-        });
+        if (currentUserRole === 'admin') {
+            populateSubjectsTable(data.subjects);
+        } else {
+            const subjectsList = document.getElementById('subjects_list');
+            subjectsList.innerHTML = '';
+            data.subjects.forEach(subject => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                li.innerText = subject.name;
+                subjectsList.appendChild(li);
+            });
+        }
     })
     .catch(error => console.error('Error:', error));
 }
 
+function populateSubjectsTable(subjects) {
+    // Destroy existing DataTable if exists
+    if ($.fn.DataTable.isDataTable('#subjectsTable')) {
+        $('#subjectsTable').DataTable().destroy();
+    }
+
+    const tbody = document.querySelector('#subjectsTable tbody');
+    tbody.innerHTML = '';
+
+    subjects.forEach(subject => {
+        const tr = document.createElement('tr');
+
+        // Subject Name (Editable)
+        const nameTd = document.createElement('td');
+        nameTd.contentEditable = 'true';
+        nameTd.innerText = subject.name;
+        nameTd.dataset.id = subject.id; // Store subject ID for reference
+        tr.appendChild(nameTd);
+
+        // Actions (Save Button)
+        const actionsTd = document.createElement('td');
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn btn-sm btn-success';
+        saveBtn.innerText = 'Save';
+        saveBtn.onclick = () => saveSubjectEdit(subject.id, nameTd.innerText);
+        actionsTd.appendChild(saveBtn);
+        tr.appendChild(actionsTd);
+
+        tbody.appendChild(tr);
+    });
+
+    $('#subjectsTable').DataTable();
+}
+
 function addSubject() {
-    const subjectName = document.getElementById('new_subject_name').value.trim();
+    const subjectName = prompt('Enter the new subject name:').trim();
 
     if (!subjectName) {
-        alert('Please enter a subject name.');
+        alert('Subject name cannot be empty.');
         return;
     }
 
-    fetch('/api/subjects', {
+    fetch('/add_subject', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: subjectName }),
+        body: JSON.stringify({ subject_name: subjectName }),
     })
     .then(response => response.json())
     .then(data => {
-        const resultDiv = document.getElementById('add_subject_result');
+        const resultDiv = document.getElementById('subject_result');
         if (data.message) {
-            resultDiv.className = 'alert alert-success mt-2';
+            resultDiv.className = 'alert alert-success mt-3';
             resultDiv.innerText = data.message;
-            document.getElementById('new_subject_name').value = '';
-            // Add new row to Subjects DataTable
-            subjectsTable.row.add([
-                data.subject.id,
-                data.subject.name,
-                `<button onclick="saveSubject('${data.subject.id}')" class="btn btn-sm btn-success">Save</button>
-                 <button onclick="deleteSubject('${data.subject.id}')" class="btn btn-sm btn-danger">Delete</button>`
-            ]).draw(false);
+            loadSubjects();
         } else {
-            resultDiv.className = 'alert alert-danger mt-2';
+            resultDiv.className = 'alert alert-danger mt-3';
             resultDiv.innerText = data.error;
         }
-        resultDiv.style.display = 'block';
-    })
-    .catch(error => console.error('Error:', error));
-}
-
-function saveSubject(subjectId) {
-    const row = $(`tr[data-subject-id='${subjectId}']`);
-    const subjectName = row.find('td:eq(1)').text().trim();
-
-    fetch(`/api/subjects/${subjectId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: subjectName }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('subjects_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-success mt-2';
-            resultDiv.innerText = data.message;
-            subjectsTable.row(row).invalidate().draw(false);
-        } else {
-            resultDiv.className = 'alert alert-danger mt-2';
-            resultDiv.innerText = data.error;
-        }
-        resultDiv.style.display = 'block';
     })
     .catch(error => console.error('Error:', error));
 }
@@ -164,32 +167,65 @@ function saveSubject(subjectId) {
 function deleteSubject(subjectId) {
     if (!confirm('Are you sure you want to delete this subject?')) return;
 
-    fetch(`/api/subjects/${subjectId}`, {
-        method: 'DELETE',
+    fetch('/subjects', {
+        method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ action: 'delete', subject_id: subjectId }),
     })
     .then(response => response.json())
     .then(data => {
-        const resultDiv = document.getElementById('subjects_result');
+        const resultDiv = document.getElementById('subject_result');
         if (data.message) {
-            resultDiv.className = 'alert alert-success mt-2';
+            resultDiv.className = 'alert alert-success mt-3';
             resultDiv.innerText = data.message;
-            subjectsTable.row($(`tr[data-subject-id='${subjectId}']`)).remove().draw(false);
+            loadSubjects();
         } else {
-            resultDiv.className = 'alert alert-danger mt-2';
+            resultDiv.className = 'alert alert-danger mt-3';
             resultDiv.innerText = data.error;
         }
-        resultDiv.style.display = 'block';
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function saveSubjectEdit(subjectId, newName) {
+    if (!newName.trim()) {
+        alert('Subject name cannot be empty.');
+        return;
+    }
+
+    fetch('/api/subjects/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: subjectId, name: newName }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            alert(data.message);
+            loadSubjects();
+        } else {
+            alert(`Error: ${data.error}`);
+        }
     })
     .catch(error => console.error('Error:', error));
 }
 
 let attendanceTable;
-let subjectsTable;
 
 $(document).ready(function() {
+    const currentUserRole = /* You need to set this variable based on user role.
+                                This can be done by rendering a script variable with the role from Flask.
+                                For example, in your base.html or dashboard.html, add:
+                                <script>
+                                    var currentUserRole = "{{ role }}";
+                                </script>
+                                Then, it can be accessed here.
+                             */ 'admin'; // Placeholder, replace with actual role.
+
     attendanceTable = $('#attendanceTable').DataTable({
         "ajax": {
             "url": "/api/attendance/fetch",
@@ -204,16 +240,6 @@ $(document).ready(function() {
             { "data": "timestamp" },
             { "data": "status" },
             { "data": "recorded_by" }
-        ]
-    });
-
-    // Initialize Subjects DataTable
-    subjectsTable = $('#subjectsTable').DataTable({
-        "paging": true,
-        "searching": true,
-        "ordering": true,
-        "columnDefs": [
-            { "orderable": false, "targets": 2 } // Disable ordering on Actions column
         ]
     });
 
@@ -266,21 +292,21 @@ function uploadExcel() {
     const fileInput = document.getElementById('excelFile');
     const file = fileInput.files[0];
     if (!file) {
-        alert("Please select a file.");
+        alert('Please select an Excel file.');
         return;
     }
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append('file', file);
 
     fetch('/api/attendance/upload', {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        alert(data.message || data.error);
-        attendanceTable.ajax.reload();
+    .then(res => res.json())
+    .then(resp => {
+        alert(resp.message || resp.error || 'Excel uploaded');
+        loadAttendance();
     })
     .catch(error => console.error('Error:', error));
 }

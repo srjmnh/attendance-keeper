@@ -206,14 +206,12 @@ LOGIN_HTML = """
 #define role_required decorator
 from functools import wraps
 
-def role_required(required_roles):
+def role_required(roles):
     def decorator(f):
         @wraps(f)
-        @login_required
         def wrapped(*args, **kwargs):
-            if current_user.role not in required_roles:
-                flash("You do not have permission to access this page.", "danger")
-                return redirect(url_for('index'))
+            if current_user.role not in roles:
+                return jsonify({"error": "Access denied."}), 403
             return f(*args, **kwargs)
         return wrapped
     return decorator
@@ -1224,22 +1222,22 @@ def add_subject():
 @app.route("/get_subjects", methods=["GET"])
 @login_required
 def get_subjects():
-    if current_user.role == 'teacher':
-        # Teachers can see only subjects they teach
-        subjects = []
-        for cls in current_user.classes:
-            sub_doc = db.collection("subjects").where("name", "==", cls).stream()
-            for doc in sub_doc:
-                subjects.append({"id": doc.id, "name": doc.to_dict().get("name","")})
-        return jsonify({"subjects": subjects}), 200
-    else:
-        # Admin can see all subjects
-        subs = db.collection("subjects").stream()
-        subj_list = []
-        for s in subs:
-            d = s.to_dict()
-            subj_list.append({"id": s.id, "name": d.get("name","")})
-        return jsonify({"subjects": subj_list}), 200
+    try:
+        if current_user.role == 'teacher':
+            # Teachers can see only subjects they teach
+            subjects = []
+            for cls in current_user.classes:
+                sub_docs = db.collection("subjects").where("name", "==", cls).stream()
+                for doc in sub_docs:
+                    subjects.append({"id": doc.id, "name": doc.to_dict().get("name", "")})
+            return jsonify({"subjects": subjects}), 200
+        else:
+            # Admin can see all subjects
+            subs = db.collection("subjects").stream()
+            subj_list = [{"id": s.id, "name": s.to_dict().get("name", "")} for s in subs]
+            return jsonify({"subjects": subj_list}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
 # ATTENDANCE
 import openpyxl
@@ -1697,7 +1695,7 @@ def generate_subject_code(subject_name):
 @role_required(['admin'])
 def update_subject():
     data = request.get_json()
-    subject_id = data.get("subject_id")
+    subject_id = data.get("id")
     new_name = data.get("name", "").strip()
     
     if not subject_id or not new_name:
@@ -1721,82 +1719,31 @@ def update_subject():
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
-# API Endpoint to add a new subject
-@app.route('/api/subjects', methods=['POST'])
-@login_required
-def add_subject():
-    if current_user.role != 'admin':
-        return jsonify({"error": "Unauthorized access."}), 403
-    data = request.get_json()
-    subject_name = data.get('name', '').strip()
-    if not subject_name:
-        return jsonify({"error": "Subject name cannot be empty."}), 400
-    # Check for duplicate subject names
-    if subject_exists(subject_name):
-        return jsonify({"error": "Subject already exists."}), 400
-    # Add subject to the database
-    subject = create_subject(subject_name)  # Function to create a new subject and return its details
-    return jsonify({"message": "Subject added successfully.", "subject": subject}), 201
+@app.route("/api/subjects/update", methods=["POST"])
+@role_required(['admin'])
+def update_subject():
+    data = request.json
+    subject_id = data.get("id")
+    new_name = data.get("name")
 
-# API Endpoint to update a subject
-@app.route('/api/subjects/<subject_id>', methods=['PUT'])
-@login_required
-def update_subject(subject_id):
-    if current_user.role != 'admin':
-        return jsonify({"error": "Unauthorized access."}), 403
-    data = request.get_json()
-    subject_name = data.get('name', '').strip()
-    if not subject_name:
-        return jsonify({"error": "Subject name cannot be empty."}), 400
-    # Update subject in the database
-    success = modify_subject(subject_id, subject_name)  # Function to update the subject's name
-    if success:
+    if not subject_id or not new_name:
+        return jsonify({"error": "Subject ID and new name are required."}), 400
+
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject = subject_ref.get()
+        if not subject.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
+        # Optionally, validate if the new_name already exists
+        existing_subjects = db.collection("subjects").where("name", "==", new_name).stream()
+        if any([sub.id != subject_id for sub in existing_subjects]):
+            return jsonify({"error": f"Subject name '{new_name}' already exists."}), 400
+
+        subject_ref.update({"name": new_name.strip()})
         return jsonify({"message": "Subject updated successfully."}), 200
-    else:
-        return jsonify({"error": "Failed to update subject."}), 500
-
-# API Endpoint to delete a subject
-@app.route('/api/subjects/<subject_id>', methods=['DELETE'])
-@login_required
-def delete_subject(subject_id):
-    if current_user.role != 'admin':
-        return jsonify({"error": "Unauthorized access."}), 403
-    # Delete subject from the database
-    success = remove_subject(subject_id)  # Function to remove the subject
-    if success:
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    else:
-        return jsonify({"error": "Failed to delete subject."}), 500
-
-# Helper functions (Implement these based on your database)
-def get_all_subjects():
-    # Fetch all subjects from the database
-    # Returns a list of dictionaries with 'id' and 'name'
-    pass
-
-def subject_exists(name):
-    # Check if a subject with the given name already exists
-    pass
-
-def create_subject(name):
-    # Create a new subject and return its details
-    pass
-
-def modify_subject(subject_id, new_name):
-    # Update the subject's name
-    pass
-
-def remove_subject(subject_id):
-    # Remove the subject from the database
-    pass
-
-def get_all_users():
-    # Fetch all users for the admin panel
-    pass
-
-def get_all_classes():
-    # Fetch all classes for assignment
-    pass
+    except Exception as e:
+        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
 if __name__ == "__main__":
     # Create default admin if none exists
