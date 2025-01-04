@@ -17,13 +17,3 @@
     display: flex;
     flex-direction: column;
 } 
-
-/* Highlight editable cells */
-#subjectsTable td[contenteditable="true"] {
-    background-color: #fcf8e3;
-}
-
-/* Style Save and Delete buttons */
-#subjectsTable .btn {
-    margin-right: 5px;
-} 

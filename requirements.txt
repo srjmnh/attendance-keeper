@@ -10,4 +10,3 @@ requests>=2.31.0,<3.0
 google-generativeai
 Werkzeug>=3.0,<4.0
 Flask-WTF>=1.1.1,<2.0
-SQLAlchemy>=1.4,<2.0
