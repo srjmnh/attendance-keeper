@@ -97,21 +97,23 @@ function loadSubjects() {
     .catch(error => console.error('Error:', error));
 }
 
+{% if current_user.role == 'admin' %}
 function addSubject() {
-    const subjectName = document.getElementById('subject_name').value;
-
+    const subjectName = document.getElementById('subject_name').value.trim();
     if (!subjectName) {
-        alert('Please enter a subject name.');
+        alert("Subject name cannot be empty.");
         return;
     }
 
-    fetch('/subjects', {
+    fetch('/admin/subjects', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': getCSRFToken(),
         },
-        body: JSON.stringify({ action: 'add', subject_name: subjectName }),
+        body: new URLSearchParams({
+            'subject_name': subjectName
+        })
     })
     .then(response => response.json())
     .then(data => {
@@ -120,7 +122,7 @@ function addSubject() {
             resultDiv.className = 'alert alert-success mt-3';
             resultDiv.innerText = data.message;
             document.getElementById('subject_name').value = '';
-            loadSubjects();
+            subjectsTable.ajax.reload();
         } else {
             resultDiv.className = 'alert alert-danger mt-3';
             resultDiv.innerText = data.error;
@@ -129,16 +131,45 @@ function addSubject() {
     .catch(error => console.error('Error:', error));
 }
 
+function editSubject(subjectId, currentName) {
+    const newName = prompt("Enter the new subject name:", currentName);
+    if (newName && newName.trim() !== "") {
+        fetch('/admin/update_subject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                'subject_id': subjectId,
+                'name': newName.trim()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('subject_result');
+            if (data.message) {
+                resultDiv.className = 'alert alert-success mt-3';
+                resultDiv.innerText = data.message;
+                subjectsTable.ajax.reload();
+            } else {
+                resultDiv.className = 'alert alert-danger mt-3';
+                resultDiv.innerText = data.error;
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+}
+
 function deleteSubject(subjectId) {
     if (!confirm('Are you sure you want to delete this subject?')) return;
 
-    fetch('/subjects', {
+    fetch(`/admin/delete_subject/${subjectId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCSRFToken(),
         },
-        body: JSON.stringify({ action: 'delete', subject_id: subjectId }),
     })
     .then(response => response.json())
     .then(data => {
@@ -146,7 +177,7 @@ function deleteSubject(subjectId) {
         if (data.message) {
             resultDiv.className = 'alert alert-success mt-3';
             resultDiv.innerText = data.message;
-            loadSubjects();
+            subjectsTable.ajax.reload();
         } else {
             resultDiv.className = 'alert alert-danger mt-3';
             resultDiv.innerText = data.error;
@@ -154,6 +185,37 @@ function deleteSubject(subjectId) {
     })
     .catch(error => console.error('Error:', error));
 }
+{% endif %}
+
+// Initialize Subjects DataTable
+window.subjectsTable = $('#subjectsTable').DataTable({
+    "ajax": {
+        "url": "/api/subjects/fetch",
+        "type": "GET",
+        "dataSrc": "subjects",
+        "error": function(xhr, error, thrown) {
+            console.error("DataTables AJAX error:", error);
+            alert("An error occurred while fetching subjects.");
+        }
+    },
+    "columns": [
+        { "data": "code" },
+        { "data": "name" },
+        {% if current_user.role == 'admin' %}
+        { 
+            "data": null,
+            "orderable": false,
+            "render": function(data, type, row) {
+                return `<button class="btn btn-sm btn-warning" onclick="editSubject('${row.id}', '${row.name}')">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteSubject('${row.id}')">Delete</button>`;
+            }
+        }
+        {% endif %}
+    ],
+    "responsive": true,
+    "autoWidth": false,
+    "destroy": true
+});
 
 $(document).ready(function() {
     // Initialize DataTable
@@ -162,6 +224,13 @@ $(document).ready(function() {
             "url": "/api/attendance/fetch",
             "type": "GET",
             "dataSrc": "data",
+            "data": function(d) {
+                // Append filter parameters to the AJAX request
+                d.student_id = $('#filter_student_id').val();
+                d.subject_id = $('#filter_subject_id').val();
+                d.start_date = $('#filter_start').val();
+                d.end_date = $('#filter_end').val();
+            },
             "error": function(xhr, error, thrown) {
                 console.error("DataTables AJAX error:", error);
                 alert("An error occurred while fetching attendance records.");
@@ -175,26 +244,22 @@ $(document).ready(function() {
             { "data": "subject_name" },
             { "data": "timestamp" },
             { "data": "status" }
-        ]
+        ],
+        "scrollY": "400px", // Enables vertical scrolling with 400px height
+        "scrollX": true,     // Enables horizontal scrolling
+        "scrollCollapse": true,
+        "paging": true,
+        "responsive": true,
+        "autoWidth": false,
+        "destroy": true
     });
 
     loadSubjects();
 });
 
 function loadAttendance() {
-    const studentId = document.getElementById('filter_student_id').value;
-    const subjectId = document.getElementById('filter_subject_id').value;
-    const startDate = document.getElementById('filter_start').value;
-    const endDate = document.getElementById('filter_end').value;
-
-    const params = new URLSearchParams({
-        student_id: studentId,
-        subject_id: subjectId,
-        start_date: startDate,
-        end_date: endDate
-    });
-
-    attendanceTable.ajax.url(`/api/attendance/fetch?${params.toString()}`).load();
+    // Reload the DataTable to apply the filters
+    attendanceTable.ajax.reload();
 }
 
 function saveEdits() {
@@ -322,6 +387,5 @@ function redirectToDashboard() {
 }
 
 function getCSRFToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.getAttribute('content') : '';
+    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 }

@@ -181,20 +181,39 @@
   <!-- SUBJECTS -->
   <div class="tab-pane fade {% if active_tab == 'subjects' %}show active{% endif %} mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
-    <label class="form-label">New Subject Name:</label>
-    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
-    <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
+    {% if current_user.role == 'admin' %}
+    <div class="mb-3">
+        <button class="btn btn-primary" onclick="addSubject()">Add New Subject</button>
+    </div>
+    {% endif %}
+    <table id="subjectsTable" class="display table table-striped w-100">
+        <thead>
+            <tr>
+                <th>Subject ID</th>
+                <th>Subject Name</th>
+                {% if current_user.role == 'admin' %}
+                <th>Actions</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for subject in subjects %}
+            <tr>
+                <td>{{ subject.code }}</td>
+                <td>{{ subject.name }}</td>
+                {% if current_user.role == 'admin' %}
+                <td>
+                    <button onclick="editSubject('{{ subject.id }}', '{{ subject.name }}')" class="btn btn-sm btn-warning">Edit</button>
+                    <button onclick="deleteSubject('{{ subject.id }}')" class="btn btn-sm btn-danger">Delete</button>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if current_user.role == 'admin' %}
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <hr />
-    <h5>Existing Subjects</h5>
-    <ul id="subjects_list">
-      {% for subject in subjects %}
-        <li>
-          {{ subject.name }} 
-          <button onclick="deleteSubject('{{ subject.id }}')" class="btn btn-sm btn-danger ms-2">Delete</button>
-        </li>
-      {% endfor %}
-    </ul>
+    {% endif %}
   </div>
 
   <!-- ATTENDANCE -->
