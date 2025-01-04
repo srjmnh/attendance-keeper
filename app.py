@@ -1558,21 +1558,30 @@ def create_default_admin():
     admins = [admin for admin in admins_ref]
 
     if not admins:
-        default_username = "admin"
-        default_password = "Admin123!"  # **Change this password immediately after first login**
-        password_hash = generate_password_hash(default_password, method="pbkdf2:sha256")  # Updated method
-        
-        admin_data = {
-            "username": default_username,
-            "password_hash": password_hash,
-            "role": "admin",
-            # 'classes' field is optional for admin
-        }
-        
-        db.collection("users").add(admin_data)
-        print(f"Default admin user '{default_username}' created with password '{default_password}'.")
+        # Define default admin credentials
+        default_admin_username = "admin"
+        default_admin_password = generate_password_hash("admin123")  # Use a secure password in production
+
+        try:
+            db.collection("users").add({
+                "username": default_admin_username,
+                "password_hash": default_admin_password,
+                "role": "admin",
+                "classes": []
+            })
+            print("Default admin user created.")
+        except Exception as e:
+            print(f"Error creating default admin: {e}")
     else:
-        print("Admin user already exists. No default admin created.")
+        print("Admin user already exists.")
+
+def initialize_app():
+    """
+    Initializes the application by setting up necessary components.
+    For example, creates a default admin user if none exists.
+    """
+    create_default_admin()
+    # Add any other initialization functions here
 
 @app.route("/change_password", methods=["GET", "POST"])
 @role_required(['admin', 'teacher', 'student'])  # Adjust roles as needed
