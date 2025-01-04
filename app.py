@@ -14,6 +14,7 @@ from flask import (
     request,
     jsonify,
     render_template,
+    render_template_string,
     send_file,
     redirect,
     url_for,
@@ -1725,6 +1726,28 @@ def update_subject():
 @login_required
 def dashboard():
     return redirect(url_for('index'))
+
+@app.route("/api/attendance/fetch", methods=["GET"])
+@login_required
+def fetch_attendance():
+    try:
+        # Fetch attendance records from Firestore or your database
+        attendance_records = []
+        for record in db.collection("attendance").stream():
+            record_data = record.to_dict()
+            attendance_records.append({
+                "doc_id": record.id,
+                "student_id": record_data.get("student_id", "N/A"),
+                "name": record_data.get("name", "N/A"),
+                "subject_id": record_data.get("subject_id", "N/A"),
+                "subject_name": record_data.get("subject_name", "N/A"),
+                "timestamp": record_data.get("timestamp").strftime("%Y-%m-%d %H:%M:%S") if record_data.get("timestamp") else "N/A",
+                "status": record_data.get("status", "N/A")
+            })
+        return jsonify({"data": attendance_records})
+    except Exception as e:
+        print(f"Error fetching attendance records: {e}")
+        return jsonify({"data": [], "error": "An error occurred while fetching attendance records."}), 500
 
 if __name__ == "__main__":
     # Create default admin if none exists
