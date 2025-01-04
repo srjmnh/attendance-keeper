@@ -273,10 +273,13 @@
 <!-- Logout Button -->
 <a href="{{ url_for('logout') }}" class="btn btn-danger mt-3">Logout</a>
 
-<!-- Scripts -->
+<!-- Bootstrap JS Bundle (includes Popper) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- jQuery (ensure it's loaded before DataTables) -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<!-- Custom Scripts -->
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 <script>
   /* -------------- Chatbot Code -------------- */
@@ -481,10 +484,15 @@
 
   /* Attendance Table Initialization */
   $(document).ready(function() {
-    attendanceTable = $('#attendanceTable').DataTable({
+    var attendanceTable = $('#attendanceTable').DataTable({
       "ajax": {
         "url": "/api/attendance/fetch",
-        "dataSrc": ""
+        "type": "GET",
+        "dataSrc": "data",
+        "error": function(xhr, error, thrown) {
+          console.error("DataTables AJAX error:", error);
+          alert("An error occurred while fetching attendance records.");
+        }
       },
       "columns": [
         { "data": "doc_id" },

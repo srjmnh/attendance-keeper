@@ -155,10 +155,15 @@ function deleteSubject(subjectId) {
 let attendanceTable;
 
 $(document).ready(function() {
-    attendanceTable = $('#attendanceTable').DataTable({
+    var attendanceTable = $('#attendanceTable').DataTable({
         "ajax": {
             "url": "/api/attendance/fetch",
-            "dataSrc": ""
+            "type": "GET",
+            "dataSrc": "data",
+            "error": function(xhr, error, thrown) {
+                console.error("DataTables AJAX error:", error);
+                alert("An error occurred while fetching attendance records.");
+            }
         },
         "columns": [
             { "data": "doc_id" },
@@ -167,10 +172,12 @@ $(document).ready(function() {
             { "data": "subject_id" },
             { "data": "subject_name" },
             { "data": "timestamp" },
-            { "data": "status" },
-            { "data": "recorded_by" }
+            { "data": "status" }
         ]
     });
+
+    // Assign the DataTable instance to a global variable if needed
+    window.attendanceTable = attendanceTable;
 
     loadSubjects();
 });
@@ -221,16 +228,16 @@ function uploadExcel() {
     const fileInput = document.getElementById('excelFile');
     const file = fileInput.files[0];
     if (!file) {
-        alert("Please select a file.");
+        alert("Please select an Excel file to upload.");
         return;
     }
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append('excel_file', file);
 
-    fetch('/api/attendance/upload', {
+    fetch('/api/attendance/upload_excel', {
         method: 'POST',
-        body: formData
+        body: formData,
     })
     .then(response => response.json())
     .then(data => {
