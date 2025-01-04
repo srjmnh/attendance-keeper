@@ -1023,12 +1023,19 @@ INDEX_HTML = """
 </html>
 """
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 @login_required
 def index():
-    # Determine which tab is active based on query parameter
-    active_tab = request.args.get("tab", "recognize")
-    return render_template_string(INDEX_HTML, active_tab=active_tab)
+    subjects = db.collection("subjects").stream()
+    subjects_list = []
+    for subject in subjects:
+        subject_data = subject.to_dict()
+        subjects_list.append({
+            'id': subject.id,
+            'code': subject_data.get('code', ''),
+            'name': subject_data.get('name', '')
+        })
+    return render_template('dashboard.html', subjects=subjects_list)
 
 # -----------------------------
 # 9) Routes (Register, Recognize, Subjects, Attendance)
@@ -1227,7 +1234,7 @@ def get_subjects():
             # Teachers can see only subjects they teach
             subjects = []
             subjects_ref = db.collection("subjects")
-            for subject_id in current_user.subjects:  # Assuming `current_user.subjects` is a list of subject IDs
+            for subject_id in current_user.classes:  # Assuming `current_user.classes` is a list of subject IDs
                 subject = subjects_ref.document(subject_id).get()
                 if subject.exists:
                     subject_data = subject.to_dict()

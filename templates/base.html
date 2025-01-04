@@ -8,20 +8,37 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <style>
         body {
-            background-image: url('https://source.unsplash.com/random/1920x1080');
+            background-image: url('https://source.unsplash.com/random/1920x1080/?university,campus');
             background-size: cover;
             background-repeat: no-repeat;
             background-attachment: fixed;
         }
 
-        /* Adjust table background for better readability */
+        .container {
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
         .table {
             background-color: rgba(255, 255, 255, 0.9);
         }
 
-        /* Adjust modal background */
         .modal-content {
             background-color: rgba(255, 255, 255, 0.95);
+        }
+
+        .nav-tabs .nav-link {
+            background-color: rgba(255, 255, 255, 0.8);
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .nav-tabs .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.95);
+            font-weight: bold;
         }
     </style>
     <script>
