@@ -99,50 +99,45 @@ function loadSubjects() {
 
 {% if current_user.role == 'admin' %}
 function addSubject() {
-    const subjectName = document.getElementById('subject_name').value.trim();
-    if (!subjectName) {
-        alert("Subject name cannot be empty.");
-        return;
-    }
-
-    fetch('/admin/subjects', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': getCSRFToken(),
-        },
-        body: new URLSearchParams({
-            'subject_name': subjectName
+    const subjectName = prompt("Enter the new subject name:");
+    if (subjectName) {
+        fetch('/admin/subjects/add', {  // Updated URL based on renamed route
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: new URLSearchParams({
+                'subject_name': subjectName
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('subject_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
-            resultDiv.innerText = data.message;
-            document.getElementById('subject_name').value = '';
-            subjectsTable.ajax.reload();
-        } else {
-            resultDiv.className = 'alert alert-danger mt-3';
-            resultDiv.innerText = data.error;
-        }
-    })
-    .catch(error => console.error('Error:', error));
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('subject_result');
+            if (data.message) {
+                resultDiv.className = 'alert alert-success mt-3';
+                resultDiv.innerText = data.message;
+                subjectsTable.ajax.reload();
+            } else {
+                resultDiv.className = 'alert alert-danger mt-3';
+                resultDiv.innerText = data.error;
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
 }
 
 function editSubject(subjectId, currentName) {
     const newName = prompt("Enter the new subject name:", currentName);
     if (newName && newName.trim() !== "") {
-        fetch('/admin/update_subject', {
+        fetch(`/admin/subjects/update/${subjectId}`, {  // Updated URL
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
                 'X-CSRFToken': getCSRFToken(),
             },
-            body: JSON.stringify({
-                'subject_id': subjectId,
-                'name': newName.trim()
+            body: new URLSearchParams({
+                'subject_name': newName.trim()
             })
         })
         .then(response => response.json())
