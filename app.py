@@ -1224,27 +1224,21 @@ def add_subject():
 def get_subjects():
     try:
         if current_user.role == 'teacher':
-            # Teachers can see only subjects they teach
-            subjects = []
-            for cls in current_user.classes:
-                sub_docs = db.collection("subjects").where("name", "==", cls).stream()
-                for doc in sub_docs:
-                    subjects.append({
-                        "id": doc.id,
-                        "name": doc.to_dict().get("name", ""),
-                        "code": doc.to_dict().get("code", "N/A")
-                    })
-            return jsonify({"subjects": subjects}), 200
+            # Assuming teachers have associated subjects
+            subjects_ref = db.collection("subjects").where("teacher_id", "==", current_user.id).stream()
         else:
             # Admin can see all subjects
-            subs = db.collection("subjects").stream()
-            subj_list = [{
-                "id": s.id,
-                "code": s.to_dict().get("code", "N/A"),
-                "name": s.to_dict().get("name", ""),
-                "created_at": s.to_dict().get("created_at", "N/A")
-            } for s in subs]
-            return jsonify({"subjects": subj_list}), 200
+            subjects_ref = db.collection("subjects").stream()
+
+        subjects = []
+        for subject in subjects_ref:
+            subject_data = subject.to_dict()
+            subjects.append({
+                "id": subject.id,
+                "code": subject_data.get("code", ""),
+                "name": subject_data.get("name", "")
+            })
+        return jsonify({"subjects": subjects}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
@@ -1711,12 +1705,12 @@ def api_update_subject():
         return jsonify({"error": "Subject ID and new name are required."}), 400
 
     # Generate a new subject code based on the new name
-    new_code = generate_subject_code(new_name)
+    new_code = new_name[:3].upper()  # Example: Take first 3 letters as code
 
     # Check if the new_code is unique
     subjects_ref = db.collection("subjects")
     existing = subjects_ref.where("code", "==", new_code).stream()
-    if any(existing):
+    if any([sub for sub in existing if sub.id != subject_id]):
         return jsonify({"error": f"Subject code '{new_code}' already exists. Please choose a different subject name."}), 400
 
     try:
