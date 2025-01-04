@@ -66,9 +66,21 @@
     {% endif %}
 
     <!-- Update Subject Form -->
-    <form method="POST" action="{{ url_for('admin_update_subject', subject_id=subject.id) }}">
-        <!-- Form fields for updating -->
+    {% if current_user.role == 'admin' %}
+    <form method="POST" action="{{ url_for('admin_update_subject_route', subject_id=subject.id) }}">
+        <div class="row g-3 align-items-center">
+            <div class="col-auto">
+                <label for="new_name_{{ subject.id }}" class="col-form-label">New Subject Name</label>
+            </div>
+            <div class="col-auto">
+                <input type="text" id="new_name_{{ subject.id }}" name="name" class="form-control" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-success">Update Subject</button>
+            </div>
+        </div>
     </form>
+    {% endif %}
 
     <!-- Delete Subject Form -->
     <form method="POST" action="{{ url_for('admin_delete_subject', subject_id=subject.id) }}" style="display:inline;">

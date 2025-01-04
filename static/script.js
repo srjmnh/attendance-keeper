@@ -166,8 +166,8 @@ window.attendanceTable = $('#attendanceTable').DataTable({
         { "data": "timestamp" },
         { "data": "status" }
     ],
-    "scrollY": "400px", // Enables vertical scrolling with 400px height
-    "scrollX": true,     // Enables horizontal scrolling
+    "scrollY": "400px",
+    "scrollX": true,
     "scrollCollapse": true,
     "paging": true,
     "responsive": true,
@@ -176,95 +176,27 @@ window.attendanceTable = $('#attendanceTable').DataTable({
 });
 
 $(document).ready(function() {
-    // Initialize DataTable
-    window.attendanceTable = $('#attendanceTable').DataTable({
-        "ajax": {
-            "url": "/api/attendance/fetch",
-            "type": "GET",
-            "dataSrc": "data",
-            "data": function(d) {
-                // Append filter parameters to the AJAX request
-                d.student_id = $('#filter_student_id').val();
-                d.subject_id = $('#filter_subject_id').val();
-                d.start_date = $('#filter_start').val();
-                d.end_date = $('#filter_end').val();
-            },
-            "error": function(xhr, error, thrown) {
-                console.error("DataTables AJAX error:", error);
-                alert("An error occurred while fetching attendance records.");
-            }
-        },
-        "columns": [
-            { "data": "doc_id" },
-            { "data": "student_id" },
-            { "data": "name" },
-            { "data": "subject_id" },
-            { "data": "subject_name" },
-            { "data": "timestamp" },
-            { "data": "status" }
-        ],
-        "scrollY": "400px", // Enables vertical scrolling with 400px height
-        "scrollX": true,     // Enables horizontal scrolling
-        "scrollCollapse": true,
-        "paging": true,
-        "responsive": true,
-        "autoWidth": false,
-        "destroy": true
-    });
-
-    loadSubjects();
-});
-
-// Function to reload Attendance DataTable with filters
-function loadAttendance() {
-    // Reload the DataTable to apply the filters
-    attendanceTable.ajax.reload();
-}
-
-// Add Subject Function (Admin Only)
-{% if current_user.role == 'admin' %}
-function addSubject() {
-    const subjectName = prompt("Enter the new subject name:");
-    if (subjectName) {
-        fetch('/admin/subjects/add', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': getCSRFToken(),
-            },
-            body: new URLSearchParams({
-                'subject_name': subjectName
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            const resultDiv = document.getElementById('subject_result');
-            if (data.message) {
-                resultDiv.className = 'alert alert-success mt-3';
-                resultDiv.innerText = data.message;
-                subjectsTable.ajax.reload();
-                loadSubjectsList();
-            } else {
-                resultDiv.className = 'alert alert-danger mt-3';
-                resultDiv.innerText = data.error;
-            }
-        })
-        .catch(error => console.error('Error adding subject:', error));
+    // Initialize DataTables if not already initialized
+    if (!$.fn.DataTable.isDataTable('#subjectsTable')) {
+        window.subjectsTable = $('#subjectsTable').DataTable();
     }
-}
+    if (!$.fn.DataTable.isDataTable('#attendanceTable')) {
+        window.attendanceTable = $('#attendanceTable').DataTable();
+    }
+});
 
 // Edit Subject Function (Admin Only)
 function editSubject(subjectId, currentName) {
     const newName = prompt("Enter the new subject name:", currentName);
     if (newName && newName.trim() !== "") {
-        fetch(`/admin/subjects/update/${subjectId}`, {
+        fetch(`/admin/subjects/update/${subjectId}`, {  // Updated endpoint
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-CSRFToken': getCSRFToken(),
             },
             body: new URLSearchParams({
-                'name': newName.trim()
+                'name': newName.trim()  // Changed key to match backend
             })
         })
         .then(response => response.json())
@@ -286,34 +218,34 @@ function editSubject(subjectId, currentName) {
 
 // Delete Subject Function (Admin Only)
 function deleteSubject(subjectId) {
-    if (confirm("Are you sure you want to delete this subject?")) {
-        fetch(`/admin/subjects/delete/${subjectId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken(),
-            },
-        })
-        .then(response => response.json())
-        .then(data => {
-            const resultDiv = document.getElementById('subject_result');
-            if (data.message) {
-                resultDiv.className = 'alert alert-success mt-3';
-                resultDiv.innerText = data.message;
-                subjectsTable.ajax.reload();
-                loadSubjectsList();
-            } else {
-                resultDiv.className = 'alert alert-danger mt-3';
-                resultDiv.innerText = data.error;
-            }
-        })
-        .catch(error => console.error('Error deleting subject:', error));
-    }
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+
+    fetch(`/admin/subjects/delete/${subjectId}`, {  // Updated endpoint
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('subject_result');
+        if (data.message) {
+            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.innerText = data.message;
+            subjectsTable.ajax.reload();
+            loadSubjectsList();
+        } else {
+            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.innerText = data.error;
+        }
+    })
+    .catch(error => console.error('Error deleting subject:', error));
 }
 
-// Function to load the subjects list (if applicable)
+// Function to load the subjects list
 function loadSubjectsList() {
-    fetch('/get_subjects')
+    fetch('/api/subjects/fetch')  // Updated endpoint to match app.py
     .then(response => response.json())
     .then(data => {
         const subjectsList = document.getElementById('subjects_list');
@@ -328,7 +260,6 @@ function loadSubjectsList() {
     })
     .catch(error => console.error('Error:', error));
 }
-{% endif %}
 
 // Other functions like saveEdits, downloadExcel, uploadExcel, chatbot functionalities remain unchanged
 

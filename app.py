@@ -1730,11 +1730,11 @@ def admin_delete_subject(subject_id):
     
     return redirect(url_for('admin_view_subjects'))
 
-@app.route("/admin/subjects/update/<subject_id>", methods=["POST"], endpoint="admin_update_subject")
+@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject_route")
 @login_required
 @role_required(['admin'])
-def admin_update_subject(subject_id):
-    data = request.form  # Changed from get_json to form for URL-encoded data
+def admin_edit_subject_route(subject_id):
+    data = request.form  # Changed from get_json() to form data
     new_name = data.get('name', '').strip()
 
     if not subject_id or not new_name:
@@ -1742,10 +1742,11 @@ def admin_update_subject(subject_id):
 
     try:
         subject_ref = db.collection("subjects").document(subject_id)
-        subject = subject_ref.get()
-        if not subject.exists:
+        subject_doc = subject_ref.get()
+        if not subject_doc.exists:
             return jsonify({"error": "Subject not found."}), 404
 
+        # Update the subject's name
         subject_ref.update({"name": new_name})
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
