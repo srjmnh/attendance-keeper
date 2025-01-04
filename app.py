@@ -13,7 +13,7 @@ from flask import (
     Flask,
     request,
     jsonify,
-    render_template_string,
+    render_template,
     send_file,
     redirect,
     url_for,
