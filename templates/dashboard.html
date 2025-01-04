@@ -150,54 +150,26 @@
                 </tr>
             </thead>
             <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.role.capitalize() }}</td>
-                    <td>
-                        {% if user.classes %}
-                            {{ user.classes | join(", ") }}
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
+                <!-- Existing users will be listed here -->
             </tbody>
         </table>
-        <h4>Manage Classes</h4>
-        <form method="POST" action="{{ url_for('add_class') }}" class="mb-3">
-            <div class="mb-3">
-                <label for="class_id" class="form-label">New Class ID:</label>
-                <input type="text" id="class_id" name="class_id" class="form-control" placeholder="e.g. Physics101" required>
-            </div>
-            <button type="submit" class="btn btn-success">Add Class</button>
-        </form>
-        <h5>Existing Classes</h5>
-        <ul>
-            {% for class in classes %}
-                <li>{{ class }}</li>
-            {% endfor %}
-        </ul>
     </div>
     {% endif %}
 </div>
 
 <!-- Chatbot Toggle Button -->
-<button id="chatbotToggle" class="btn btn-primary rounded-circle">💬</button>
+<button id="chatbotToggle">💬</button>
 
 <!-- Chatbot Window -->
-<div id="chatbotWindow" class="card" style="position: fixed; bottom: 80px; right: 20px; width: 300px; max-height: 400px; display: none; flex-direction: column;">
-    <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+<div id="chatbotWindow" style="display:none; flex-direction:column;">
+    <div id="chatHeader">
         <span>Gemini Chat</span>
-        <button class="btn btn-sm btn-light" id="chatCloseBtn">X</button>
+        <button class="close-btn" id="chatCloseBtn">X</button>
     </div>
-    <div class="card-body overflow-auto" id="chatMessages"></div>
-    <div class="card-footer">
-        <div class="input-group">
-            <input type="text" id="chatInput" class="form-control" placeholder="Type a message..." />
-            <button class="btn btn-primary" id="chatSendBtn">Send</button>
-        </div>
+    <div id="chatMessages" style="flex:1; overflow-y:auto; padding:10px; font-size:14px;"></div>
+    <div id="chatInputArea" style="display:flex; border-top:1px solid #ddd;">
+        <input type="text" id="chatInput" placeholder="Type a message..." style="flex:1; padding:8px; border:none; outline:none; font-size:14px;" />
+        <button id="chatSendBtn" style="background-color:#0d6efd; color:#fff; border:none; padding:0 15px; cursor:pointer;">Send</button>
     </div>
 </div>
 
@@ -205,262 +177,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<script>
-    /* -------------- Chatbot Code -------------- */
-    const toggleBtn = document.getElementById('chatbotToggle');
-    const chatWindow = document.getElementById('chatbotWindow');
-    const chatCloseBtn = document.getElementById('chatCloseBtn');
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
-    const chatSendBtn = document.getElementById('chatSendBtn');
 
-    // Toggle chat window
-    toggleBtn.addEventListener('click', () => {
-        if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
-            chatWindow.style.display = 'flex';
-        } else {
-            chatWindow.style.display = 'none';
-        }
-    });
-
-    // Close chat window
-    chatCloseBtn.addEventListener('click', () => {
-        chatWindow.style.display = 'none';
-    });
-
-    function sendMessage() {
-        const userMessage = chatInput.value.trim();
-        if (!userMessage) return;
-        addMessage(userMessage, 'user');
-        chatInput.value = '';
-
-        fetch('/process_prompt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: userMessage })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.error) {
-                addMessage("Error: " + data.error, 'assistant');
-            } else {
-                addMessage(data.message, 'assistant');
-            }
-        })
-        .catch(err => {
-            addMessage("Network or server error!", 'assistant');
-            console.error(err);
-        });
-    }
-
-    function addMessage(text, sender) {
-        const div = document.createElement('div');
-        div.classList.add('message', sender);
-        div.innerHTML = `<strong>${sender === 'user' ? 'You' : 'Gemini'}:</strong> ${text}`;
-        chatMessages.appendChild(div);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    chatSendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    /* -------------- Register Face -------------- */
-    function registerFace() {
-        const name = document.getElementById('reg_name').value.trim();
-        const studentId = document.getElementById('reg_student_id').value.trim();
-        const file = document.getElementById('reg_image').files[0];
-        if (!name || !studentId || !file) {
-            alert('Please provide name, student ID, and an image.');
-            return;
-        }
-        getBase64(file, (base64Str) => {
-            fetch('/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, student_id: studentId, image: base64Str })
-            })
-            .then(res => res.json())
-            .then(data => {
-                const div = document.getElementById('register_result');
-                div.style.display = 'block';
-                div.textContent = data.message || data.error || JSON.stringify(data);
-            })
-            .catch(err => console.error(err));
-        });
-    }
-
-    /* Recognize Faces */
-    function recognizeFace() {
-        const file = document.getElementById('rec_image').files[0];
-        const subjectId = document.getElementById('rec_subject_select') ? document.getElementById('rec_subject_select').value : "";
-        if (!file) {
-            alert('Please select an image to recognize.');
-            return;
-        }
-        getBase64(file, (base64Str) => {
-            fetch('/recognize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64Str, subject_id: subjectId })
-            })
-            .then(res => res.json())
-            .then(data => {
-                const div = document.getElementById('recognize_result');
-                div.style.display = 'block';
-                let text = data.message || data.error || JSON.stringify(data);
-                if (data.identified_people && data.identified_people.length > 0) {
-                    text += "\n\nIdentified People:\n";
-                    data.identified_people.forEach(person => {
-                        if (person.name && person.student_id) {
-                            text += `- ${person.name} (ID: ${person.student_id}) Confidence: ${person.confidence}%\n`;
-                        } else {
-                            text += `- ${person.message} Confidence: ${person.confidence}%\n`;
-                        }
-                    });
-                }
-                div.textContent = text;
-            })
-            .catch(err => console.error(err));
-        });
-    }
-
-    function getBase64(file, callback) {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => callback(reader.result);
-        reader.onerror = (error) => console.error('Error:', error);
-    }
-
-    /* -------------- Admin Panel Scripts -------------- */
-    // You can add AJAX calls here if needed for admin functionalities
-
-    /* -------------- Attendance Management -------------- */
-    let table;
-
-    function loadAttendance() {
-        const studentId = document.getElementById('filter_student_id').value.trim();
-        const subjectId = document.getElementById('filter_subject_id').value.trim();
-        const startDate = document.getElementById('filter_start').value;
-        const endDate = document.getElementById('filter_end').value;
-
-        let url = '/api/attendance?';
-        if (studentId) url += 'student_id=' + studentId + '&';
-        if (subjectId) url += 'subject_id=' + subjectId + '&';
-        if (startDate) url += 'start_date=' + startDate + '&';
-        if (endDate) url += 'end_date=' + endDate + '&';
-
-        fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                populateAttendanceTable(data);
-            })
-            .catch(err => console.error(err));
-    }
-
-    function populateAttendanceTable(data) {
-        if (table) {
-            table.destroy();
-        }
-        const tbody = document.querySelector('#attendanceTable tbody');
-        tbody.innerHTML = '';
-        data.forEach(record => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${record.doc_id}</td>
-                <td>${record.student_id}</td>
-                <td>${record.name}</td>
-                <td>${record.subject_id}</td>
-                <td>${record.subject_name}</td>
-                <td>${record.timestamp}</td>
-                <td contenteditable="true">${record.status}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-        table = $('#attendanceTable').DataTable();
-    }
-
-    function saveEdits() {
-        const tbody = document.querySelector('#attendanceTable tbody');
-        const rows = tbody.querySelectorAll('tr');
-        let records = [];
-        rows.forEach(row => {
-            const cells = row.querySelectorAll('td');
-            records.push({
-                doc_id: cells[0].textContent,
-                student_id: cells[1].textContent,
-                name: cells[2].textContent,
-                subject_id: cells[3].textContent,
-                subject_name: cells[4].textContent,
-                timestamp: cells[5].textContent,
-                status: cells[6].textContent
-            });
-        });
-        fetch('/api/attendance/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records })
-        })
-        .then(res => res.json())
-        .then(resp => {
-            alert(resp.message || resp.error || 'Attendance updated');
-            loadAttendance();
-        })
-        .catch(err => console.error(err));
-    }
-
-    function downloadExcel() {
-        const studentId = document.getElementById('filter_student_id').value.trim();
-        const subjectId = document.getElementById('filter_subject_id').value.trim();
-        const startDate = document.getElementById('filter_start').value;
-        const endDate = document.getElementById('filter_end').value;
-
-        let url = '/api/attendance/download?';
-        if (studentId) url += 'student_id=' + studentId + '&';
-        if (subjectId) url += 'subject_id=' + subjectId + '&';
-        if (startDate) url += 'start_date=' + startDate + '&';
-        if (endDate) url += 'end_date=' + endDate + '&';
-
-        window.location.href = url;
-    }
-
-    function downloadTemplate() {
-        window.location.href = '/api/attendance/template';
-    }
-
-    function uploadExcel() {
-        const fileInput = document.getElementById('excelFile');
-        if (!fileInput.files.length) {
-            alert('Please select an Excel file (.xlsx)');
-            return;
-        }
-        const file = fileInput.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        fetch('/api/attendance/upload', {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.json())
-        .then(resp => {
-            alert(resp.message || resp.error || 'Excel uploaded');
-            loadAttendance();
-        })
-        .catch(err => console.error(err));
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        {% if role in ['admin', 'teacher'] %}
-            {% if role == 'teacher' %}
-                loadAttendance();  // Load attendance records on page load
-            {% endif %}
-            // Load subjects for Recognize tab if applicable
-        {% endif %}
-    });
-</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %} 

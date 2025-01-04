@@ -246,7 +246,7 @@ def login():
         if user:
             login_user(user)
             flash("Logged in successfully!", "success")
-            return redirect(url_for("index"))
+            return redirect(url_for("dashboard"))
         else:
             flash("Invalid username or password.", "danger")
             return render_template_string(LOGIN_HTML)
@@ -1025,12 +1025,11 @@ INDEX_HTML = """
 </html>
 """
 
-@app.route("/", methods=["GET"])
+@app.route("/dashboard")
 @login_required
-def index():
-    # Determine which tab is active based on query parameter
-    active_tab = request.args.get("tab", "recognize")
-    return render_template_string(INDEX_HTML, active_tab=active_tab)
+def dashboard():
+    subjects = get_subjects()  # Define this function to fetch subjects from Firestore
+    return render_template('dashboard.html', role=current_user.role, subjects=subjects)
 
 # -----------------------------
 # 9) Routes (Register, Recognize, Subjects, Attendance)
