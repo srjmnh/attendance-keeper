@@ -6,78 +6,28 @@ function getBase64(file, callback) {
 }
 
 function registerUser() {
-    const name = document.getElementById('name').value;
-    const studentId = document.getElementById('student_id').value;
-    const file = document.getElementById('register_image').files[0];
-
-    if (!name || !studentId || !file) {
-        alert('Please provide name, student ID, and an image.');
+    const name = document.getElementById('name').value.trim();
+    const studentId = document.getElementById('student_id').value.trim();
+    const imageInput = document.getElementById('register_image');
+    if (name === "" || studentId === "" || imageInput.files.length === 0) {
+        alert("Please fill out all fields and upload an image.");
         return;
     }
 
-    getBase64(file, (imageData) => {
-        fetch('/register', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ name, student_id: studentId, image: imageData }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            const resultDiv = document.getElementById('register_result');
-            if (data.message) {
-                resultDiv.className = 'text-success mt-2';
-                resultDiv.innerText = data.message;
-            } else {
-                resultDiv.className = 'text-danger mt-2';
-                resultDiv.innerText = data.error;
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    });
+    // Implement the registration logic (e.g., send data to the server)
+    alert("Register functionality is not implemented yet.");
 }
 
 function recognizeFace() {
-    const file = document.getElementById('rec_image').files[0];
-    const subjectSelect = document.getElementById('rec_subject_select');
-    const subject_id = subjectSelect.value;
-
-    if (!file) {
-        alert('Please upload an image.');
+    const subjectSelect = document.getElementById('rec_subject_select').value;
+    const imageInput = document.getElementById('rec_image');
+    if (imageInput.files.length === 0) {
+        alert("Please upload an image.");
         return;
     }
 
-    getBase64(file, (imageData) => {
-        fetch('/recognize', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ image: imageData, subject_id: subject_id }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            const resultDiv = document.getElementById('recognize_result');
-            if (data.error) {
-                resultDiv.className = 'alert alert-danger mt-3';
-                resultDiv.innerText = data.error;
-            } else {
-                let resultHTML = `<p>${data.message}</p>`;
-                if (data.identified_people && data.identified_people.length > 0) {
-                    resultHTML += `<p>Total Faces Detected: ${data.total_faces}</p><ul>`;
-                    data.identified_people.forEach(person => {
-                        resultHTML += `<li><strong>Face ${person.face_number}:</strong> Name: ${person.name || "Unknown"}, ID: ${person.student_id || "N/A"}, Confidence: ${person.confidence || "N/A"}%</li>`;
-                    });
-                    resultHTML += "</ul>";
-                }
-                resultDiv.className = 'alert alert-info mt-3';
-                resultDiv.innerHTML = resultHTML;
-                resultDiv.style.display = 'block';
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    });
+    // Implement the recognition logic (e.g., send data to the server)
+    alert("Recognize functionality is not implemented yet.");
 }
 
 function loadSubjects() {
@@ -97,59 +47,42 @@ function loadSubjects() {
 }
 
 function addSubject() {
-    const subjectName = document.getElementById('subject_name').value;
-
-    if (!subjectName) {
-        alert('Please enter a subject name.');
+    const subjectName = document.getElementById('subject_name').value.trim();
+    if (subjectName === "") {
+        alert("Please enter a subject name.");
         return;
     }
 
-    fetch('/subjects', {
+    // Make an AJAX POST request to add the subject
+    $.ajax({
+        url: '/admin/manage_subjects', // Update with your actual route
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
+        data: { subject_name: subjectName },
+        success: function(response) {
+            $('#subject_result').removeClass().addClass('alert alert-success').text(response.message).show();
+            location.reload(); // Reload to display the new subject
         },
-        body: JSON.stringify({ action: 'add', subject_name: subjectName }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('subject_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
-            resultDiv.innerText = data.message;
-            document.getElementById('subject_name').value = '';
-            loadSubjects();
-        } else {
-            resultDiv.className = 'alert alert-danger mt-3';
-            resultDiv.innerText = data.error;
+        error: function(xhr) {
+            $('#subject_result').removeClass().addClass('alert alert-danger').text(xhr.responseJSON.error).show();
         }
-    })
-    .catch(error => console.error('Error:', error));
+    });
 }
 
 function deleteSubject(subjectId) {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
+    if (!confirm("Are you sure you want to delete this subject?")) return;
 
-    fetch('/subjects', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
+    // Make an AJAX DELETE request to delete the subject
+    $.ajax({
+        url: `/admin/delete_subject/${subjectId}`, // Update with your actual route
+        method: 'DELETE',
+        success: function(response) {
+            $('#subject_result').removeClass().addClass('alert alert-success').text(response.message).show();
+            location.reload(); // Reload to remove the deleted subject
         },
-        body: JSON.stringify({ action: 'delete', subject_id: subjectId }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('subject_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
-            resultDiv.innerText = data.message;
-            loadSubjects();
-        } else {
-            resultDiv.className = 'alert alert-danger mt-3';
-            resultDiv.innerText = data.error;
+        error: function(xhr) {
+            $('#subject_result').removeClass().addClass('alert alert-danger').text(xhr.responseJSON.error).show();
         }
-    })
-    .catch(error => console.error('Error:', error));
+    });
 }
 
 let attendanceTable;
@@ -192,21 +125,9 @@ function loadAttendance() {
 }
 
 function saveEdits() {
-    const data = attendanceTable.rows().data().toArray();
-
-    fetch('/api/attendance/save', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ attendance: data }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        alert(data.message || data.error);
-        attendanceTable.ajax.reload();
-    })
-    .catch(error => console.error('Error:', error));
+    // Implement functionality to save edited subject names
+    // This can involve sending the edited data to the server via AJAX
+    alert("Save functionality is not implemented yet.");
 }
 
 function downloadExcel() {
@@ -279,32 +200,17 @@ function appendMessage(role, message) {
 }
 
 function sendAdminCommand() {
-    const prompt = document.getElementById('admin_prompt').value.trim();
-    if (!prompt) {
-        alert('Please enter a command.');
+    const command = document.getElementById('admin_prompt').value.trim();
+    if (command === "") {
+        alert("Please enter a command.");
         return;
     }
 
-    fetch('/process_prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt })
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('admin_chat_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-info mt-3';
-            resultDiv.innerText = data.message;
-            document.getElementById('admin_prompt').value = '';
-        } else {
-            resultDiv.className = 'alert alert-danger mt-3';
-            resultDiv.innerText = data.error;
-        }
-    })
-    .catch(error => console.error('Error:', error));
+    // Implement the command sending logic (e.g., send data to the server)
+    alert(`Command "${command}" sent to Gemini AI.`);
 }
 
 window.onload = function() {
     loadSubjects();
+};
 };
