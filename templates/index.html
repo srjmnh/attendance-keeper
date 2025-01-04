@@ -484,7 +484,7 @@
 
   /* Attendance Table Initialization */
   $(document).ready(function() {
-    var attendanceTable = $('#attendanceTable').DataTable({
+    $('#attendanceTable').DataTable({
       "ajax": {
         "url": "/api/attendance/fetch",
         "type": "GET",
