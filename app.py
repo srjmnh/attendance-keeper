@@ -30,6 +30,7 @@ from flask_login import (
     UserMixin,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS
 
 # -----------------------------
 # 1) AWS Rekognition Setup
@@ -121,6 +122,7 @@ conversation_memory.append({"role": "system", "content": system_context})
 # 4) Flask App Initialization
 # -----------------------------
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
 app.secret_key = os.environ.get("SECRET_KEY", "your_default_secret_key")
 
 # Initialize Flask-Login
@@ -1745,12 +1747,15 @@ def fetch_attendance():
         # Apply filters if provided
         if student_id:
             attendance_ref = attendance_ref.where("student_id", "==", student_id)
+            logging.info(f"Applied filter: student_id == {student_id}")
         if subject_id:
             attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
+            logging.info(f"Applied filter: subject_id == {subject_id}")
         if start_date:
             try:
                 start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
                 attendance_ref = attendance_ref.where("timestamp", ">=", start_datetime)
+                logging.info(f"Applied filter: timestamp >= {start_datetime}")
             except ValueError:
                 logging.error("Invalid start_date format.")
                 return jsonify({"data": [], "error": "Invalid start date format."}), 400
@@ -1760,6 +1765,7 @@ def fetch_attendance():
                     hour=23, minute=59, second=59, microsecond=999999
                 )
                 attendance_ref = attendance_ref.where("timestamp", "<=", end_datetime)
+                logging.info(f"Applied filter: timestamp <= {end_datetime}")
             except ValueError:
                 logging.error("Invalid end_date format.")
                 return jsonify({"data": [], "error": "Invalid end date format."}), 400
@@ -1768,22 +1774,34 @@ def fetch_attendance():
         attendance_records = []
         for record in attendance_ref.stream():
             record_data = record.to_dict()
+            timestamp = record_data.get("timestamp")
+            if isinstance(timestamp, datetime):
+                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                timestamp_str = "N/A"
+
             attendance_records.append({
                 "doc_id": record.id,
                 "student_id": record_data.get("student_id", "N/A"),
                 "name": record_data.get("name", "N/A"),
                 "subject_id": record_data.get("subject_id", "N/A"),
                 "subject_name": record_data.get("subject_name", "N/A"),
-                "timestamp": record_data.get("timestamp").strftime("%Y-%m-%d %H:%M:%S") if record_data.get("timestamp") else "N/A",
+                "timestamp": timestamp_str,
                 "status": record_data.get("status", "N/A")
             })
 
-        logging.info(f"Fetched {len(attendance_records)} attendance records.")
+        logging.info(f"Fetched {len(attendance_records)} attendance records successfully.")
         return jsonify({"data": attendance_records})
 
     except Exception as e:
         logging.error(f"Error fetching attendance records: {e}")
         return jsonify({"data": [], "error": "An error occurred while fetching attendance records."}), 500
+
+@app.route("/api/attendance/save", methods=["POST"])
+@login_required
+@role_required(['admin', 'teacher'])  # Adjust roles as needed
+def save_attendance():
+    # ... existing save_attendance function ...
 
 if __name__ == "__main__":
     # Create default admin if none exists

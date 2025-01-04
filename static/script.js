@@ -88,7 +88,8 @@ function loadSubjects() {
         subjectsList.innerHTML = '';
         data.subjects.forEach(subject => {
             const li = document.createElement('li');
-            li.innerHTML = `${subject.name} 
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `${subject.name}
                 <button onclick="deleteSubject('${subject.id}')" class="btn btn-sm btn-danger ms-2">Delete</button>`;
             subjectsList.appendChild(li);
         });
@@ -108,6 +109,7 @@ function addSubject() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
         },
         body: JSON.stringify({ action: 'add', subject_name: subjectName }),
     })
@@ -134,6 +136,7 @@ function deleteSubject(subjectId) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
         },
         body: JSON.stringify({ action: 'delete', subject_id: subjectId }),
     })
@@ -152,10 +155,9 @@ function deleteSubject(subjectId) {
     .catch(error => console.error('Error:', error));
 }
 
-let attendanceTable;
-
 $(document).ready(function() {
-    var attendanceTable = $('#attendanceTable').DataTable({
+    // Initialize DataTable
+    window.attendanceTable = $('#attendanceTable').DataTable({
         "ajax": {
             "url": "/api/attendance/fetch",
             "type": "GET",
@@ -175,9 +177,6 @@ $(document).ready(function() {
             { "data": "status" }
         ]
     });
-
-    // Assign the DataTable instance to a global variable if needed
-    window.attendanceTable = attendanceTable;
 
     loadSubjects();
 });
@@ -205,7 +204,9 @@ function saveEdits() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
         },
+        credentials: 'include',
         body: JSON.stringify({ attendance: data }),
     })
     .then(response => response.json())
@@ -318,4 +319,9 @@ window.onload = function() {
 
 function redirectToDashboard() {
     window.location.href = "/";
+}
+
+function getCSRFToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
 }
