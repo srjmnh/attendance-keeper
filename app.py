@@ -13,7 +13,6 @@ from flask import (
     Flask,
     request,
     jsonify,
-    render_template,
     render_template_string,
     send_file,
     redirect,
@@ -247,7 +246,7 @@ def login():
         if user:
             login_user(user)
             flash("Logged in successfully!", "success")
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("index"))
         else:
             flash("Invalid username or password.", "danger")
             return render_template_string(LOGIN_HTML)
@@ -1026,11 +1025,12 @@ INDEX_HTML = """
 </html>
 """
 
-@app.route("/dashboard")
+@app.route("/")
 @login_required
-def dashboard():
-    subjects = get_subjects()
-    return render_template('dashboard.html', role=current_user.role, subjects=subjects)
+def index():
+    subjects = [subject.to_dict() for subject in db.collection("subjects").stream()]
+    users_list = [user.to_dict() for user in db.collection("users").stream()] if current_user.role == 'admin' else []
+    return render_template("index.html", subjects=subjects, users=users_list, active_tab='register')
 
 # -----------------------------
 # 9) Routes (Register, Recognize, Subjects, Attendance)
@@ -1721,18 +1721,10 @@ def update_subject():
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
-@app.route('/')
+@app.route("/dashboard")
 @login_required
-def home():
-    return redirect(url_for('dashboard'))
-
-@app.errorhandler(404)
-def page_not_found(e):
-    return render_template('404.html'), 404
-
-@app.errorhandler(500)
-def internal_server_error(e):
-    return render_template('500.html'), 500
+def dashboard():
+    return redirect(url_for('index'))
 
 if __name__ == "__main__":
     # Create default admin if none exists
