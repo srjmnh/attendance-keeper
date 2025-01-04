@@ -18,7 +18,8 @@ from flask import (
     redirect,
     url_for,
     flash,
-    session
+    session,
+    render_template
 )
 from flask_login import (
     LoginManager,
