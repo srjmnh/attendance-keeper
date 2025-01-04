@@ -1721,6 +1721,83 @@ def update_subject():
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
+# API Endpoint to add a new subject
+@app.route('/api/subjects', methods=['POST'])
+@login_required
+def add_subject():
+    if current_user.role != 'admin':
+        return jsonify({"error": "Unauthorized access."}), 403
+    data = request.get_json()
+    subject_name = data.get('name', '').strip()
+    if not subject_name:
+        return jsonify({"error": "Subject name cannot be empty."}), 400
+    # Check for duplicate subject names
+    if subject_exists(subject_name):
+        return jsonify({"error": "Subject already exists."}), 400
+    # Add subject to the database
+    subject = create_subject(subject_name)  # Function to create a new subject and return its details
+    return jsonify({"message": "Subject added successfully.", "subject": subject}), 201
+
+# API Endpoint to update a subject
+@app.route('/api/subjects/<subject_id>', methods=['PUT'])
+@login_required
+def update_subject(subject_id):
+    if current_user.role != 'admin':
+        return jsonify({"error": "Unauthorized access."}), 403
+    data = request.get_json()
+    subject_name = data.get('name', '').strip()
+    if not subject_name:
+        return jsonify({"error": "Subject name cannot be empty."}), 400
+    # Update subject in the database
+    success = modify_subject(subject_id, subject_name)  # Function to update the subject's name
+    if success:
+        return jsonify({"message": "Subject updated successfully."}), 200
+    else:
+        return jsonify({"error": "Failed to update subject."}), 500
+
+# API Endpoint to delete a subject
+@app.route('/api/subjects/<subject_id>', methods=['DELETE'])
+@login_required
+def delete_subject(subject_id):
+    if current_user.role != 'admin':
+        return jsonify({"error": "Unauthorized access."}), 403
+    # Delete subject from the database
+    success = remove_subject(subject_id)  # Function to remove the subject
+    if success:
+        return jsonify({"message": "Subject deleted successfully."}), 200
+    else:
+        return jsonify({"error": "Failed to delete subject."}), 500
+
+# Helper functions (Implement these based on your database)
+def get_all_subjects():
+    # Fetch all subjects from the database
+    # Returns a list of dictionaries with 'id' and 'name'
+    pass
+
+def subject_exists(name):
+    # Check if a subject with the given name already exists
+    pass
+
+def create_subject(name):
+    # Create a new subject and return its details
+    pass
+
+def modify_subject(subject_id, new_name):
+    # Update the subject's name
+    pass
+
+def remove_subject(subject_id):
+    # Remove the subject from the database
+    pass
+
+def get_all_users():
+    # Fetch all users for the admin panel
+    pass
+
+def get_all_classes():
+    # Fetch all classes for assignment
+    pass
+
 if __name__ == "__main__":
     # Create default admin if none exists
     create_default_admin()
