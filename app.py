@@ -1210,43 +1210,92 @@ def recognize_face():
     }), 200
 
 # SUBJECTS
-@app.route("/add_subject", methods=["POST"])
-@role_required(['admin', 'teacher'])
-def add_subject_general():
-    data = request.json
-    subject_name = data.get("subject_name", "").strip()
+@app.route("/api/subjects/fetch", methods=["GET"])
+@login_required
+def fetch_subjects():
+    try:
+        subjects_ref = db.collection("subjects").stream()
+        subjects = []
+        for subject in subjects_ref:
+            subject_data = subject.to_dict()
+            subjects.append({
+                "id": subject.id,
+                "code": subject_data.get("code", "N/A"),
+                "name": subject_data.get("name", "N/A")
+            })
+        return jsonify({"subjects": subjects}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
+
+@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
+@login_required
+@role_required(['admin'])
+def admin_add_subject():
+    subject_name = request.form.get('subject_name', '').strip()
     if not subject_name:
-        return jsonify({"error": "No subject_name provided"}), 400
+        return jsonify({"error": "Subject name cannot be empty."}), 400
+
+    # Generate a subject code
     subject_code = generate_subject_code(subject_name)
+
     try:
         db.collection("subjects").add({
-            "name": subject_name,
             "code": subject_code,
-            "created_at": datetime.utcnow().isoformat()
+            "name": subject_name
         })
-        return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
+        return jsonify({"message": "Subject added successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
 
-@app.route("/get_subjects", methods=["GET"])
+@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject")
 @login_required
-def get_subjects():
-    if current_user.role == 'teacher':
-        # Teachers can see only subjects they teach
-        subjects = []
-        for cls in current_user.classes:
-            sub_doc = db.collection("subjects").where("name", "==", cls).stream()
-            for doc in sub_doc:
-                subjects.append({"id": doc.id, "name": doc.to_dict().get("name","")})
-        return jsonify({"subjects": subjects}), 200
-    else:
-        # Admin can see all subjects
-        subs = db.collection("subjects").stream()
-        subj_list = []
-        for s in subs:
-            d = s.to_dict()
-            subj_list.append({"id": s.id, "name": d.get("name","")})
-        return jsonify({"subjects": subj_list}), 200
+@role_required(['admin'])
+def admin_edit_subject(subject_id):
+    data = request.form if request.form else request.get_json()
+    new_name = data.get('name', '').strip()
+
+    if not subject_id or not new_name:
+        return jsonify({"error": "Subject ID and new name are required."}), 400
+
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_doc = subject_ref.get()
+        if not subject_doc.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
+        # Update the subject's name
+        subject_ref.update({"name": new_name})
+        return jsonify({"message": "Subject updated successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+    
+@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject")
+@login_required
+@role_required(['admin'])
+def admin_delete_subject(subject_id):
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_doc = subject_ref.get()
+        if not subject_doc.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
+        subject_ref.delete()
+        return jsonify({"message": "Subject deleted successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+
+# Add compatibility routes for old endpoints
+@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def admin_update_subject_redirect(subject_id):
+    return admin_edit_subject(subject_id)
+
+@app.route("/admin/remove_subject/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def remove_subject_redirect(subject_id):
+    return admin_delete_subject(subject_id)
 
 # ATTENDANCE
 import openpyxl
@@ -1299,179 +1348,212 @@ def get_attendance():
     return jsonify(out_list)
 
 @app.route("/api/attendance/update", methods=["POST"])
+@login_required
 @role_required(['admin', 'teacher'])
 def update_attendance():
-    data = request.json
-    records = data.get("records", [])
-    for rec in records:
-        doc_id = rec.get("doc_id")
-        if not doc_id:
-            continue
-        # Teachers can update only their classes
-        record_doc = db.collection("attendance").document(doc_id).get()
-        if not record_doc.exists:
-            continue
-        record_data = record_doc.to_dict()
-        if current_user.role == 'teacher' and record_data.get("subject_id") not in current_user.classes:
-            continue  # Skip if subject not assigned to teacher
-        ref = db.collection("attendance").document(doc_id)
-        update_data = {
-            "student_id": rec.get("student_id",""),
-            "name": rec.get("name",""),
-            "subject_id": rec.get("subject_id",""),
-            "subject_name": rec.get("subject_name",""),
-            "timestamp": rec.get("timestamp",""),
-            "status": rec.get("status","")
-        }
-        try:
-            ref.update(update_data)
-        except Exception as e:
-            continue  # Optionally, handle errors
-    return jsonify({"message": "Attendance records updated successfully."})
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        doc_id = data.get('doc_id')
+        status = data.get('status')
+
+        if not doc_id or not status:
+            return jsonify({"error": "Document ID and status are required"}), 400
+
+        attendance_ref = db.collection("attendance").document(doc_id)
+        attendance_ref.update({"status": status})
+
+        return jsonify({"message": "Attendance updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/attendance/download", methods=["GET"])
 @login_required
-def download_attendance_excel():
-    student_id = request.args.get("student_id")
-    subject_id = request.args.get("subject_id")
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
+def download_attendance():
+    try:
+        student_id = request.args.get("student_id")
+        subject_id = request.args.get("subject_id")
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
 
-    query = db.collection("attendance")
-    if current_user.role == 'teacher':
-        # Teachers can download only their classes
-        query = query.where("subject_id", "in", current_user.classes)
+        # Create a new Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Records"
 
-    if student_id:
-        query = query.where("student_id", "==", student_id)
-    if subject_id:
-        query = query.where("subject_id", "==", subject_id)
-    if start_date:
-        try:
+        # Add headers
+        headers = ["Student ID", "Name", "Subject", "Date", "Status"]
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+
+        # Fetch attendance records
+        attendance_ref = db.collection("attendance")
+        if student_id:
+            attendance_ref = attendance_ref.where("student_id", "==", student_id)
+        if subject_id:
+            attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
+        if start_date:
             dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-            query = query.where("timestamp", ">=", dt_start.isoformat())
-        except ValueError:
-            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
-    if end_date:
-        try:
+            attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
+        if end_date:
             dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                 hour=23, minute=59, second=59, microsecond=999999
             )
-            query = query.where("timestamp", "<=", dt_end.isoformat())
-        except ValueError:
-            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
+            attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
 
-    # Execute query
-    try:
-        results = query.stream()
+        # Add records to Excel
+        row = 2
+        for record in attendance_ref.stream():
+            data = record.to_dict()
+            timestamp = data.get("timestamp")
+            if isinstance(timestamp, datetime):
+                date_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                date_str = "N/A"
+
+            ws.cell(row=row, column=1, value=data.get("student_id", "N/A"))
+            ws.cell(row=row, column=2, value=data.get("name", "N/A"))
+            ws.cell(row=row, column=3, value=data.get("subject_name", "N/A"))
+            ws.cell(row=row, column=4, value=date_str)
+            ws.cell(row=row, column=5, value=data.get("status", "N/A"))
+            row += 1
+
+        # Save to a BytesIO object
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="attendance_records.xlsx"
+        )
     except Exception as e:
-        return jsonify({"error": f"Failed to retrieve attendance: {str(e)}"}), 500
-
-    att_list = []
-    for doc_ in results:
-        dd = doc_.to_dict()
-        dd["doc_id"] = doc_.id
-        att_list.append(dd)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Attendance"
-    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
-    ws.append(headers)
-
-    for record in att_list:
-        row = [
-            record.get("doc_id",""),
-            record.get("student_id",""),
-            record.get("name",""),
-            record.get("subject_id",""),
-            record.get("subject_name",""),
-            record.get("timestamp",""),
-            record.get("status","")
-        ]
-        ws.append(row)
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        download_name="attendance.xlsx"
-    )
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/attendance/template", methods=["GET"])
 @login_required
 def download_template():
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Attendance Template"
-    headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
-    ws.append(headers)
+    try:
+        # Create a new Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Template"
 
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        download_name="attendance_template.xlsx"
-    )
+        # Add headers
+        headers = ["Student ID", "Name", "Subject Code", "Date (YYYY-MM-DD)", "Status (Present/Absent)"]
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+
+        # Save to a BytesIO object
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="attendance_template.xlsx"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/attendance/upload", methods=["POST"])
+@login_required
 @role_required(['admin', 'teacher'])
-def upload_attendance_excel():
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    file = request.files["file"]
-    if not file.filename.endswith(".xlsx"):
-        return jsonify({"error": "Please upload a .xlsx file"}), 400
-
+def upload_attendance():
     try:
-        wb = openpyxl.load_workbook(file)
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        if not file.filename.endswith('.xlsx'):
+            return jsonify({"error": "Only Excel files (.xlsx) are allowed"}), 400
+
+        # Read Excel file
+        wb = load_workbook(filename=BytesIO(file.read()))
+        ws = wb.active
+
+        # Get headers
+        headers = [cell.value for cell in ws[1]]
+        required_headers = ["Student ID", "Name", "Subject Code", "Date (YYYY-MM-DD)", "Status (Present/Absent)"]
+        
+        if not all(header in headers for header in required_headers):
+            return jsonify({"error": "Invalid template format. Please use the provided template."}), 400
+
+        # Process records
+        success_count = 0
+        error_count = 0
+        errors = []
+
+        for row in ws.iter_rows(min_row=2):
+            try:
+                student_id = str(row[0].value).strip()
+                name = str(row[1].value).strip()
+                subject_code = str(row[2].value).strip()
+                date_str = str(row[3].value).strip()
+                status = str(row[4].value).strip().lower()
+
+                if not all([student_id, name, subject_code, date_str, status]):
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Missing required fields")
+                    continue
+
+                # Validate date format
+                try:
+                    date = datetime.strptime(date_str, "%Y-%m-%d")
+                except ValueError:
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Invalid date format")
+                    continue
+
+                # Validate status
+                if status not in ['present', 'absent']:
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Invalid status (must be Present or Absent)")
+                    continue
+
+                # Get subject details
+                subject_query = db.collection("subjects").where("code", "==", subject_code).limit(1)
+                subject_docs = list(subject_query.stream())
+                if not subject_docs:
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Subject code not found")
+                    continue
+
+                subject_doc = subject_docs[0]
+                subject_id = subject_doc.id
+                subject_name = subject_doc.to_dict().get("name")
+
+                # Add attendance record
+                db.collection("attendance").add({
+                    "student_id": student_id,
+                    "name": name,
+                    "subject_id": subject_id,
+                    "subject_name": subject_name,
+                    "timestamp": date,
+                    "status": status
+                })
+                success_count += 1
+
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Row {row[0].row}: {str(e)}")
+
+        return jsonify({
+            "message": f"Upload complete. {success_count} records added successfully, {error_count} errors.",
+            "errors": errors if errors else None
+        }), 200 if success_count > 0 else 400
+
     except Exception as e:
-        return jsonify({"error": f"Failed to read Excel file: {str(e)}"}), 400
-
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
-    if not rows or rows[0] != expected:
-        return jsonify({"error": "Incorrect template format"}), 400
-
-    for row in rows[1:]:
-        doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
-        if current_user.role == 'teacher' and subject_id not in current_user.classes:
-            continue  # Teachers cannot modify other classes' data
-        if doc_id:
-            doc_data = {
-                "student_id": student_id or "",
-                "name": name or "",
-                "subject_id": subject_id or "",
-                "subject_name": subject_name or "",
-                "timestamp": timestamp or "",
-                "status": status or ""
-            }
-            try:
-                db.collection("attendance").document(doc_id).set(doc_data, merge=True)
-            except Exception as e:
-                continue  # Optionally, handle errors
-        else:
-            new_doc = {
-                "student_id": student_id or "",
-                "name": name or "",
-                "subject_id": subject_id or "",
-                "subject_name": subject_name or "",
-                "timestamp": timestamp or "",
-                "status": status or ""
-            }
-            try:
-                db.collection("attendance").add(new_doc)
-            except Exception as e:
-                continue  # Optionally, handle errors
-
-    return jsonify({"message": "Excel data imported successfully."})
+        return jsonify({"error": str(e)}), 500
 
 # -----------------------------
 # 10) Admin Gemini Chat Integration
@@ -1741,137 +1823,6 @@ def remove_subject_redirect(subject_id):
 @login_required
 @role_required(['admin'])
 def admin_edit_subject(subject_id):
-    data = request.form
-    new_name = data.get('name', '').strip()
-
-    if not subject_id or not new_name:
-        return jsonify({"error": "Subject ID and new name are required."}), 400
-
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_doc = subject_ref.get()
-        if not subject_doc.exists:
-            return jsonify({"error": "Subject not found."}), 404
-
-        subject_ref.update({"name": new_name})
-        return jsonify({"message": "Subject updated successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    return redirect(url_for('index'))
-
-@app.route("/api/attendance/fetch", methods=["GET"], endpoint="fetch_attendance_records")
-@login_required
-def fetch_attendance_records():
-    try:
-        logging.info("Fetching attendance records...")
-        student_id = request.args.get("student_id")
-        subject_id = request.args.get("subject_id")
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
-
-        attendance_ref = db.collection("attendance")
-
-        if student_id:
-            attendance_ref = attendance_ref.where("student_id", "==", student_id)
-        if subject_id:
-            attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
-        if start_date:
-            try:
-                dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-                attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
-            except ValueError:
-                return jsonify({"data": [], "error": "Invalid start date format."}), 400
-        if end_date:
-            try:
-                dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-                    hour=23, minute=59, second=59, microsecond=999999
-                )
-                attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
-            except ValueError:
-                return jsonify({"data": [], "error": "Invalid end date format."}), 400
-
-        attendance_records = []
-        for record in attendance_ref.stream():
-            record_data = record.to_dict()
-            timestamp = record_data.get("timestamp")
-            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S") if isinstance(timestamp, datetime) else "N/A"
-
-            attendance_records.append({
-                "doc_id": record.id,
-                "student_id": record_data.get("student_id", "N/A"),
-                "name": record_data.get("name", "N/A"),
-                "subject_id": record_data.get("subject_id", "N/A"),
-                "subject_name": record_data.get("subject_name", "N/A"),
-                "timestamp": timestamp_str,
-                "status": record_data.get("status", "N/A")
-            })
-
-        return jsonify({"data": attendance_records})
-    except Exception as e:
-        return jsonify({"data": [], "error": str(e)}), 500
-
-@app.route("/api/attendance/save", methods=["POST"], endpoint="save_attendance_records")
-@login_required
-@role_required(['admin', 'teacher'])
-def save_attendance_records():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        # TODO: Implement attendance saving logic
-        return jsonify({"message": "Attendance records saved successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Fetch Subjects
-@app.route("/api/subjects/fetch", methods=["GET"])
-@login_required
-def fetch_subjects():
-    try:
-        subjects_ref = db.collection("subjects").stream()
-        subjects = []
-        for subject in subjects_ref:
-            subject_data = subject.to_dict()
-            subjects.append({
-                "id": subject.id,
-                "code": subject_data.get("code", "N/A"),
-                "name": subject_data.get("name", "N/A")
-            })
-        return jsonify({"subjects": subjects}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
-
-# Add Subject (API endpoint)
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
-@login_required
-@role_required(['admin'])
-def admin_add_subject():
-    subject_name = request.form.get('subject_name', '').strip()
-    if not subject_name:
-        return jsonify({"error": "Subject name cannot be empty."}), 400
-
-    # Generate a subject code
-    subject_code = generate_subject_code(subject_name)
-
-    try:
-        db.collection("subjects").add({
-            "code": subject_code,
-            "name": subject_name
-        })
-        return jsonify({"message": "Subject added successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
-
-# Edit Subject
-@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject")
-@login_required
-@role_required(['admin'])
-def admin_edit_subject(subject_id):
     data = request.form if request.form else request.get_json()
     new_name = data.get('name', '').strip()
 
@@ -1889,20 +1840,11 @@ def admin_edit_subject(subject_id):
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
-# Add compatibility route for old update endpoint
-@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
-@login_required
-@role_required(['admin'])
-def admin_update_subject_redirect(subject_id):
-    return admin_edit_subject(subject_id)
-
-# Dashboard redirect
 @app.route("/dashboard")
 @login_required
 def dashboard():
     return redirect(url_for('index'))
 
-# Attendance API endpoints
 @app.route("/api/attendance/fetch", methods=["GET"], endpoint="fetch_attendance_records")
 @login_required
 def fetch_attendance_records():
@@ -1965,214 +1907,6 @@ def save_attendance_records():
 
         # TODO: Implement attendance saving logic
         return jsonify({"message": "Attendance records saved successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/attendance/update", methods=["POST"])
-@login_required
-@role_required(['admin', 'teacher'])
-def update_attendance():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        doc_id = data.get('doc_id')
-        status = data.get('status')
-
-        if not doc_id or not status:
-            return jsonify({"error": "Document ID and status are required"}), 400
-
-        attendance_ref = db.collection("attendance").document(doc_id)
-        attendance_ref.update({"status": status})
-
-        return jsonify({"message": "Attendance updated successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/attendance/download", methods=["GET"])
-@login_required
-def download_attendance():
-    try:
-        student_id = request.args.get("student_id")
-        subject_id = request.args.get("subject_id")
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
-
-        # Create a new Excel workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Attendance Records"
-
-        # Add headers
-        headers = ["Student ID", "Name", "Subject", "Date", "Status"]
-        for col, header in enumerate(headers, 1):
-            ws.cell(row=1, column=col, value=header)
-
-        # Fetch attendance records
-        attendance_ref = db.collection("attendance")
-        if student_id:
-            attendance_ref = attendance_ref.where("student_id", "==", student_id)
-        if subject_id:
-            attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
-        if start_date:
-            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-            attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
-        if end_date:
-            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-                hour=23, minute=59, second=59, microsecond=999999
-            )
-            attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
-
-        # Add records to Excel
-        row = 2
-        for record in attendance_ref.stream():
-            data = record.to_dict()
-            timestamp = data.get("timestamp")
-            if isinstance(timestamp, datetime):
-                date_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                date_str = "N/A"
-
-            ws.cell(row=row, column=1, value=data.get("student_id", "N/A"))
-            ws.cell(row=row, column=2, value=data.get("name", "N/A"))
-            ws.cell(row=row, column=3, value=data.get("subject_name", "N/A"))
-            ws.cell(row=row, column=4, value=date_str)
-            ws.cell(row=row, column=5, value=data.get("status", "N/A"))
-            row += 1
-
-        # Save to a BytesIO object
-        excel_file = BytesIO()
-        wb.save(excel_file)
-        excel_file.seek(0)
-
-        return send_file(
-            excel_file,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name="attendance_records.xlsx"
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/attendance/template", methods=["GET"])
-@login_required
-def download_template():
-    try:
-        # Create a new Excel workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Attendance Template"
-
-        # Add headers
-        headers = ["Student ID", "Name", "Subject Code", "Date (YYYY-MM-DD)", "Status (Present/Absent)"]
-        for col, header in enumerate(headers, 1):
-            ws.cell(row=1, column=col, value=header)
-
-        # Save to a BytesIO object
-        excel_file = BytesIO()
-        wb.save(excel_file)
-        excel_file.seek(0)
-
-        return send_file(
-            excel_file,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name="attendance_template.xlsx"
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/attendance/upload", methods=["POST"])
-@login_required
-@role_required(['admin', 'teacher'])
-def upload_attendance():
-    try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No file selected"}), 400
-
-        if not file.filename.endswith('.xlsx'):
-            return jsonify({"error": "Only Excel files (.xlsx) are allowed"}), 400
-
-        # Read Excel file
-        wb = load_workbook(filename=BytesIO(file.read()))
-        ws = wb.active
-
-        # Get headers
-        headers = [cell.value for cell in ws[1]]
-        required_headers = ["Student ID", "Name", "Subject Code", "Date (YYYY-MM-DD)", "Status (Present/Absent)"]
-        
-        if not all(header in headers for header in required_headers):
-            return jsonify({"error": "Invalid template format. Please use the provided template."}), 400
-
-        # Process records
-        success_count = 0
-        error_count = 0
-        errors = []
-
-        for row in ws.iter_rows(min_row=2):
-            try:
-                student_id = str(row[0].value).strip()
-                name = str(row[1].value).strip()
-                subject_code = str(row[2].value).strip()
-                date_str = str(row[3].value).strip()
-                status = str(row[4].value).strip().lower()
-
-                if not all([student_id, name, subject_code, date_str, status]):
-                    error_count += 1
-                    errors.append(f"Row {row[0].row}: Missing required fields")
-                    continue
-
-                # Validate date format
-                try:
-                    date = datetime.strptime(date_str, "%Y-%m-%d")
-                except ValueError:
-                    error_count += 1
-                    errors.append(f"Row {row[0].row}: Invalid date format")
-                    continue
-
-                # Validate status
-                if status not in ['present', 'absent']:
-                    error_count += 1
-                    errors.append(f"Row {row[0].row}: Invalid status (must be Present or Absent)")
-                    continue
-
-                # Get subject details
-                subject_query = db.collection("subjects").where("code", "==", subject_code).limit(1)
-                subject_docs = list(subject_query.stream())
-                if not subject_docs:
-                    error_count += 1
-                    errors.append(f"Row {row[0].row}: Subject code not found")
-                    continue
-
-                subject_doc = subject_docs[0]
-                subject_id = subject_doc.id
-                subject_name = subject_doc.to_dict().get("name")
-
-                # Add attendance record
-                db.collection("attendance").add({
-                    "student_id": student_id,
-                    "name": name,
-                    "subject_id": subject_id,
-                    "subject_name": subject_name,
-                    "timestamp": date,
-                    "status": status
-                })
-                success_count += 1
-
-            except Exception as e:
-                error_count += 1
-                errors.append(f"Row {row[0].row}: {str(e)}")
-
-        return jsonify({
-            "message": f"Upload complete. {success_count} records added successfully, {error_count} errors.",
-            "errors": errors if errors else None
-        }), 200 if success_count > 0 else 400
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
