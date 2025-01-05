@@ -220,7 +220,7 @@ function editSubject(subjectId, currentName) {
 function deleteSubject(subjectId) {
     if (!confirm('Are you sure you want to delete this subject?')) return;
 
-    fetch(`/admin/subjects/delete/${subjectId}`, {  // Updated endpoint
+    fetch(`/admin/subjects/delete/${subjectId}`, {  // Updated endpoint to match app.py
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -334,4 +334,39 @@ window.onload = function() {
 
 function redirectToDashboard() {
     window.location.href = "/";
+}
+
+// Add Subject Function (Admin Only)
+function addSubject() {
+    const subjectName = document.getElementById('subject_name').value.trim();
+    if (!subjectName) {
+        alert('Subject name cannot be empty.');
+        return;
+    }
+
+    fetch(`/admin/subjects/add`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCSRFToken(),
+        },
+        body: new URLSearchParams({
+            'subject_name': subjectName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('subject_result');
+        if (data.message) {
+            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.innerText = data.message;
+            subjectsTable.ajax.reload();
+            loadSubjectsList();
+            document.getElementById('addSubjectForm').reset();
+        } else {
+            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.innerText = data.error;
+        }
+    })
+    .catch(error => console.error('Error adding subject:', error));
 }
