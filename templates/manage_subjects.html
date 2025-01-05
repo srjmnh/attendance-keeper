@@ -17,22 +17,6 @@
         </thead>
         <tbody>
             <!-- Data populated by DataTables -->
-            {% for subject in subjects %}
-                <tr>
-                    <td>{{ subject.code }}</td>
-                    <td>{{ subject.name }}</td>
-                    {% if current_user.role == 'admin' %}
-                    <td>
-                        <button class="btn btn-sm btn-warning me-2" onclick="editSubject('{{ subject.id }}', '{{ subject.name }}')">Edit</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteSubject('{{ subject.id }}')">Delete</button>
-                    </td>
-                    {% endif %}
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="3">No subjects found.</td>
-                </tr>
-            {% endfor %}
         </tbody>
     </table>
 
@@ -60,5 +44,13 @@
     </form>
 </div>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const isAdmin = {{ 'true' if current_user.role == 'admin' else 'false' }};
+    initializeSubjectsTable(isAdmin);
+});
+</script>
 {% endblock %} 
