@@ -1716,7 +1716,7 @@ def admin_update_subject_route(subject_id):
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
     
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
+@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
 @login_required
 @role_required(['admin'])
 def admin_delete_subject_route(subject_id):
@@ -1748,17 +1748,6 @@ def admin_edit_subject_route(subject_id):
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
-@login_required
-@role_required(['admin'])
-def admin_delete_subject_route(subject_id):
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
 @app.route("/dashboard")
 @login_required
@@ -1903,7 +1892,7 @@ def admin_update_subject():
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
 # Delete Subject
-@app.route("/admin/delete_subject/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
+@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
 @login_required
 @role_required(['admin'])
 def admin_delete_subject_route(subject_id):
