@@ -1659,7 +1659,7 @@ def admin_view_subjects():
         flash(f"Error fetching subjects: {str(e)}", "danger")
         return render_template('manage_subjects.html', subjects=[])
 
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject_route")
+@app.route("/admin/subjects/add", methods=["POST"])
 @login_required
 @role_required(['admin'])
 def admin_add_subject_route():
@@ -1695,7 +1695,7 @@ def generate_subject_code(subject_name):
         count += 1
     return unique_code
 
-@app.route("/admin/subjects/update/<subject_id>", methods=["POST"], endpoint="admin_update_subject_route")
+@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
 @login_required
 @role_required(['admin'])
 def admin_update_subject_route(subject_id):
@@ -1716,10 +1716,10 @@ def admin_update_subject_route(subject_id):
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
     
-@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
+@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint='admin_delete_subject')
 @login_required
 @role_required(['admin'])
-def admin_delete_subject_route(subject_id):
+def delete_subject(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
@@ -1727,7 +1727,18 @@ def admin_delete_subject_route(subject_id):
     except Exception as e:
         return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
-@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject_route")
+@app.route("/admin/remove_subject/<subject_id>", methods=["POST"], endpoint='admin_remove_subject')
+@login_required
+@role_required(['admin'])
+def remove_subject(subject_id):
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_ref.delete()
+        return jsonify({"message": "Subject deleted successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+
+@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"])
 @login_required
 @role_required(['admin'])
 def admin_edit_subject_route(subject_id):
@@ -1770,13 +1781,13 @@ def fetch_attendance():
         attendance_ref = db.collection("attendance")
 
         # Apply filters if provided
-        if student_id:
+        if (student_id):
             attendance_ref = attendance_ref.where("student_id", "==", student_id)
             logging.info(f"Applied filter: student_id == {student_id}")
-        if subject_id:
+        if (subject_id):
             attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
             logging.info(f"Applied filter: subject_id == {subject_id}")
-        if start_date:
+        if (start_date):
             try:
                 dt_start = datetime.strptime(start_date, "%Y-%m-%d")
                 attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
@@ -1784,7 +1795,7 @@ def fetch_attendance():
             except ValueError:
                 logging.error("Invalid start_date format.")
                 return jsonify({"data": [], "error": "Invalid start date format."}), 400
-        if end_date:
+        if (end_date):
             try:
                 dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                     hour=23, minute=59, second=59, microsecond=999999
@@ -1848,7 +1859,7 @@ def fetch_subjects():
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
 # Add Subject
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject_route")
+@app.route("/admin/subjects/add", methods=["POST"])
 @login_required
 @role_required(['admin'])
 def admin_add_subject_route():
@@ -1892,10 +1903,21 @@ def admin_update_subject():
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
 # Delete Subject
-@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject_route")
+@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint='admin_delete_subject')
 @login_required
 @role_required(['admin'])
-def admin_delete_subject_route(subject_id):
+def delete_subject(subject_id):
+    try:
+        subject_ref = db.collection("subjects").document(subject_id)
+        subject_ref.delete()
+        return jsonify({"message": "Subject deleted successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+
+@app.route("/admin/remove_subject", methods=["POST"], endpoint='admin_remove_subject')
+@login_required
+@role_required(['admin'])
+def remove_subject(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
         subject_ref.delete()
