@@ -632,9 +632,9 @@ INDEX_HTML = """
   <div class="tab-pane fade {% if active_tab == 'subjects' %}show active{% endif %} mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
     <div class="mb-4">
-      <label class="form-label">New Subject Name:</label>
+    <label class="form-label">New Subject Name:</label>
       <div class="input-group">
-        <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
+    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
         <button onclick="addSubject()" class="btn btn-primary">Add Subject</button>
       </div>
     </div>
@@ -681,20 +681,20 @@ INDEX_HTML = """
     <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
     
     <div class="table-responsive">
-      <table id="attendanceTable" class="display table table-striped w-100">
-        <thead>
-          <tr>
-            <th>Doc ID</th>
-            <th>Student ID</th>
-            <th>Name</th>
+    <table id="attendanceTable" class="display table table-striped w-100">
+      <thead>
+        <tr>
+          <th>Doc ID</th>
+          <th>Student ID</th>
+          <th>Name</th>
             <th>Subject</th>
             <th>Date</th>
-            <th>Status</th>
+          <th>Status</th>
             <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
     </div>
     
     <div class="mt-3">
@@ -1266,7 +1266,7 @@ def admin_edit_subject(subject_id):
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
+    
 # Add compatibility route for old endpoint
 @app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
 @login_required
@@ -1353,7 +1353,7 @@ def fetch_attendance_records():
 @role_required(['admin', 'teacher'])
 def save_attendance_records():
     try:
-        data = request.get_json()
+    data = request.get_json()
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
