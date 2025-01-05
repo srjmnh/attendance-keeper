@@ -123,15 +123,6 @@ function initSubjectsTable() {
                     }
                     return data;
                 }
-            },
-            {
-                data: null,
-                render: function(data, type, row) {
-                    return `
-                        <button class="btn btn-sm btn-danger" onclick="deleteSubject('${row.id}')">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>`;
-                }
             }
         ]
     });
@@ -242,14 +233,6 @@ function initAttendanceTable() {
                         </select>`;
                     }
                     return data;
-                }
-            },
-            {
-                data: null,
-                render: function(data, type, row) {
-                    return `<button class="btn btn-sm btn-danger" onclick="deleteAttendance('${row.doc_id}')">
-                        <i class="fas fa-trash"></i>
-                    </button>`;
                 }
             }
         ]
