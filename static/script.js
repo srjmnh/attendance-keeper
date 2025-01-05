@@ -344,7 +344,7 @@ function addSubject() {
         return;
     }
 
-    fetch(`/admin/subjects/add`, {
+    fetch(`/admin/subjects/add`, {  // Endpoint matches app.py
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
