@@ -1360,6 +1360,40 @@ def save_attendance_records():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Function to create default admin user
+def create_default_admin():
+    """
+    Creates a default admin user if no admin exists in the Firestore 'users' collection.
+    """
+    admins_ref = db.collection("users").where("role", "==", "admin").stream()
+    admins = [admin for admin in admins_ref]
+
+    if not admins:
+        # Define default admin credentials
+        default_admin_username = "admin"
+        default_admin_password = generate_password_hash("admin123")  # Use a secure password in production
+
+        try:
+            db.collection("users").add({
+                "username": default_admin_username,
+                "password_hash": default_admin_password,
+                "role": "admin",
+                "classes": []
+            })
+            print("Default admin user created.")
+        except Exception as e:
+            print(f"Error creating default admin: {e}")
+    else:
+        print("Admin user already exists.")
+
+def initialize_app():
+    """
+    Initializes the application by setting up necessary components.
+    For example, creates a default admin user if none exists.
+    """
+    create_default_admin()
+    # Add any other initialization functions here
+
 if __name__ == "__main__":
     initialize_app()
     port = int(os.getenv("PORT", 5000))
