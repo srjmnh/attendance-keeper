@@ -4,53 +4,54 @@
 <div class="container mt-5">
     <h2>Manage Subjects</h2>
 
-    <!-- Subject List -->
-    <table id="subjectsTable" class="table table-striped">
-        <thead>
-            <tr>
-                <th>Code</th>
-                <th>Name</th>
-                {% if current_user.role == 'admin' %}
-                <th>Actions</th>
-                {% endif %}
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Data populated by DataTables -->
-        </tbody>
-    </table>
-
-    <!-- Feedback Message -->
+    <!-- Add Subject Form -->
     {% if current_user.role == 'admin' %}
+    <div class="mb-4">
+        <label class="form-label">New Subject Name:</label>
+        <div class="input-group">
+            <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
+            <button onclick="addSubject()" class="btn btn-primary">Add Subject</button>
+        </div>
+    </div>
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
     {% endif %}
 
-    <!-- Optional: List of Subjects -->
-    <ul id="subjects_list" class="list-group mt-4">
-        <!-- Subjects will be dynamically loaded here -->
-    </ul>
+    <!-- Subjects Table -->
+    <div class="table-responsive">
+        <table id="subjectsTable" class="display table table-striped w-100">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Code</th>
+                    <th>Name</th>
+                    {% if current_user.role == 'admin' %}
+                    <th>Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 </div>
 
-<!-- Optional: Modal for Adding a Subject -->
-{% if current_user.role == 'admin' %}
-<div class="container mt-5">
-    <h3>Add New Subject</h3>
-    <form id="addSubjectForm">
-        <div class="mb-3">
-            <label for="subject_name" class="form-label">Subject Name</label>
-            <input type="text" class="form-control" id="subject_name" name="subject_name" required>
-        </div>
-        <button type="button" class="btn btn-primary" onclick="addSubject()">Add Subject</button>
-    </form>
-</div>
-{% endif %}
+<style>
+    .editable {
+        background-color: #fff8dc;
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 3px;
+    }
+    .editable:hover {
+        background-color: #fff3cd;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const isAdmin = {{ 'true' if current_user.role == 'admin' else 'false' }};
-    initializeSubjectsTable(isAdmin);
+    initSubjectsTable();
+    loadSubjects();
 });
 </script>
 {% endblock %} 

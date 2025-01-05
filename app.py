@@ -631,13 +631,28 @@ INDEX_HTML = """
   <!-- SUBJECTS -->
   <div class="tab-pane fade {% if active_tab == 'subjects' %}show active{% endif %} mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
-    <label class="form-label">New Subject Name:</label>
-    <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
-    <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
+    <div class="mb-4">
+      <label class="form-label">New Subject Name:</label>
+      <div class="input-group">
+        <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
+        <button onclick="addSubject()" class="btn btn-primary">Add Subject</button>
+      </div>
+    </div>
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    <hr />
-    <h5>Existing Subjects</h5>
-    <ul id="subjects_list"></ul>
+    
+    <div class="table-responsive">
+      <table id="subjectsTable" class="display table table-striped w-100">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- ATTENDANCE -->
@@ -650,7 +665,9 @@ INDEX_HTML = """
       </div>
       <div class="col-md-3">
         <label class="form-label">Subject ID</label>
-        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
+        <select id="filter_subject_id" class="form-control">
+          <option value="">All Subjects</option>
+        </select>
       </div>
       <div class="col-md-3">
         <label class="form-label">Start Date</label>
@@ -662,20 +679,24 @@ INDEX_HTML = """
       </div>
     </div>
     <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
-    <table id="attendanceTable" class="display table table-striped w-100">
-      <thead>
-        <tr>
-          <th>Doc ID</th>
-          <th>Student ID</th>
-          <th>Name</th>
-          <th>Subject ID</th>
-          <th>Subject Name</th>
-          <th>Timestamp</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    
+    <div class="table-responsive">
+      <table id="attendanceTable" class="display table table-striped w-100">
+        <thead>
+          <tr>
+            <th>Doc ID</th>
+            <th>Student ID</th>
+            <th>Name</th>
+            <th>Subject</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    
     <div class="mt-3">
       <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
       <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
@@ -880,23 +901,24 @@ INDEX_HTML = """
   }
 
   function loadSubjects() {
-    fetch('/get_subjects')
+    fetch('/api/subjects/fetch')
     .then(res => res.json())
     .then(data => {
-      const select = document.getElementById('rec_subject_select');
-      select.innerHTML = '<option value="">-- No Subject --</option>';
-      (data.subjects || []).forEach(sub => {
+      if ($.fn.DataTable.isDataTable('#subjectsTable')) {
+        subjectsTable.clear();
+      } else {
+        initSubjectsTable();
+      }
+      subjectsTable.rows.add(data.subjects).draw();
+      
+      // Update subject select in attendance filters
+      const select = document.getElementById('filter_subject_id');
+      select.innerHTML = '<option value="">All Subjects</option>';
+      data.subjects.forEach(sub => {
         const option = document.createElement('option');
         option.value = sub.id;
         option.textContent = sub.name;
         select.appendChild(option);
-      });
-      const list = document.getElementById('subjects_list');
-      list.innerHTML = '';
-      (data.subjects || []).forEach(sub => {
-        const li = document.createElement('li');
-        li.textContent = `ID: ${sub.id}, Name: ${sub.name}`;
-        list.appendChild(li);
       });
     })
     .catch(err => console.error(err));
@@ -905,50 +927,27 @@ INDEX_HTML = """
   /* Attendance */
   function loadAttendance() {
     const studentId = document.getElementById('filter_student_id').value.trim();
-    const subjectId = document.getElementById('filter_subject_id').value.trim();
+    const subjectId = document.getElementById('filter_subject_id').value;
     const startDate = document.getElementById('filter_start').value;
     const endDate = document.getElementById('filter_end').value;
 
-    let url = '/api/attendance?';
-    if (studentId) url += 'student_id=' + studentId + '&';
-    if (subjectId) url += 'subject_id=' + subjectId + '&';
-    if (startDate) url += 'start_date=' + startDate + '&';
-    if (endDate) url += 'end_date=' + endDate + '&';
+    let url = '/api/attendance/fetch?';
+    if (studentId) url += `student_id=${studentId}&`;
+    if (subjectId) url += `subject_id=${subjectId}&`;
+    if (startDate) url += `start_date=${startDate}&`;
+    if (endDate) url += `end_date=${endDate}&`;
 
     fetch(url)
       .then(res => res.json())
       .then(data => {
-        attendanceData = data;
-        renderAttendanceTable(attendanceData);
+        if ($.fn.DataTable.isDataTable('#attendanceTable')) {
+          attendanceTable.clear();
+        } else {
+          initAttendanceTable();
+        }
+        attendanceTable.rows.add(data).draw();
       })
       .catch(err => console.error(err));
-  }
-
-  function renderAttendanceTable(data) {
-    if ($.fn.DataTable.isDataTable('#attendanceTable')) {
-      $('#attendanceTable').DataTable().clear().destroy();
-    }
-    const tbody = document.querySelector('#attendanceTable tbody');
-    tbody.innerHTML = '';
-    data.forEach(record => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${record.doc_id || ''}</td>
-        <td contenteditable="true">${record.student_id || ''}</td>
-        <td contenteditable="true">${record.name || ''}</td>
-        <td contenteditable="true">${record.subject_id || ''}</td>
-        <td contenteditable="true">${record.subject_name || ''}</td>
-        <td contenteditable="true">${record.timestamp || ''}</td>
-        <td contenteditable="true">${record.status || ''}</td>
-      `;
-      tbody.appendChild(row);
-    });
-    $('#attendanceTable').DataTable({
-      paging: true,
-      searching: false,
-      info: false,
-      responsive: true
-    });
   }
 
   function saveEdits() {
@@ -1019,9 +1018,9 @@ INDEX_HTML = """
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    {% if current_user.role in ['admin', 'teacher'] %}
     loadSubjects();
-    {% endif %}
+    initAttendanceTable();
+    loadAttendance();
   });
 </script>
 </body>
@@ -1299,52 +1298,55 @@ def dashboard():
 @login_required
 def fetch_attendance_records():
     try:
-        logging.info("Fetching attendance records...")
         student_id = request.args.get("student_id")
         subject_id = request.args.get("subject_id")
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
 
-        attendance_ref = db.collection("attendance")
-
+        query = db.collection("attendance")
+        
         if student_id:
-            attendance_ref = attendance_ref.where("student_id", "==", student_id)
+            query = query.where("student_id", "==", student_id)
         if subject_id:
-            attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
+            query = query.where("subject_id", "==", subject_id)
         if start_date:
             try:
                 dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-                attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
+                query = query.where("timestamp", ">=", dt_start)
             except ValueError:
-                return jsonify({"data": [], "error": "Invalid start date format."}), 400
+                return jsonify([]), 200
         if end_date:
             try:
                 dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                     hour=23, minute=59, second=59, microsecond=999999
                 )
-                attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
+                query = query.where("timestamp", "<=", dt_end)
             except ValueError:
-                return jsonify({"data": [], "error": "Invalid end date format."}), 400
+                return jsonify([]), 200
 
-        attendance_records = []
-        for record in attendance_ref.stream():
-            record_data = record.to_dict()
-            timestamp = record_data.get("timestamp")
-            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S") if isinstance(timestamp, datetime) else "N/A"
+        records = []
+        for doc in query.stream():
+            data = doc.to_dict()
+            timestamp = data.get("timestamp")
+            if isinstance(timestamp, datetime):
+                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                timestamp_str = str(timestamp)
 
-            attendance_records.append({
-                "doc_id": record.id,
-                "student_id": record_data.get("student_id", "N/A"),
-                "name": record_data.get("name", "N/A"),
-                "subject_id": record_data.get("subject_id", "N/A"),
-                "subject_name": record_data.get("subject_name", "N/A"),
+            records.append({
+                "doc_id": doc.id,
+                "student_id": data.get("student_id", ""),
+                "name": data.get("name", ""),
+                "subject_id": data.get("subject_id", ""),
+                "subject_name": data.get("subject_name", ""),
                 "timestamp": timestamp_str,
-                "status": record_data.get("status", "N/A")
+                "status": data.get("status", "")
             })
 
-        return jsonify({"data": attendance_records})
+        return jsonify(records), 200
     except Exception as e:
-        return jsonify({"data": [], "error": str(e)}), 500
+        print(f"Error fetching attendance: {str(e)}")
+        return jsonify([]), 500
 
 @app.route("/api/attendance/save", methods=["POST"], endpoint="save_attendance_records")
 @login_required
@@ -1357,6 +1359,46 @@ def save_attendance_records():
 
         # TODO: Implement attendance saving logic
         return jsonify({"message": "Attendance records saved successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/attendance/delete/<doc_id>", methods=["POST"])
+@login_required
+@role_required(['admin', 'teacher'])
+def delete_attendance(doc_id):
+    try:
+        attendance_ref = db.collection("attendance").document(doc_id)
+        attendance_doc = attendance_ref.get()
+        if not attendance_doc.exists:
+            return jsonify({"error": "Attendance record not found."}), 404
+
+        attendance_ref.delete()
+        return jsonify({"message": "Attendance record deleted successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete attendance record: {str(e)}"}), 500
+
+@app.route("/api/attendance/update", methods=["POST"])
+@login_required
+@role_required(['admin', 'teacher'])
+def update_attendance():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        doc_id = data.get('doc_id')
+        status = data.get('status')
+
+        if not doc_id or not status:
+            return jsonify({"error": "Document ID and status are required"}), 400
+
+        attendance_ref = db.collection("attendance").document(doc_id)
+        attendance_doc = attendance_ref.get()
+        if not attendance_doc.exists:
+            return jsonify({"error": "Attendance record not found."}), 404
+
+        attendance_ref.update({"status": status})
+        return jsonify({"message": "Attendance updated successfully"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

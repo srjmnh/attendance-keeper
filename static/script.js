@@ -104,81 +104,198 @@ function getCSRFToken() {
 }
 
 // Initialize Subjects DataTable
-function initializeSubjectsTable(isAdmin) {
-    const columns = [
-        { "data": "code" },
-        { "data": "name" }
-    ];
-    
-    if (isAdmin) {
-        columns.push({ 
-            "data": null,
-            "orderable": false,
-            "render": function(data, type, row) {
-                return `
-                    <button class="btn btn-sm btn-warning me-2" onclick="editSubject('${row.id}', '${row.name}')">Edit</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteSubject('${row.id}')">Delete</button>
-                `;
-            }
-        });
+function initSubjectsTable() {
+    if ($.fn.DataTable.isDataTable('#subjectsTable')) {
+        $('#subjectsTable').DataTable().destroy();
     }
-
-    window.subjectsTable = $('#subjectsTable').DataTable({
-        "ajax": {
-            "url": "/api/subjects/fetch",
-            "type": "GET",
-            "dataSrc": "subjects",
-            "error": function(xhr, error, thrown) {
-                console.error("DataTables AJAX error:", error);
-                alert("An error occurred while fetching subjects.");
+    
+    subjectsTable = $('#subjectsTable').DataTable({
+        pageLength: 10,
+        responsive: true,
+        columns: [
+            { data: 'id' },
+            { data: 'code' },
+            { 
+                data: 'name',
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        return `<div class="editable" onclick="makeEditable(this)">${data}</div>`;
+                    }
+                    return data;
+                }
+            },
+            {
+                data: null,
+                render: function(data, type, row) {
+                    return `
+                        <button class="btn btn-sm btn-danger" onclick="deleteSubject('${row.id}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>`;
+                }
             }
-        },
-        "columns": columns,
-        "scrollY": "400px",
-        "scrollX": true,
-        "scrollCollapse": true,
-        "paging": true,
-        "responsive": true,
-        "autoWidth": false,
-        "destroy": true
+        ]
+    });
+}
+
+function makeEditable(element) {
+    const currentValue = element.textContent;
+    element.innerHTML = `<input type="text" class="form-control form-control-sm" value="${currentValue}" 
+        onblur="updateSubject(this)" onkeypress="handleKeyPress(event, this)">`;
+    element.querySelector('input').focus();
+}
+
+function handleKeyPress(event, element) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        updateSubject(element);
+    }
+}
+
+function updateSubject(input) {
+    const newValue = input.value;
+    const row = $(input).closest('tr');
+    const data = subjectsTable.row(row).data();
+    
+    fetch(`/admin/subjects/edit/${data.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newValue })
+    })
+    .then(res => res.json())
+    .then(response => {
+        if (response.error) {
+            alert(response.error);
+            input.parentElement.innerHTML = data.name;
+        } else {
+            input.parentElement.innerHTML = newValue;
+            data.name = newValue;
+            subjectsTable.row(row).data(data).draw(false);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Failed to update subject');
+        input.parentElement.innerHTML = data.name;
+    });
+}
+
+function deleteSubject(subjectId) {
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+    
+    fetch(`/admin/subjects/delete/${subjectId}`, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(response => {
+        if (response.error) {
+            alert(response.error);
+        } else {
+            subjectsTable.row($(`#subjectsTable tr[data-id="${subjectId}"]`)).remove().draw();
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Failed to delete subject');
     });
 }
 
 // Initialize Attendance DataTable
-window.attendanceTable = $('#attendanceTable').DataTable({
-    "ajax": {
-        "url": "/api/attendance/fetch",
-        "type": "GET",
-        "dataSrc": "data",
-        "data": function(d) {
-            // Append filter parameters to the AJAX request
-            d.student_id = $('#filter_student_id').val();
-            d.subject_id = $('#filter_subject_id').val();
-            d.start_date = $('#filter_start').val();
-            d.end_date = $('#filter_end').val();
-        },
-        "error": function(xhr, error, thrown) {
-            console.error("DataTables AJAX error:", error);
-            alert("An error occurred while fetching attendance records.");
+function initAttendanceTable() {
+    if ($.fn.DataTable.isDataTable('#attendanceTable')) {
+        $('#attendanceTable').DataTable().destroy();
+    }
+    
+    attendanceTable = $('#attendanceTable').DataTable({
+        pageLength: 10,
+        scrollY: '50vh',
+        scrollCollapse: true,
+        responsive: true,
+        columns: [
+            { data: 'doc_id' },
+            { 
+                data: 'student_id',
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        return `<div class="editable" onclick="makeEditable(this)">${data}</div>`;
+                    }
+                    return data;
+                }
+            },
+            { 
+                data: 'name',
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        return `<div class="editable" onclick="makeEditable(this)">${data}</div>`;
+                    }
+                    return data;
+                }
+            },
+            { data: 'subject_name' },
+            { data: 'timestamp' },
+            { 
+                data: 'status',
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        return `<select class="form-select form-select-sm" onchange="updateStatus(this, '${row.doc_id}')">
+                            <option value="PRESENT" ${data === 'PRESENT' ? 'selected' : ''}>Present</option>
+                            <option value="ABSENT" ${data === 'ABSENT' ? 'selected' : ''}>Absent</option>
+                        </select>`;
+                    }
+                    return data;
+                }
+            },
+            {
+                data: null,
+                render: function(data, type, row) {
+                    return `<button class="btn btn-sm btn-danger" onclick="deleteAttendance('${row.doc_id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>`;
+                }
+            }
+        ]
+    });
+}
+
+function updateStatus(select, docId) {
+    const newStatus = select.value;
+    fetch('/api/attendance/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_id: docId, status: newStatus })
+    })
+    .then(res => res.json())
+    .then(response => {
+        if (response.error) {
+            alert(response.error);
+            loadAttendance();
         }
-    },
-    "columns": [
-        { "data": "doc_id" },
-        { "data": "student_id" },
-        { "data": "name" },
-        { "data": "subject_id" },
-        { "data": "subject_name" },
-        { "data": "timestamp" },
-        { "data": "status" }
-    ],
-    "scrollY": "400px",
-    "scrollX": true,
-    "scrollCollapse": true,
-    "paging": true,
-    "responsive": true,
-    "autoWidth": false,
-    "destroy": true
-});
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Failed to update status');
+        loadAttendance();
+    });
+}
+
+function deleteAttendance(docId) {
+    if (!confirm('Are you sure you want to delete this attendance record?')) return;
+    
+    fetch(`/api/attendance/delete/${docId}`, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(response => {
+        if (response.error) {
+            alert(response.error);
+        } else {
+            attendanceTable.row($(`#attendanceTable tr[data-id="${docId}"]`)).remove().draw();
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Failed to delete attendance record');
+    });
+}
 
 $(document).ready(function() {
     // Initialize DataTables if not already initialized
