@@ -437,7 +437,7 @@
 
   /* Subjects */
   function loadSubjects() {
-    fetch('/subjects')
+    fetch('/api/subjects/fetch')
     .then(response => response.json())
     .then(data => {
       const subjectsList = document.getElementById('subjects_list');
@@ -459,12 +459,13 @@
       return;
     }
 
-    fetch('/subjects', {
+    fetch('/admin/subjects/add', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRFToken': getCSRFToken(),
       },
-      body: JSON.stringify({ action: 'add', subject_name: subjectName }),
+      body: JSON.stringify({ subject_name: subjectName }),
     })
     .then(response => response.json())
     .then(data => {
