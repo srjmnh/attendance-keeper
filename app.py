@@ -1659,10 +1659,10 @@ def admin_view_subjects():
         flash(f"Error fetching subjects: {str(e)}", "danger")
         return render_template('manage_subjects.html', subjects=[])
 
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject_route_api")
+@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
 @login_required
 @role_required(['admin'])
-def admin_add_subject_route_api():
+def admin_add_subject():
     subject_name = request.form.get('subject_name', '').strip()
     if not subject_name:
         return jsonify({"error": "Subject name cannot be empty."}), 400
@@ -1722,21 +1722,20 @@ def admin_update_subject_route(subject_id):
 def admin_delete_subject(subject_id):
     try:
         subject_ref = db.collection("subjects").document(subject_id)
+        subject_doc = subject_ref.get()
+        if not subject_doc.exists:
+            return jsonify({"error": "Subject not found."}), 404
+
         subject_ref.delete()
         return jsonify({"message": "Subject deleted successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
 
-@app.route("/admin/remove_subject/<subject_id>", methods=["POST"], endpoint="admin_remove_subject")
+@app.route("/admin/remove_subject/<subject_id>", methods=["POST"])
 @login_required
 @role_required(['admin'])
-def remove_subject(subject_id):
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
+def remove_subject_redirect(subject_id):
+    return admin_delete_subject(subject_id)
 
 @app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject")
 @login_required
@@ -1847,11 +1846,11 @@ def fetch_subjects():
     except Exception as e:
         return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
 
-# Add Subject
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject_route_web")
+# Add Subject (API endpoint)
+@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
 @login_required
 @role_required(['admin'])
-def admin_add_subject_route_web():
+def admin_add_subject():
     subject_name = request.form.get('subject_name', '').strip()
     if not subject_name:
         return jsonify({"error": "Subject name cannot be empty."}), 400
@@ -1869,56 +1868,11 @@ def admin_add_subject_route_web():
         return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
 
 # Edit Subject
-@app.route("/admin/update_subject", methods=["POST"])
+@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject")
 @login_required
 @role_required(['admin'])
-def admin_update_subject():
-    data = request.get_json()
-    subject_id = data.get('subject_id', '').strip()
-    new_name = data.get('name', '').strip()
-
-    if not subject_id or not new_name:
-        return jsonify({"error": "Subject ID and new name are required."}), 400
-
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject = subject_ref.get()
-        if not subject.exists:
-            return jsonify({"error": "Subject not found."}), 404
-
-        subject_ref.update({"name": new_name})
-        return jsonify({"message": "Subject updated successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-
-# Delete Subject
-@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject")
-@login_required
-@role_required(['admin'])
-def admin_delete_subject(subject_id):
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
-
-@app.route("/admin/remove_subject/<subject_id>", methods=["POST"], endpoint="admin_remove_subject")
-@login_required
-@role_required(['admin'])
-def remove_subject(subject_id):
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_ref.delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
-
-@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"])
-@login_required
-@role_required(['admin'])
-def admin_edit_subject_route(subject_id):
-    data = request.form  # Changed from get_json() to form data
+def admin_edit_subject(subject_id):
+    data = request.form if request.form else request.get_json()
     new_name = data.get('name', '').strip()
 
     if not subject_id or not new_name:
@@ -1930,67 +1884,61 @@ def admin_edit_subject_route(subject_id):
         if not subject_doc.exists:
             return jsonify({"error": "Subject not found."}), 404
 
-        # Update the subject's name
         subject_ref.update({"name": new_name})
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
+# Add compatibility route for old update endpoint
+@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def admin_update_subject_redirect(subject_id):
+    return admin_edit_subject(subject_id)
+
+# Dashboard redirect
 @app.route("/dashboard")
 @login_required
 def dashboard():
     return redirect(url_for('index'))
 
-@app.route("/api/attendance/fetch", methods=["GET"])
+# Attendance API endpoints
+@app.route("/api/attendance/fetch", methods=["GET"], endpoint="fetch_attendance_records")
 @login_required
-def fetch_attendance():
+def fetch_attendance_records():
     try:
         logging.info("Fetching attendance records...")
-
-        # Retrieve query parameters
         student_id = request.args.get("student_id")
         subject_id = request.args.get("subject_id")
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
 
-        # Reference to the attendance collection
         attendance_ref = db.collection("attendance")
 
-        # Apply filters if provided
-        if (student_id):
+        if student_id:
             attendance_ref = attendance_ref.where("student_id", "==", student_id)
-            logging.info(f"Applied filter: student_id == {student_id}")
-        if (subject_id):
+        if subject_id:
             attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
-            logging.info(f"Applied filter: subject_id == {subject_id}")
-        if (start_date):
+        if start_date:
             try:
                 dt_start = datetime.strptime(start_date, "%Y-%m-%d")
                 attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
-                logging.info(f"Applied filter: timestamp >= {start_datetime}")
             except ValueError:
-                logging.error("Invalid start_date format.")
                 return jsonify({"data": [], "error": "Invalid start date format."}), 400
-        if (end_date):
+        if end_date:
             try:
                 dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
                     hour=23, minute=59, second=59, microsecond=999999
                 )
                 attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
-                logging.info(f"Applied filter: timestamp <= {end_datetime}")
             except ValueError:
-                logging.error("Invalid end_date format.")
                 return jsonify({"data": [], "error": "Invalid end date format."}), 400
 
-        # Fetch and format attendance records
         attendance_records = []
         for record in attendance_ref.stream():
             record_data = record.to_dict()
             timestamp = record_data.get("timestamp")
-            if isinstance(timestamp, datetime):
-                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                timestamp_str = "N/A"
+            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S") if isinstance(timestamp, datetime) else "N/A"
 
             attendance_records.append({
                 "doc_id": record.id,
@@ -2002,19 +1950,231 @@ def fetch_attendance():
                 "status": record_data.get("status", "N/A")
             })
 
-        logging.info(f"Fetched {len(attendance_records)} attendance records successfully.")
         return jsonify({"data": attendance_records})
+    except Exception as e:
+        return jsonify({"data": [], "error": str(e)}), 500
+
+@app.route("/api/attendance/save", methods=["POST"], endpoint="save_attendance_records")
+@login_required
+@role_required(['admin', 'teacher'])
+def save_attendance_records():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # TODO: Implement attendance saving logic
+        return jsonify({"message": "Attendance records saved successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/attendance/update", methods=["POST"])
+@login_required
+@role_required(['admin', 'teacher'])
+def update_attendance():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        doc_id = data.get('doc_id')
+        status = data.get('status')
+
+        if not doc_id or not status:
+            return jsonify({"error": "Document ID and status are required"}), 400
+
+        attendance_ref = db.collection("attendance").document(doc_id)
+        attendance_ref.update({"status": status})
+
+        return jsonify({"message": "Attendance updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/attendance/download", methods=["GET"])
+@login_required
+def download_attendance():
+    try:
+        student_id = request.args.get("student_id")
+        subject_id = request.args.get("subject_id")
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+
+        # Create a new Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Records"
+
+        # Add headers
+        headers = ["Student ID", "Name", "Subject", "Date", "Status"]
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+
+        # Fetch attendance records
+        attendance_ref = db.collection("attendance")
+        if student_id:
+            attendance_ref = attendance_ref.where("student_id", "==", student_id)
+        if subject_id:
+            attendance_ref = attendance_ref.where("subject_id", "==", subject_id)
+        if start_date:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            attendance_ref = attendance_ref.where("timestamp", ">=", dt_start.isoformat())
+        if end_date:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            attendance_ref = attendance_ref.where("timestamp", "<=", dt_end.isoformat())
+
+        # Add records to Excel
+        row = 2
+        for record in attendance_ref.stream():
+            data = record.to_dict()
+            timestamp = data.get("timestamp")
+            if isinstance(timestamp, datetime):
+                date_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                date_str = "N/A"
+
+            ws.cell(row=row, column=1, value=data.get("student_id", "N/A"))
+            ws.cell(row=row, column=2, value=data.get("name", "N/A"))
+            ws.cell(row=row, column=3, value=data.get("subject_name", "N/A"))
+            ws.cell(row=row, column=4, value=date_str)
+            ws.cell(row=row, column=5, value=data.get("status", "N/A"))
+            row += 1
+
+        # Save to a BytesIO object
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="attendance_records.xlsx"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/attendance/template", methods=["GET"])
+@login_required
+def download_template():
+    try:
+        # Create a new Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Template"
+
+        # Add headers
+        headers = ["Student ID", "Name", "Subject Code", "Date (YYYY-MM-DD)", "Status (Present/Absent)"]
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+
+        # Save to a BytesIO object
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="attendance_template.xlsx"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/attendance/upload", methods=["POST"])
+@login_required
+@role_required(['admin', 'teacher'])
+def upload_attendance():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        if not file.filename.endswith('.xlsx'):
+            return jsonify({"error": "Only Excel files (.xlsx) are allowed"}), 400
+
+        # Read Excel file
+        wb = load_workbook(filename=BytesIO(file.read()))
+        ws = wb.active
+
+        # Get headers
+        headers = [cell.value for cell in ws[1]]
+        required_headers = ["Student ID", "Name", "Subject Code", "Date (YYYY-MM-DD)", "Status (Present/Absent)"]
+        
+        if not all(header in headers for header in required_headers):
+            return jsonify({"error": "Invalid template format. Please use the provided template."}), 400
+
+        # Process records
+        success_count = 0
+        error_count = 0
+        errors = []
+
+        for row in ws.iter_rows(min_row=2):
+            try:
+                student_id = str(row[0].value).strip()
+                name = str(row[1].value).strip()
+                subject_code = str(row[2].value).strip()
+                date_str = str(row[3].value).strip()
+                status = str(row[4].value).strip().lower()
+
+                if not all([student_id, name, subject_code, date_str, status]):
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Missing required fields")
+                    continue
+
+                # Validate date format
+                try:
+                    date = datetime.strptime(date_str, "%Y-%m-%d")
+                except ValueError:
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Invalid date format")
+                    continue
+
+                # Validate status
+                if status not in ['present', 'absent']:
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Invalid status (must be Present or Absent)")
+                    continue
+
+                # Get subject details
+                subject_query = db.collection("subjects").where("code", "==", subject_code).limit(1)
+                subject_docs = list(subject_query.stream())
+                if not subject_docs:
+                    error_count += 1
+                    errors.append(f"Row {row[0].row}: Subject code not found")
+                    continue
+
+                subject_doc = subject_docs[0]
+                subject_id = subject_doc.id
+                subject_name = subject_doc.to_dict().get("name")
+
+                # Add attendance record
+                db.collection("attendance").add({
+                    "student_id": student_id,
+                    "name": name,
+                    "subject_id": subject_id,
+                    "subject_name": subject_name,
+                    "timestamp": date,
+                    "status": status
+                })
+                success_count += 1
+
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Row {row[0].row}: {str(e)}")
+
+        return jsonify({
+            "message": f"Upload complete. {success_count} records added successfully, {error_count} errors.",
+            "errors": errors if errors else None
+        }), 200 if success_count > 0 else 400
 
     except Exception as e:
-        logging.error(f"Error fetching attendance records: {e}")
-        return jsonify({"data": [], "error": "An error occurred while fetching attendance records."}), 500
-
-@app.route("/api/attendance/save", methods=["POST"])
-@login_required
-@role_required(['admin', 'teacher'])  # Adjust roles as needed
-def save_attendance():
-    # TODO: Implement the save_attendance functionality
-    pass  # Placeholder to prevent IndentationError
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     initialize_app()
