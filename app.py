@@ -1353,7 +1353,7 @@ def fetch_attendance_records():
 @role_required(['admin', 'teacher'])
 def save_attendance_records():
     try:
-    data = request.get_json()
+        data = request.get_json()
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
