@@ -88,8 +88,7 @@ function loadSubjects() {
         subjectsList.innerHTML = '';
         data.subjects.forEach(subject => {
             const li = document.createElement('li');
-            li.className = 'list-group-item d-flex justify-content-between align-items-center';
-            li.innerHTML = `${subject.name}
+            li.innerHTML = `${subject.name} 
                 <button onclick="deleteSubject('${subject.id}')" class="btn btn-sm btn-danger ms-2">Delete</button>`;
             subjectsList.appendChild(li);
         });
@@ -97,240 +96,20 @@ function loadSubjects() {
     .catch(error => console.error('Error:', error));
 }
 
-// Function to retrieve CSRF token from meta tag
-function getCSRFToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta ? meta.getAttribute('content') : '';
-}
+function addSubject() {
+    const subjectName = document.getElementById('subject_name').value;
 
-// Initialize Subjects DataTable
-function initSubjectsTable() {
-    if ($.fn.DataTable.isDataTable('#subjectsTable')) {
-        $('#subjectsTable').DataTable().destroy();
+    if (!subjectName) {
+        alert('Please enter a subject name.');
+        return;
     }
-    
-    subjectsTable = $('#subjectsTable').DataTable({
-        pageLength: 10,
-        responsive: true,
-        columns: [
-            { data: 'id' },
-            { data: 'code' },
-            { 
-                data: 'name',
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        return `<div class="editable" onclick="makeEditable(this)">${data}</div>`;
-                    }
-                    return data;
-                }
-            }
-        ]
-    });
-}
 
-function makeEditable(element) {
-    const currentValue = element.textContent;
-    element.innerHTML = `<input type="text" class="form-control form-control-sm" value="${currentValue}" 
-        onblur="updateSubject(this)" onkeypress="handleKeyPress(event, this)">`;
-    element.querySelector('input').focus();
-}
-
-function handleKeyPress(event, element) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        updateSubject(element);
-    }
-}
-
-function updateSubject(input) {
-    const newValue = input.value;
-    const row = $(input).closest('tr');
-    const data = subjectsTable.row(row).data();
-    
-    fetch(`/admin/subjects/edit/${data.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newValue })
-    })
-    .then(res => res.json())
-    .then(response => {
-        if (response.error) {
-            alert(response.error);
-            input.parentElement.innerHTML = data.name;
-        } else {
-            input.parentElement.innerHTML = newValue;
-            data.name = newValue;
-            subjectsTable.row(row).data(data).draw(false);
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Failed to update subject');
-        input.parentElement.innerHTML = data.name;
-    });
-}
-
-function deleteSubject(subjectId) {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
-    
-    fetch(`/admin/subjects/delete/${subjectId}`, {
-        method: 'POST'
-    })
-    .then(res => res.json())
-    .then(response => {
-        if (response.error) {
-            alert(response.error);
-        } else {
-            subjectsTable.row($(`#subjectsTable tr[data-id="${subjectId}"]`)).remove().draw();
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Failed to delete subject');
-    });
-}
-
-// Initialize Attendance DataTable
-function initAttendanceTable() {
-    if ($.fn.DataTable.isDataTable('#attendanceTable')) {
-        $('#attendanceTable').DataTable().destroy();
-    }
-    
-    attendanceTable = $('#attendanceTable').DataTable({
-        pageLength: 10,
-        scrollY: '50vh',
-        scrollCollapse: true,
-        responsive: true,
-        columns: [
-            { data: 'doc_id' },
-            { 
-                data: 'student_id',
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        return `<div class="editable" onclick="makeEditable(this)">${data}</div>`;
-                    }
-                    return data;
-                }
-            },
-            { 
-                data: 'name',
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        return `<div class="editable" onclick="makeEditable(this)">${data}</div>`;
-                    }
-                    return data;
-                }
-            },
-            { data: 'subject_name' },
-            { data: 'timestamp' },
-            { 
-                data: 'status',
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        return `<select class="form-select form-select-sm" onchange="updateStatus(this, '${row.doc_id}')">
-                            <option value="PRESENT" ${data === 'PRESENT' ? 'selected' : ''}>Present</option>
-                            <option value="ABSENT" ${data === 'ABSENT' ? 'selected' : ''}>Absent</option>
-                        </select>`;
-                    }
-                    return data;
-                }
-            }
-        ]
-    });
-}
-
-function updateStatus(select, docId) {
-    const newStatus = select.value;
-    fetch('/api/attendance/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc_id: docId, status: newStatus })
-    })
-    .then(res => res.json())
-    .then(response => {
-        if (response.error) {
-            alert(response.error);
-            loadAttendance();
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Failed to update status');
-        loadAttendance();
-    });
-}
-
-function deleteAttendance(docId) {
-    if (!confirm('Are you sure you want to delete this attendance record?')) return;
-    
-    fetch(`/api/attendance/delete/${docId}`, {
-        method: 'POST'
-    })
-    .then(res => res.json())
-    .then(response => {
-        if (response.error) {
-            alert(response.error);
-        } else {
-            attendanceTable.row($(`#attendanceTable tr[data-id="${docId}"]`)).remove().draw();
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Failed to delete attendance record');
-    });
-}
-
-$(document).ready(function() {
-    // Initialize DataTables if not already initialized
-    if (!$.fn.DataTable.isDataTable('#subjectsTable')) {
-        window.subjectsTable = $('#subjectsTable').DataTable();
-    }
-    if (!$.fn.DataTable.isDataTable('#attendanceTable')) {
-        window.attendanceTable = $('#attendanceTable').DataTable();
-    }
-});
-
-// Edit Subject Function (Admin Only)
-function editSubject(subjectId, currentName) {
-    const newName = prompt("Enter the new subject name:", currentName);
-    if (newName && newName.trim() !== "") {
-        fetch(`/admin/subjects/update/${subjectId}`, {  // Updated endpoint to match app.py
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': getCSRFToken(),
-            },
-            body: new URLSearchParams({
-                'name': newName.trim()  // Changed key to match backend
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            const resultDiv = document.getElementById('subject_result');
-            if (data.message) {
-                resultDiv.className = 'alert alert-success mt-3';
-                resultDiv.innerText = data.message;
-                subjectsTable.ajax.reload();
-                loadSubjectsList();
-            } else {
-                resultDiv.className = 'alert alert-danger mt-3';
-                resultDiv.innerText = data.error;
-            }
-        })
-        .catch(error => console.error('Error updating subject:', error));
-    }
-}
-
-// Delete Subject Function (Admin Only)
-function deleteSubject(subjectId) {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
-
-    fetch(`/admin/subjects/delete/${subjectId}`, {  // Updated endpoint to match app.py
+    fetch('/subjects', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken(),
         },
+        body: JSON.stringify({ action: 'add', subject_name: subjectName }),
     })
     .then(response => response.json())
     .then(data => {
@@ -338,35 +117,128 @@ function deleteSubject(subjectId) {
         if (data.message) {
             resultDiv.className = 'alert alert-success mt-3';
             resultDiv.innerText = data.message;
-            subjectsTable.ajax.reload();
-            loadSubjectsList();
+            document.getElementById('subject_name').value = '';
+            loadSubjects();
         } else {
             resultDiv.className = 'alert alert-danger mt-3';
             resultDiv.innerText = data.error;
         }
     })
-    .catch(error => console.error('Error deleting subject:', error));
+    .catch(error => console.error('Error:', error));
 }
 
-// Function to load the subjects list
-function loadSubjectsList() {
-    fetch('/api/subjects/fetch')  // Ensure this endpoint exists and returns data in { subjects: [...] } format
+function deleteSubject(subjectId) {
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+
+    fetch('/subjects', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'delete', subject_id: subjectId }),
+    })
     .then(response => response.json())
     .then(data => {
-        const subjectsList = document.getElementById('subjects_list');
-        subjectsList.innerHTML = '';
-        data.subjects.forEach(subject => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item d-flex justify-content-between align-items-center';
-            li.innerHTML = `${subject.name}
-                <button onclick="deleteSubject('${subject.id}')" class="btn btn-sm btn-danger ms-2">Delete</button>`;
-            subjectsList.appendChild(li);
-        });
+        const resultDiv = document.getElementById('subject_result');
+        if (data.message) {
+            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.innerText = data.message;
+            loadSubjects();
+        } else {
+            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.innerText = data.error;
+        }
     })
     .catch(error => console.error('Error:', error));
 }
 
-// Other functions like saveEdits, downloadExcel, uploadExcel, chatbot functionalities remain unchanged
+let attendanceTable;
+
+$(document).ready(function() {
+    attendanceTable = $('#attendanceTable').DataTable({
+        "ajax": {
+            "url": "/api/attendance/fetch",
+            "dataSrc": ""
+        },
+        "columns": [
+            { "data": "doc_id" },
+            { "data": "student_id" },
+            { "data": "name" },
+            { "data": "subject_id" },
+            { "data": "subject_name" },
+            { "data": "timestamp" },
+            { "data": "status" },
+            { "data": "recorded_by" }
+        ]
+    });
+
+    loadSubjects();
+});
+
+function loadAttendance() {
+    const studentId = document.getElementById('filter_student_id').value;
+    const subjectId = document.getElementById('filter_subject_id').value;
+    const startDate = document.getElementById('filter_start').value;
+    const endDate = document.getElementById('filter_end').value;
+
+    const params = new URLSearchParams({
+        student_id: studentId,
+        subject_id: subjectId,
+        start_date: startDate,
+        end_date: endDate
+    });
+
+    attendanceTable.ajax.url(`/api/attendance/fetch?${params.toString()}`).load();
+}
+
+function saveEdits() {
+    const data = attendanceTable.rows().data().toArray();
+
+    fetch('/api/attendance/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ attendance: data }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || data.error);
+        attendanceTable.ajax.reload();
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function downloadExcel() {
+    window.location.href = "/api/attendance/download_excel";
+}
+
+function downloadTemplate() {
+    window.location.href = "/api/attendance/download_template";
+}
+
+function uploadExcel() {
+    const fileInput = document.getElementById('excelFile');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert("Please select a file.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    fetch('/api/attendance/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || data.error);
+        attendanceTable.ajax.reload();
+    })
+    .catch(error => console.error('Error:', error));
+}
 
 document.getElementById('chatbotToggle').addEventListener('click', function() {
     document.getElementById('chatbotWindow').style.display = 'flex';
@@ -434,44 +306,5 @@ function sendAdminCommand() {
 }
 
 window.onload = function() {
-    loadSubjectsList();
+    loadSubjects();
 };
-
-function redirectToDashboard() {
-    window.location.href = "/";
-}
-
-// Add Subject Function (Admin Only)
-function addSubject() {
-    const subjectName = document.getElementById('subject_name').value.trim();
-    if (!subjectName) {
-        alert('Subject name cannot be empty.');
-        return;
-    }
-
-    fetch(`/admin/subjects/add`, {  // Endpoint matches app.py
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': getCSRFToken(),
-        },
-        body: new URLSearchParams({
-            'subject_name': subjectName
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        const resultDiv = document.getElementById('subject_result');
-        if (data.message) {
-            resultDiv.className = 'alert alert-success mt-3';
-            resultDiv.innerText = data.message;
-            subjectsTable.ajax.reload();
-            loadSubjectsList();
-            document.getElementById('addSubjectForm').reset();
-        } else {
-            resultDiv.className = 'alert alert-danger mt-3';
-            resultDiv.innerText = data.error;
-        }
-    })
-    .catch(error => console.error('Error adding subject:', error));
-}

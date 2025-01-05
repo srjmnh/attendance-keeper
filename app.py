@@ -13,7 +13,6 @@ from flask import (
     Flask,
     request,
     jsonify,
-    render_template,
     render_template_string,
     send_file,
     redirect,
@@ -30,7 +29,6 @@ from flask_login import (
     UserMixin,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_cors import CORS
 
 # -----------------------------
 # 1) AWS Rekognition Setup
@@ -122,7 +120,6 @@ conversation_memory.append({"role": "system", "content": system_context})
 # 4) Flask App Initialization
 # -----------------------------
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
 app.secret_key = os.environ.get("SECRET_KEY", "your_default_secret_key")
 
 # Initialize Flask-Login
@@ -631,28 +628,13 @@ INDEX_HTML = """
   <!-- SUBJECTS -->
   <div class="tab-pane fade {% if active_tab == 'subjects' %}show active{% endif %} mt-4" id="subjects" role="tabpanel" aria-labelledby="subjects-tab">
     <h3>Manage Subjects</h3>
-    <div class="mb-4">
     <label class="form-label">New Subject Name:</label>
-      <div class="input-group">
     <input type="text" id="subject_name" class="form-control" placeholder="e.g. Mathematics" />
-        <button onclick="addSubject()" class="btn btn-primary">Add Subject</button>
-      </div>
-    </div>
+    <button onclick="addSubject()" class="btn btn-primary mt-2">Add Subject</button>
     <div id="subject_result" class="alert alert-info mt-3" style="display:none;"></div>
-    
-    <div class="table-responsive">
-      <table id="subjectsTable" class="display table table-striped w-100">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <hr />
+    <h5>Existing Subjects</h5>
+    <ul id="subjects_list"></ul>
   </div>
 
   <!-- ATTENDANCE -->
@@ -665,9 +647,7 @@ INDEX_HTML = """
       </div>
       <div class="col-md-3">
         <label class="form-label">Subject ID</label>
-        <select id="filter_subject_id" class="form-control">
-          <option value="">All Subjects</option>
-        </select>
+        <input type="text" id="filter_subject_id" class="form-control" placeholder="e.g. abc123" />
       </div>
       <div class="col-md-3">
         <label class="form-label">Start Date</label>
@@ -679,24 +659,20 @@ INDEX_HTML = """
       </div>
     </div>
     <button class="btn btn-info mb-3" onclick="loadAttendance()">Apply Filters</button>
-    
-    <div class="table-responsive">
     <table id="attendanceTable" class="display table table-striped w-100">
       <thead>
         <tr>
           <th>Doc ID</th>
           <th>Student ID</th>
           <th>Name</th>
-            <th>Subject</th>
-            <th>Date</th>
+          <th>Subject ID</th>
+          <th>Subject Name</th>
+          <th>Timestamp</th>
           <th>Status</th>
-            <th>Actions</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
-    </div>
-    
     <div class="mt-3">
       <button class="btn btn-warning" onclick="saveEdits()">Save Changes</button>
       <button class="btn btn-secondary" onclick="downloadExcel()">Download Excel</button>
@@ -901,24 +877,23 @@ INDEX_HTML = """
   }
 
   function loadSubjects() {
-    fetch('/api/subjects/fetch')
+    fetch('/get_subjects')
     .then(res => res.json())
     .then(data => {
-      if ($.fn.DataTable.isDataTable('#subjectsTable')) {
-        subjectsTable.clear();
-      } else {
-        initSubjectsTable();
-      }
-      subjectsTable.rows.add(data.subjects).draw();
-      
-      // Update subject select in attendance filters
-      const select = document.getElementById('filter_subject_id');
-      select.innerHTML = '<option value="">All Subjects</option>';
-      data.subjects.forEach(sub => {
+      const select = document.getElementById('rec_subject_select');
+      select.innerHTML = '<option value="">-- No Subject --</option>';
+      (data.subjects || []).forEach(sub => {
         const option = document.createElement('option');
         option.value = sub.id;
         option.textContent = sub.name;
         select.appendChild(option);
+      });
+      const list = document.getElementById('subjects_list');
+      list.innerHTML = '';
+      (data.subjects || []).forEach(sub => {
+        const li = document.createElement('li');
+        li.textContent = `ID: ${sub.id}, Name: ${sub.name}`;
+        list.appendChild(li);
       });
     })
     .catch(err => console.error(err));
@@ -927,27 +902,50 @@ INDEX_HTML = """
   /* Attendance */
   function loadAttendance() {
     const studentId = document.getElementById('filter_student_id').value.trim();
-    const subjectId = document.getElementById('filter_subject_id').value;
+    const subjectId = document.getElementById('filter_subject_id').value.trim();
     const startDate = document.getElementById('filter_start').value;
     const endDate = document.getElementById('filter_end').value;
 
-    let url = '/api/attendance/fetch?';
-    if (studentId) url += `student_id=${studentId}&`;
-    if (subjectId) url += `subject_id=${subjectId}&`;
-    if (startDate) url += `start_date=${startDate}&`;
-    if (endDate) url += `end_date=${endDate}&`;
+    let url = '/api/attendance?';
+    if (studentId) url += 'student_id=' + studentId + '&';
+    if (subjectId) url += 'subject_id=' + subjectId + '&';
+    if (startDate) url += 'start_date=' + startDate + '&';
+    if (endDate) url += 'end_date=' + endDate + '&';
 
     fetch(url)
       .then(res => res.json())
       .then(data => {
-        if ($.fn.DataTable.isDataTable('#attendanceTable')) {
-          attendanceTable.clear();
-        } else {
-          initAttendanceTable();
-        }
-        attendanceTable.rows.add(data).draw();
+        attendanceData = data;
+        renderAttendanceTable(attendanceData);
       })
       .catch(err => console.error(err));
+  }
+
+  function renderAttendanceTable(data) {
+    if ($.fn.DataTable.isDataTable('#attendanceTable')) {
+      $('#attendanceTable').DataTable().clear().destroy();
+    }
+    const tbody = document.querySelector('#attendanceTable tbody');
+    tbody.innerHTML = '';
+    data.forEach(record => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${record.doc_id || ''}</td>
+        <td contenteditable="true">${record.student_id || ''}</td>
+        <td contenteditable="true">${record.name || ''}</td>
+        <td contenteditable="true">${record.subject_id || ''}</td>
+        <td contenteditable="true">${record.subject_name || ''}</td>
+        <td contenteditable="true">${record.timestamp || ''}</td>
+        <td contenteditable="true">${record.status || ''}</td>
+      `;
+      tbody.appendChild(row);
+    });
+    $('#attendanceTable').DataTable({
+      paging: true,
+      searching: false,
+      info: false,
+      responsive: true
+    });
   }
 
   function saveEdits() {
@@ -1018,21 +1016,21 @@ INDEX_HTML = """
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    {% if current_user.role in ['admin', 'teacher'] %}
     loadSubjects();
-    initAttendanceTable();
-    loadAttendance();
+    {% endif %}
   });
 </script>
 </body>
 </html>
 """
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 @login_required
 def index():
-    subjects = [subject.to_dict() for subject in db.collection("subjects").stream()]
-    users_list = [user.to_dict() for user in db.collection("users").stream()] if current_user.role == 'admin' else []
-    return render_template("index.html", subjects=subjects, users=users_list, active_tab='register')
+    # Determine which tab is active based on query parameter
+    active_tab = request.args.get("tab", "recognize")
+    return render_template_string(INDEX_HTML, active_tab=active_tab)
 
 # -----------------------------
 # 9) Routes (Register, Recognize, Subjects, Attendance)
@@ -1209,200 +1207,346 @@ def recognize_face():
     }), 200
 
 # SUBJECTS
-@app.route("/api/subjects/fetch", methods=["GET"])
-@login_required
-def fetch_subjects():
-    try:
-        subjects_ref = db.collection("subjects").stream()
-        subjects = []
-        for subject in subjects_ref:
-            subject_data = subject.to_dict()
-            subjects.append({
-                "id": subject.id,
-                "code": subject_data.get("code", "N/A"),
-                "name": subject_data.get("name", "N/A")
-            })
-        return jsonify({"subjects": subjects}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to fetch subjects: {str(e)}"}), 500
-
-@app.route("/admin/subjects/add", methods=["POST"], endpoint="admin_add_subject")
-@login_required
-@role_required(['admin'])
-def admin_add_subject():
-    subject_name = request.form.get('subject_name', '').strip()
+@app.route("/add_subject", methods=["POST"])
+@role_required(['admin', 'teacher'])
+def add_subject():
+    data = request.json
+    subject_name = data.get("subject_name")
     if not subject_name:
-        return jsonify({"error": "Subject name cannot be empty."}), 400
+        return jsonify({"error": "No subject_name provided"}), 400
+    doc_ref = db.collection("subjects").document()
+    doc_ref.set({
+        "name": subject_name.strip(),
+        "created_at": datetime.utcnow().isoformat()
+    })
+    return jsonify({"message": f"Subject '{subject_name}' added successfully!"}), 200
 
-    # Generate a subject code
-    subject_code = generate_subject_code(subject_name)
+@app.route("/get_subjects", methods=["GET"])
+@login_required
+def get_subjects():
+    if current_user.role == 'teacher':
+        # Teachers can see only subjects they teach
+        subjects = []
+        for cls in current_user.classes:
+            sub_doc = db.collection("subjects").where("name", "==", cls).stream()
+            for doc in sub_doc:
+                subjects.append({"id": doc.id, "name": doc.to_dict().get("name","")})
+        return jsonify({"subjects": subjects}), 200
+    else:
+        # Admin can see all subjects
+        subs = db.collection("subjects").stream()
+        subj_list = []
+        for s in subs:
+            d = s.to_dict()
+            subj_list.append({"id": s.id, "name": d.get("name","")})
+        return jsonify({"subjects": subj_list}), 200
 
+# ATTENDANCE
+import openpyxl
+from openpyxl import Workbook
+
+@app.route("/api/attendance", methods=["GET"])
+@login_required
+def get_attendance():
+    student_id = request.args.get("student_id")
+    subject_id = request.args.get("subject_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    query = db.collection("attendance")
+    if current_user.role == 'teacher':
+        # Teachers can view only their classes
+        query = query.where("subject_id", "in", current_user.classes)
+
+    if student_id:
+        query = query.where("student_id", "==", student_id)
+    if subject_id:
+        query = query.where("subject_id", "==", subject_id)
+    if start_date:
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where("timestamp", ">=", dt_start.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
+    if end_date:
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
+
+    # Execute query
     try:
-        db.collection("subjects").add({
-            "code": subject_code,
-            "name": subject_name
-        })
-        return jsonify({"message": "Subject added successfully."}), 200
+        results = query.stream()
     except Exception as e:
-        return jsonify({"error": f"Failed to add subject: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to retrieve attendance: {str(e)}"}), 500
 
-@app.route("/admin/subjects/edit/<subject_id>", methods=["POST"], endpoint="admin_edit_subject")
-@login_required
-@role_required(['admin'])
-def admin_edit_subject(subject_id):
-    data = request.form if request.form else request.get_json()
-    new_name = data.get('name', '').strip()
+    out_list = []
+    for doc_ in results:
+        dd = doc_.to_dict()
+        dd["doc_id"] = doc_.id
+        out_list.append(dd)
 
-    if not subject_id or not new_name:
-        return jsonify({"error": "Subject ID and new name are required."}), 400
-
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_doc = subject_ref.get()
-        if not subject_doc.exists:
-            return jsonify({"error": "Subject not found."}), 404
-
-        subject_ref.update({"name": new_name})
-        return jsonify({"message": "Subject updated successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
-    
-# Add compatibility route for old endpoint
-@app.route("/admin/subjects/update/<subject_id>", methods=["POST"])
-@login_required
-@role_required(['admin'])
-def admin_update_subject_redirect(subject_id):
-    return admin_edit_subject(subject_id)
-
-@app.route("/admin/subjects/delete/<subject_id>", methods=["POST"], endpoint="admin_delete_subject")
-@login_required
-@role_required(['admin'])
-def admin_delete_subject(subject_id):
-    try:
-        subject_ref = db.collection("subjects").document(subject_id)
-        subject_doc = subject_ref.get()
-        if not subject_doc.exists:
-            return jsonify({"error": "Subject not found."}), 404
-
-        subject_ref.delete()
-        return jsonify({"message": "Subject deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete subject: {str(e)}"}), 500
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    return redirect(url_for('index'))
-
-@app.route("/api/attendance/fetch", methods=["GET"], endpoint="fetch_attendance_records")
-@login_required
-def fetch_attendance_records():
-    try:
-        student_id = request.args.get("student_id")
-        subject_id = request.args.get("subject_id")
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
-
-        query = db.collection("attendance")
-        
-        if student_id:
-            query = query.where("student_id", "==", student_id)
-        if subject_id:
-            query = query.where("subject_id", "==", subject_id)
-        if start_date:
-            try:
-                dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-                query = query.where("timestamp", ">=", dt_start)
-            except ValueError:
-                return jsonify([]), 200
-        if end_date:
-            try:
-                dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-                    hour=23, minute=59, second=59, microsecond=999999
-                )
-                query = query.where("timestamp", "<=", dt_end)
-            except ValueError:
-                return jsonify([]), 200
-
-        records = []
-        for doc in query.stream():
-            data = doc.to_dict()
-            timestamp = data.get("timestamp")
-            if isinstance(timestamp, datetime):
-                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                timestamp_str = str(timestamp)
-
-            records.append({
-                "doc_id": doc.id,
-                "student_id": data.get("student_id", ""),
-                "name": data.get("name", ""),
-                "subject_id": data.get("subject_id", ""),
-                "subject_name": data.get("subject_name", ""),
-                "timestamp": timestamp_str,
-                "status": data.get("status", "")
-            })
-
-        return jsonify(records), 200
-    except Exception as e:
-        print(f"Error fetching attendance: {str(e)}")
-        return jsonify([]), 500
-
-@app.route("/api/attendance/save", methods=["POST"], endpoint="save_attendance_records")
-@login_required
-@role_required(['admin', 'teacher'])
-def save_attendance_records():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        # TODO: Implement attendance saving logic
-        return jsonify({"message": "Attendance records saved successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/attendance/delete/<doc_id>", methods=["POST"])
-@login_required
-@role_required(['admin', 'teacher'])
-def delete_attendance(doc_id):
-    try:
-        attendance_ref = db.collection("attendance").document(doc_id)
-        attendance_doc = attendance_ref.get()
-        if not attendance_doc.exists:
-            return jsonify({"error": "Attendance record not found."}), 404
-
-        attendance_ref.delete()
-        return jsonify({"message": "Attendance record deleted successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete attendance record: {str(e)}"}), 500
+    return jsonify(out_list)
 
 @app.route("/api/attendance/update", methods=["POST"])
-@login_required
 @role_required(['admin', 'teacher'])
 def update_attendance():
+    data = request.json
+    records = data.get("records", [])
+    for rec in records:
+        doc_id = rec.get("doc_id")
+        if not doc_id:
+            continue
+        # Teachers can update only their classes
+        record_doc = db.collection("attendance").document(doc_id).get()
+        if not record_doc.exists:
+            continue
+        record_data = record_doc.to_dict()
+        if current_user.role == 'teacher' and record_data.get("subject_id") not in current_user.classes:
+            continue  # Skip if subject not assigned to teacher
+        ref = db.collection("attendance").document(doc_id)
+        update_data = {
+            "student_id": rec.get("student_id",""),
+            "name": rec.get("name",""),
+            "subject_id": rec.get("subject_id",""),
+            "subject_name": rec.get("subject_name",""),
+            "timestamp": rec.get("timestamp",""),
+            "status": rec.get("status","")
+        }
+        try:
+            ref.update(update_data)
+        except Exception as e:
+            continue  # Optionally, handle errors
+    return jsonify({"message": "Attendance records updated successfully."})
+
+@app.route("/api/attendance/download", methods=["GET"])
+@login_required
+def download_attendance_excel():
+    student_id = request.args.get("student_id")
+    subject_id = request.args.get("subject_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    query = db.collection("attendance")
+    if current_user.role == 'teacher':
+        # Teachers can download only their classes
+        query = query.where("subject_id", "in", current_user.classes)
+
+    if student_id:
+        query = query.where("student_id", "==", student_id)
+    if subject_id:
+        query = query.where("subject_id", "==", subject_id)
+    if start_date:
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where("timestamp", ">=", dt_start.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid start_date format. Use YYYY-MM-DD."}), 400
+    if end_date:
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+            query = query.where("timestamp", "<=", dt_end.isoformat())
+        except ValueError:
+            return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD."}), 400
+
+    # Execute query
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        doc_id = data.get('doc_id')
-        status = data.get('status')
-
-        if not doc_id or not status:
-            return jsonify({"error": "Document ID and status are required"}), 400
-
-        attendance_ref = db.collection("attendance").document(doc_id)
-        attendance_doc = attendance_ref.get()
-        if not attendance_doc.exists:
-            return jsonify({"error": "Attendance record not found."}), 404
-
-        attendance_ref.update({"status": status})
-        return jsonify({"message": "Attendance updated successfully"}), 200
+        results = query.stream()
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Failed to retrieve attendance: {str(e)}"}), 500
 
-# Function to create default admin user
+    att_list = []
+    for doc_ in results:
+        dd = doc_.to_dict()
+        dd["doc_id"] = doc_.id
+        att_list.append(dd)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance"
+    headers = ["doc_id", "student_id", "name", "subject_id", "subject_name", "timestamp", "status"]
+    ws.append(headers)
+
+    for record in att_list:
+        row = [
+            record.get("doc_id",""),
+            record.get("student_id",""),
+            record.get("name",""),
+            record.get("subject_id",""),
+            record.get("subject_name",""),
+            record.get("timestamp",""),
+            record.get("status","")
+        ]
+        ws.append(row)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="attendance.xlsx"
+    )
+
+@app.route("/api/attendance/template", methods=["GET"])
+@login_required
+def download_template():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance Template"
+    headers = ["doc_id","student_id","name","subject_id","subject_name","timestamp","status"]
+    ws.append(headers)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="attendance_template.xlsx"
+    )
+
+@app.route("/api/attendance/upload", methods=["POST"])
+@role_required(['admin', 'teacher'])
+def upload_attendance_excel():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["file"]
+    if not file.filename.endswith(".xlsx"):
+        return jsonify({"error": "Please upload a .xlsx file"}), 400
+
+    try:
+        wb = openpyxl.load_workbook(file)
+    except Exception as e:
+        return jsonify({"error": f"Failed to read Excel file: {str(e)}"}), 400
+
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    expected = ("doc_id","student_id","name","subject_id","subject_name","timestamp","status")
+    if not rows or rows[0] != expected:
+        return jsonify({"error": "Incorrect template format"}), 400
+
+    for row in rows[1:]:
+        doc_id, student_id, name, subject_id, subject_name, timestamp, status = row
+        if current_user.role == 'teacher' and subject_id not in current_user.classes:
+            continue  # Teachers cannot modify other classes' data
+        if doc_id:
+            doc_data = {
+                "student_id": student_id or "",
+                "name": name or "",
+                "subject_id": subject_id or "",
+                "subject_name": subject_name or "",
+                "timestamp": timestamp or "",
+                "status": status or ""
+            }
+            try:
+                db.collection("attendance").document(doc_id).set(doc_data, merge=True)
+            except Exception as e:
+                continue  # Optionally, handle errors
+        else:
+            new_doc = {
+                "student_id": student_id or "",
+                "name": name or "",
+                "subject_id": subject_id or "",
+                "subject_name": subject_name or "",
+                "timestamp": timestamp or "",
+                "status": status or ""
+            }
+            try:
+                db.collection("attendance").add(new_doc)
+            except Exception as e:
+                continue  # Optionally, handle errors
+
+    return jsonify({"message": "Excel data imported successfully."})
+
+# -----------------------------
+# 10) Admin Gemini Chat Integration
+# -----------------------------
+
+# Note: Since Gemini is integrated into the main chat widget, and Admin has access to /admin panel,
+# you can add additional chatbot functionalities within the Admin dashboard as needed.
+
+# -----------------------------
+# 11) Image Enhancement Function (Using OpenCV and Pillow)
+# -----------------------------
+def enhance_image(pil_image):
+    """
+    Enhance image quality to improve face detection in distant group photos.
+    This includes increasing brightness and contrast.
+    """
+    # Convert PIL image to OpenCV format
+    cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+    # Increase brightness and contrast
+    alpha = 1.2  # Contrast control (1.0-3.0)
+    beta = 30    # Brightness control (0-100)
+    enhanced_cv_image = cv2.convertScaleAbs(cv_image, alpha=alpha, beta=beta)
+
+    # Convert back to PIL Image
+    enhanced_pil_image = Image.fromarray(cv2.cvtColor(enhanced_cv_image, cv2.COLOR_BGR2RGB))
+
+    return enhanced_pil_image
+
+# -----------------------------
+# 12) Single-Page HTML + Chat Widget - Protected with Login
+# -----------------------------
+# Already handled above in INDEX_HTML with role-based tabs
+
+# -----------------------------
+# 13) Gemini Chat Endpoint
+# -----------------------------
+@app.route("/process_prompt", methods=["POST"])
+@login_required
+@role_required(['admin'])  # Only admin can use Gemini chat
+def process_prompt():
+    data = request.json
+    user_prompt = data.get("prompt","").strip()
+    if not user_prompt:
+        return jsonify({"error":"No prompt provided"}), 400
+
+    # Add user message
+    conversation_memory.append({"role":"user","content":user_prompt})
+
+    # Build conversation string
+    conv_str = ""
+    for msg in conversation_memory:
+        if msg["role"] == "system":
+            conv_str += f"System: {msg['content']}\n"
+        elif msg["role"] == "user":
+            conv_str += f"User: {msg['content']}\n"
+        else:
+            conv_str += f"Assistant: {msg['content']}\n"
+
+    # Call Gemini
+    try:
+        response = model.generate_content(conv_str)
+    except Exception as e:
+        assistant_reply = f"Error generating response: {str(e)}"
+    else:
+        if not response.candidates:
+            assistant_reply = "Hmm, I'm having trouble responding right now."
+        else:
+            parts = response.candidates[0].content.parts
+            assistant_reply = "".join(part.text for part in parts).strip()
+
+    # Add assistant reply
+    conversation_memory.append({"role":"assistant","content":assistant_reply})
+
+    if len(conversation_memory) > MAX_MEMORY:
+        conversation_memory.pop(0)
+
+    return jsonify({"message": assistant_reply})
+
+# -----------------------------
+# 14) Run App
+# -----------------------------
 def create_default_admin():
     """
     Creates a default admin user if no admin exists in the Firestore 'users' collection.
@@ -1411,32 +1555,175 @@ def create_default_admin():
     admins = [admin for admin in admins_ref]
 
     if not admins:
-        # Define default admin credentials
-        default_admin_username = "admin"
-        default_admin_password = generate_password_hash("admin123")  # Use a secure password in production
-
-        try:
-            db.collection("users").add({
-                "username": default_admin_username,
-                "password_hash": default_admin_password,
-                "role": "admin",
-                "classes": []
-            })
-            print("Default admin user created.")
-        except Exception as e:
-            print(f"Error creating default admin: {e}")
+        default_username = "admin"
+        default_password = "Admin123!"  # **Change this password immediately after first login**
+        password_hash = generate_password_hash(default_password, method="pbkdf2:sha256")  # Updated method
+        
+        admin_data = {
+            "username": default_username,
+            "password_hash": password_hash,
+            "role": "admin",
+            # 'classes' field is optional for admin
+        }
+        
+        db.collection("users").add(admin_data)
+        print(f"Default admin user '{default_username}' created with password '{default_password}'.")
     else:
-        print("Admin user already exists.")
+        print("Admin user already exists. No default admin created.")
 
-def initialize_app():
+@app.route("/change_password", methods=["GET", "POST"])
+@role_required(['admin', 'teacher', 'student'])  # Adjust roles as needed
+def change_password():
+    if request.method == "POST":
+        current_password = request.form.get("current_password")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+        
+        if not current_password or not new_password or not confirm_password:
+            flash("All fields are required.", "danger")
+            return redirect(url_for('change_password'))
+        
+        if new_password != confirm_password:
+            flash("New passwords do not match.", "danger")
+            return redirect(url_for('change_password'))
+        
+        # Verify current password
+        user_doc = db.collection("users").where("username", "==", current_user.username).stream()
+        user = None
+        for usr in user_doc:
+            user = usr
+            break
+        
+        if user and check_password_hash(user.to_dict().get("password_hash"), current_password):
+            # Update password
+            new_password_hash = generate_password_hash(new_password, method="pbkdf2:sha256")
+            db.collection("users").document(user.id).update({"password_hash": new_password_hash})
+            flash("Password updated successfully.", "success")
+            return redirect(url_for('dashboard'))
+        else:
+            flash("Current password is incorrect.", "danger")
+            return redirect(url_for('change_password'))
+    
+    return render_template("change_password.html")
+
+@app.route("/manage_users")
+@login_required
+@role_required(['admin'])
+def manage_users():
+    users = db.collection("users").stream()
+    user_list = []
+    for user in users:
+        user_data = user.to_dict()
+        user_list.append({
+            'username': user_data.get('username', 'N/A'),
+            'role': user_data.get('role', 'N/A'),
+            # Add other fields as necessary
+        })
+    return render_template("manage_users.html", users=user_list)
+
+# -----------------------------
+# Subjects Management Routes
+# -----------------------------
+
+@app.route("/admin/subjects", methods=["GET", "POST"])
+@role_required(['admin'])
+def manage_subjects():
+    if request.method == "POST":
+        # Handle adding a new subject
+        subject_name = request.form.get("subject_name").strip()
+        if not subject_name:
+            flash("Subject name cannot be empty.", "warning")
+            return redirect(url_for('manage_subjects'))
+        
+        # Generate a 3-letter subject code
+        subject_code = generate_subject_code(subject_name)
+        
+        # Check if subject_code is unique
+        subjects_ref = db.collection("subjects")
+        existing = subjects_ref.where("code", "==", subject_code).stream()
+        if any(existing):
+            flash(f"Subject code '{subject_code}' already exists. Please choose a different subject name.", "danger")
+            return redirect(url_for('manage_subjects'))
+        
+        # Add the new subject to Firestore
+        try:
+            subjects_ref.add({
+                "name": subject_name,
+                "code": subject_code.upper(),
+                "created_at": datetime.utcnow().isoformat()
+            })
+            flash(f"Subject '{subject_name}' with code '{subject_code}' added successfully!", "success")
+        except Exception as e:
+            flash(f"Error adding subject: {str(e)}", "danger")
+        
+        return redirect(url_for('manage_subjects'))
+    
+    # GET request - display subjects
+    subjects = db.collection("subjects").stream()
+    subjects_list = []
+    for subject in subjects:
+        subject_data = subject.to_dict()
+        subjects_list.append({
+            'id': subject.id,
+            'code': subject_data.get('code', 'N/A'),
+            'name': subject_data.get('name', 'N/A'),
+            'created_at': subject_data.get('created_at', 'N/A')
+        })
+    
+    return render_template_string(MANAGE_SUBJECTS_HTML, subjects=subjects_list)
+
+@app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
+@login_required
+@role_required(['admin'])
+def delete_subject(subject_id):
+    try:
+        db.collection("subjects").document(subject_id).delete()
+        flash("Subject deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting subject: {str(e)}", "danger")
+    return redirect(url_for('manage_subjects'))
+
+def generate_subject_code(subject_name):
     """
-    Initializes the application by setting up necessary components.
-    For example, creates a default admin user if none exists.
+    Generates a 3-letter uppercase subject code based on the subject name.
+    Example: "Mathematics" -> "MAT"
     """
-    create_default_admin()
-    # Add any other initialization functions here
+    # Take the first letter of up to three words
+    letters = [word[0] for word in subject_name.upper().split()[:3]]
+    code = ''.join(letters).ljust(3, 'X')  # Pad with 'X' if less than 3 letters
+    return code[:3]
+
+@app.route("/admin/update_subject", methods=["POST"])
+@role_required(['admin'])
+def update_subject():
+    data = request.get_json()
+    subject_id = data.get("subject_id")
+    new_name = data.get("name", "").strip()
+    
+    if not subject_id or not new_name:
+        return jsonify({"error": "Subject ID and new name are required."}), 400
+    
+    # Generate a new subject code based on the new name
+    new_code = generate_subject_code(new_name)
+    
+    # Check if the new_code is unique
+    subjects_ref = db.collection("subjects")
+    existing = subjects_ref.where("code", "==", new_code).stream()
+    if any(existing):
+        return jsonify({"error": f"Subject code '{new_code}' already exists. Please choose a different subject name."}), 400
+    
+    try:
+        subjects_ref.document(subject_id).update({
+            "name": new_name,
+            "code": new_code
+        })
+        return jsonify({"message": "Subject updated successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    initialize_app()
+    # Create default admin if none exists
+    create_default_admin()
+    
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
