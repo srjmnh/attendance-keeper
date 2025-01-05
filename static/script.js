@@ -104,21 +104,14 @@ function getCSRFToken() {
 }
 
 // Initialize Subjects DataTable
-window.subjectsTable = $('#subjectsTable').DataTable({
-    "ajax": {
-        "url": "/api/subjects/fetch",
-        "type": "GET",
-        "dataSrc": "subjects",
-        "error": function(xhr, error, thrown) {
-            console.error("DataTables AJAX error:", error);
-            alert("An error occurred while fetching subjects.");
-        }
-    },
-    "columns": [
+function initializeSubjectsTable(isAdmin) {
+    const columns = [
         { "data": "code" },
-        { "data": "name" },
-        {% if current_user.role == 'admin' %}
-        { 
+        { "data": "name" }
+    ];
+    
+    if (isAdmin) {
+        columns.push({ 
             "data": null,
             "orderable": false,
             "render": function(data, type, row) {
@@ -127,17 +120,29 @@ window.subjectsTable = $('#subjectsTable').DataTable({
                     <button class="btn btn-sm btn-danger" onclick="deleteSubject('${row.id}')">Delete</button>
                 `;
             }
-        }
-        {% endif %}
-    ],
-    "scrollY": "400px", // Enables vertical scrolling with 400px height
-    "scrollX": true,     // Enables horizontal scrolling
-    "scrollCollapse": true,
-    "paging": true,
-    "responsive": true,
-    "autoWidth": false,
-    "destroy": true
-});
+        });
+    }
+
+    window.subjectsTable = $('#subjectsTable').DataTable({
+        "ajax": {
+            "url": "/api/subjects/fetch",
+            "type": "GET",
+            "dataSrc": "subjects",
+            "error": function(xhr, error, thrown) {
+                console.error("DataTables AJAX error:", error);
+                alert("An error occurred while fetching subjects.");
+            }
+        },
+        "columns": columns,
+        "scrollY": "400px",
+        "scrollX": true,
+        "scrollCollapse": true,
+        "paging": true,
+        "responsive": true,
+        "autoWidth": false,
+        "destroy": true
+    });
+}
 
 // Initialize Attendance DataTable
 window.attendanceTable = $('#attendanceTable').DataTable({
