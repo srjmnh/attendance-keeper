@@ -483,20 +483,26 @@
   }
 
   function deleteSubject(subjectId) {
-    fetch(`/admin/delete_subject/${subjectId}`, {
-      method: 'POST',
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+
+    fetch(`/admin/subjects/delete/${subjectId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
+        },
     })
     .then(response => response.json())
     .then(data => {
-      const resultDiv = document.getElementById('subject_result');
-      if (data.message) {
-        resultDiv.className = 'alert alert-success mt-3';
-        resultDiv.innerText = data.message;
-        loadSubjects();
-      } else {
-        resultDiv.className = 'alert alert-danger mt-3';
-        resultDiv.innerText = data.error;
-      }
+        const resultDiv = document.getElementById('subject_result');
+        if (data.message) {
+            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.innerText = data.message;
+            loadSubjects();
+        } else {
+            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.innerText = data.error;
+        }
     })
     .catch(error => console.error('Error:', error));
   }
