@@ -73,26 +73,26 @@ def init_services(app):
 def create_default_admin(app):
     """Create default admin user if it doesn't exist"""
     from .models.user import User
-    from .constants import UserRole, UserStatus
     
-    # Check if admin exists
-    admin = User.query.filter_by(email='admin@example.com').first()
-    if not admin:
-        # Create admin user
-        admin = User(
-            email='admin@example.com',
-            password='admin123',  # This will be hashed automatically
-            first_name='Admin',
-            last_name='User',
-            role=UserRole.ADMIN.value,
-            status=UserStatus.ACTIVE.value,
-            email_verified=True
-        )
-        
-        # Add to database
-        db.session.add(admin)
-        db.session.commit()
-        app.logger.info("Default admin user created successfully!")
+    with app.app_context():
+        # Check if admin exists
+        admin = User.query.filter_by(email='admin@example.com').first()
+        if not admin:
+            # Create admin user
+            admin = User(
+                email='admin@example.com',
+                first_name='Admin',
+                last_name='User',
+                role='admin',
+                status='active',
+                email_verified=True
+            )
+            admin.password = 'admin123'  # This will be hashed by the setter
+            
+            # Add to database
+            db.session.add(admin)
+            db.session.commit()
+            app.logger.info("Default admin user created successfully!")
 
 def create_app(config_name=None):
     """Create and configure the Flask application"""
@@ -126,30 +126,14 @@ def create_app(config_name=None):
     
     # Initialize services within application context
     with app.app_context():
+        # Create database tables
+        db.create_all()
+        
+        # Initialize services
         init_services(app)
-        create_default_admin(app)  # Create default admin user
-
-    # Configure logging
-    if not app.debug and not app.testing:
-        # Create logs directory if it doesn't exist
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-
-        # Create file handler
-        file_handler = RotatingFileHandler(
-            'logs/attendance.log',
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=10
-        )
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s '
-            '[in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
-
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('Attendance System startup')
+        
+        # Create default admin user
+        create_default_admin(app)
 
     # Register blueprints
     from .routes import (
@@ -176,47 +160,5 @@ def create_app(config_name=None):
         """Load user by ID"""
         from .models.user import User
         return User.get_by_id(user_id)
-
-    # Configure error handlers
-    @app.errorhandler(400)
-    def bad_request_error(error):
-        """Handle 400 Bad Request errors"""
-        return {
-            'error': 'Bad Request',
-            'message': str(error)
-        }, 400
-
-    @app.errorhandler(401)
-    def unauthorized_error(error):
-        """Handle 401 Unauthorized errors"""
-        return {
-            'error': 'Unauthorized',
-            'message': 'Authentication required'
-        }, 401
-
-    @app.errorhandler(403)
-    def forbidden_error(error):
-        """Handle 403 Forbidden errors"""
-        return {
-            'error': 'Forbidden',
-            'message': 'You do not have permission to access this resource'
-        }, 403
-
-    @app.errorhandler(404)
-    def not_found_error(error):
-        """Handle 404 Not Found errors"""
-        return {
-            'error': 'Not Found',
-            'message': 'The requested resource was not found'
-        }, 404
-
-    @app.errorhandler(500)
-    def internal_error(error):
-        """Handle 500 Internal Server Error"""
-        app.logger.error(f'Server Error: {str(error)}')
-        return {
-            'error': 'Internal Server Error',
-            'message': 'An unexpected error occurred'
-        }, 500
 
     return app 
