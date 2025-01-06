@@ -220,24 +220,37 @@ def logout():
 # 7) Admin Routes for User Management
 # -----------------------------
 
-@app.route("/admin/manage_users", methods=["GET", "POST"])
+@app.route("/admin/manage_users")
 @role_required(['admin'])
-def admin_panel():
+def manage_users():
+    users = db.collection("users").stream()
+    user_list = []
+    for user in users:
+        user_data = user.to_dict()
+        user_list.append({
+            'username': user_data.get('username', 'N/A'),
+            'role': user_data.get('role', 'N/A'),
+            'classes': user_data.get('classes', [])
+        })
+    return render_template("manage_users.html", users=user_list)
+
+@app.route("/admin/create_user", methods=["GET", "POST"])
+@role_required(['admin'])
+def create_user():
     if request.method == "POST":
-        # Handle user creation logic
-        # Ensure role is assigned
         username = request.form.get("username").strip()
         password = request.form.get("password").strip()
         role = request.form.get("role").strip()
+        classes = request.form.getlist("classes")  # For teachers
 
         if not username or not password or not role:
             flash("All fields are required.", "warning")
-            return redirect(url_for('admin_panel'))
+            return redirect(url_for('create_user'))
 
         # Validate role
         if role not in ['admin', 'teacher', 'student']:
             flash("Invalid role selected.", "danger")
-            return redirect(url_for('admin_panel'))
+            return redirect(url_for('create_user'))
 
         # Hash the password
         password_hash = generate_password_hash(password, method="pbkdf2:sha256")
@@ -248,59 +261,24 @@ def admin_panel():
                 "username": username,
                 "password_hash": password_hash,
                 "role": role,
-                "classes": []  # Initialize with empty classes
+                "classes": classes if role == 'teacher' else []
             })
             flash(f"User '{username}' with role '{role}' created successfully!", "success")
+            return redirect(url_for('manage_users'))
         except Exception as e:
             flash(f"Error creating user: {str(e)}", "danger")
+            return redirect(url_for('create_user'))
 
-        return redirect(url_for('admin_panel'))
+    # GET request - show create user form
+    # Get classes list for teacher assignment
+    classes = []
+    if current_user.role == 'admin':
+        classes_ref = db.collection("classes").stream()
+        for doc in classes_ref:
+            class_data = doc.to_dict()
+            classes.append(class_data.get('class_id', ''))
 
-    # GET request - display users
-    users = db.collection("users").stream()
-    users_list = []
-    for user in users:
-        user_data = user.to_dict()
-        users_list.append({
-            "username": user_data.get("username", "N/A"),
-            "role": user_data.get("role") if user_data.get("role") else "N/A",
-            "classes": user_data.get("classes", [])
-        })
-
-    return render_template("admin_panel.html", users=users_list)
-
-@app.route("/admin/create_user", methods=["POST"])
-@role_required(['admin'])
-def create_user():
-    username = request.form.get("username").strip()
-    password = request.form.get("password").strip()
-    role = request.form.get("role").strip()
-
-    if not username or not password or not role:
-        flash("All fields are required.", "warning")
-        return redirect(url_for('admin_panel'))
-
-    # Validate role
-    if role not in ['admin', 'teacher', 'student']:
-        flash("Invalid role selected.", "danger")
-        return redirect(url_for('admin_panel'))
-
-    # Hash the password
-    password_hash = generate_password_hash(password, method="pbkdf2:sha256")
-
-    # Create user in Firestore
-    try:
-        db.collection("users").add({
-            "username": username,
-            "password_hash": password_hash,
-            "role": role,
-            "classes": []  # Initialize with empty classes
-        })
-        flash(f"User '{username}' with role '{role}' created successfully!", "success")
-    except Exception as e:
-        flash(f"Error creating user: {str(e)}", "danger")
-
-    return redirect(url_for('admin_panel'))
+    return render_template("create_user.html", classes=classes)
 
 # -----------------------------
 # 8) Single-Page HTML + Chat Widget with Role-Based Tabs

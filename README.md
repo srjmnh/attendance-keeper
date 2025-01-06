@@ -29,7 +29,7 @@ This project uses AWS Rekognition to register and recognize faces. It is designe
 ## File Structure
 
 - `app.py`: Flask backend for face registration and recognition.
-- `templates/index.html`: Frontend interface for interacting with the app.
+- `templates/dashboard.html`: Frontend interface for interacting with the app.
 - `static/script.js`: JavaScript for handling image uploads and API calls.
 - `requirements.txt`: List of Python dependencies.
 
