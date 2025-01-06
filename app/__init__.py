@@ -19,16 +19,40 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"]
 )
 
-# Initialize Firebase
-base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
-if not base64_cred_str:
-    raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
+def initialize_firebase():
+    """Initialize Firebase with proper error handling"""
+    base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
+    if not base64_cred_str:
+        raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
+    
+    try:
+        # Remove any whitespace and newlines
+        base64_cred_str = base64_cred_str.strip()
+        
+        # Add padding if necessary
+        padding = len(base64_cred_str) % 4
+        if padding:
+            base64_cred_str += '=' * (4 - padding)
+        
+        # Decode base64
+        decoded_cred_json = base64.b64decode(base64_cred_str).decode('utf-8')
+        
+        # Parse JSON
+        cred_dict = json.loads(decoded_cred_json)
+        
+        # Initialize Firebase
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        return firestore.client()
+    except base64.binascii.Error as e:
+        raise ValueError(f"Invalid base64 encoding: {str(e)}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON format after base64 decode: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"Error initializing Firebase: {str(e)}")
 
-decoded_cred_json = base64.b64decode(base64_cred_str)
-cred_dict = json.loads(decoded_cred_json)
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+# Initialize Firebase
+db = initialize_firebase()
 
 @login_manager.user_loader
 def load_user(user_id):
