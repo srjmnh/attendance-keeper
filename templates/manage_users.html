@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Manage Users</h2>
+    <div class="card mt-3">
+        <div class="card-header">
+            Create New User
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('create_user') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role</label>
+                    <select class="form-select" id="role" name="role" required>
+                        <option value="">Select Role</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Create User</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            Existing Users
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered" id="usersTable">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.role }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" onclick="resetPassword('{{ user.username }}')">Reset Password</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteUser('{{ user.username }}')">Delete</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="container mt-3">
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}" role="alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+}
+
+function resetPassword(username) {
+    if (confirm('Are you sure you want to reset the password for ' + username + '?')) {
+        fetch('/admin/reset_password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ username: username })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert(data.message || 'Password reset successful');
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to reset password');
+        });
+    }
+}
+
+function deleteUser(username) {
+    if (confirm('Are you sure you want to delete user ' + username + '? This action cannot be undone.')) {
+        fetch('/admin/delete_user', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ username: username })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert(data.message || 'User deleted successfully');
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to delete user');
+        });
+    }
+}
+
+// Initialize DataTable for users
+$(document).ready(function() {
+    $('#usersTable').DataTable({
+        responsive: true,
+        language: {
+            emptyTable: "No users available"
+        }
+    });
+});
+</script>
+{% endblock %} 
