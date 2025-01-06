@@ -1,69 +1,39 @@
-# Attendance Keeper
+# Face Recognition Project for Render
 
-A facial recognition-based attendance management system built with Flask, AWS Rekognition, and Firebase.
+This project uses AWS Rekognition to register and recognize faces. It is designed to run on the Render platform.
 
-## Features
+## Running the Project on Render
 
-- Face-based attendance tracking using AWS Rekognition
-- Real-time data storage with Firebase Firestore
-- Role-based access control (Admin, Teacher, Student)
-- Subject management
-- Attendance reports with Excel export/import
-- AI-powered chat assistance using Google's Gemini
-- Modern, responsive UI
+1. **Set Up Environment Variables**:
+   - Add the following environment variables in Render:
+     - `AWS_ACCESS_KEY_ID`: Your AWS access key.
+     - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key.
+     - `AWS_REGION`: The AWS region for Rekognition (e.g., `us-east-1`).
+   - Ensure your Rekognition collection is named `students`.
 
-## Prerequisites
+2. **Deploy the Application**:
+   - Upload this repository to a GitHub repository or zip it for direct upload.
+   - In Render, create a new web service.
+     - Choose the repository or upload the zip file.
+     - Select `Python` as the runtime.
+     - Set the **Start Command** to `python app.py`.
 
-- Python 3.8+
-- AWS Account with Rekognition access
-- Firebase Project
-- Google Cloud Project (for Gemini API)
+3. **Dependencies**:
+   - Render will automatically install the dependencies listed in `requirements.txt`.
 
-## Environment Variables
+4. **Usage**:
+   - Navigate to the deployed application.
+   - Use the "Register" feature to register a student's face with their name and ID.
+   - Use the "Recognize" feature to identify a face and retrieve the corresponding name and ID.
 
-```bash
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-AWS_REGION=your_aws_region
-FIREBASE_ADMIN_CREDENTIALS_BASE64=your_base64_encoded_firebase_credentials
-GEMINI_API_KEY=your_gemini_api_key
-SECRET_KEY=your_flask_secret_key
-```
+## File Structure
 
-## Installation
+- `app.py`: Flask backend for face registration and recognition.
+- `templates/dashboard.html`: Frontend interface for interacting with the app.
+- `static/script.js`: JavaScript for handling image uploads and API calls.
+- `requirements.txt`: List of Python dependencies.
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/attendance-keeper.git
-cd attendance-keeper
-```
+## Important Notes
 
-2. Create and activate virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Set up environment variables (see above section)
-
-5. Run the application:
-```bash
-python app.py
-```
-
-## Default Admin Account
-
-Username: admin
-Password: Admin123!
-
-**Important**: Change the default password immediately after first login.
-
-## License
-
-MIT License
+Ensure your AWS IAM user has the necessary permissions for Rekognition and that the collection is created before deploying.
 
