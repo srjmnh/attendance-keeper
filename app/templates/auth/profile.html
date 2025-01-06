@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Attendance System{% endblock %}
+
+{% block styles %}
+<style>
+    .profile-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .profile-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background-color: var(--primary-color);
+        color: white;
+        font-size: 3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+    }
+
+    .profile-title {
+        font-size: 1.5rem;
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .profile-subtitle {
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .profile-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-top: 0.5rem;
+    }
+
+    .badge-admin {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .badge-teacher {
+        background-color: var(--secondary-color);
+        color: white;
+    }
+
+    .badge-student {
+        background-color: var(--accent-color);
+        color: white;
+    }
+
+    .profile-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .profile-section {
+        background-color: var(--background-color);
+        padding: 1.5rem;
+        border-radius: 10px;
+    }
+
+    .section-title {
+        font-size: 1.2rem;
+        color: var(--text-color);
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-group {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    }
+
+    .form-error {
+        color: var(--error-color);
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-light);
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .password-toggle:hover {
+        color: var(--primary-color);
+    }
+
+    .update-button {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 1rem;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .update-button:hover {
+        background: var(--primary-dark);
+    }
+
+    .update-button:disabled {
+        background: var(--text-light);
+        cursor: not-allowed;
+    }
+
+    .loading {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .profile-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .profile-container {
+            margin: 1rem;
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-header">
+        <div class="profile-avatar">
+            {{ current_user.name[0].upper() }}
+        </div>
+        <h1 class="profile-title">{{ current_user.name }}</h1>
+        <p class="profile-subtitle">{{ current_user.email }}</p>
+        <div class="profile-badge badge-{{ current_user.role }}">
+            {{ current_user.role.title() }}
+        </div>
+    </div>
+
+    <div class="profile-grid">
+        <div class="profile-section">
+            <h2 class="section-title">
+                <i class="fas fa-envelope"></i> Update Email
+            </h2>
+            <form id="email-form">
+                <div class="form-group">
+                    <label class="form-label" for="email">Email Address</label>
+                    <input type="email" id="email" name="email" class="form-control" 
+                           value="{{ current_user.email }}" required>
+                </div>
+                <button type="submit" class="update-button" id="email-button">
+                    <i class="fas fa-save"></i> Update Email
+                </button>
+            </form>
+        </div>
+
+        <div class="profile-section">
+            <h2 class="section-title">
+                <i class="fas fa-lock"></i> Change Password
+            </h2>
+            <form id="password-form">
+                <div class="form-group">
+                    <label class="form-label" for="current-password">Current Password</label>
+                    <input type="password" id="current-password" name="current_password" 
+                           class="form-control" required>
+                    <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="new-password">New Password</label>
+                    <input type="password" id="new-password" name="new_password" 
+                           class="form-control" required>
+                    <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="confirm-password">Confirm New Password</label>
+                    <input type="password" id="confirm-password" name="confirm_password" 
+                           class="form-control" required>
+                    <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+
+                <button type="submit" class="update-button" id="password-button">
+                    <i class="fas fa-save"></i> Update Password
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Password visibility toggle
+    document.querySelectorAll('.password-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const input = this.parentElement.querySelector('input');
+            const icon = this.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+    });
+
+    // Email update
+    document.getElementById('email-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const button = document.getElementById('email-button');
+        const icon = button.querySelector('i');
+        
+        try {
+            button.disabled = true;
+            icon.classList.remove('fa-save');
+            icon.classList.add('fa-spinner', 'loading');
+
+            const response = await fetch("{{ url_for('auth.profile') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                showFlash('Email updated successfully', 'success');
+            } else {
+                showFlash(data.error || 'Failed to update email', 'error');
+            }
+        } catch (err) {
+            showFlash('An error occurred', 'error');
+        } finally {
+            button.disabled = false;
+            icon.classList.remove('fa-spinner', 'loading');
+            icon.classList.add('fa-save');
+        }
+    });
+
+    // Password update
+    document.getElementById('password-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const button = document.getElementById('password-button');
+        const icon = button.querySelector('i');
+        
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+
+        if (newPassword !== confirmPassword) {
+            showFlash('Passwords do not match', 'error');
+            return;
+        }
+
+        try {
+            button.disabled = true;
+            icon.classList.remove('fa-save');
+            icon.classList.add('fa-spinner', 'loading');
+
+            const response = await fetch("{{ url_for('auth.profile') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    current_password: document.getElementById('current-password').value,
+                    new_password: newPassword
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                showFlash('Password updated successfully', 'success');
+                this.reset();
+            } else {
+                showFlash(data.error || 'Failed to update password', 'error');
+            }
+        } catch (err) {
+            showFlash('An error occurred', 'error');
+        } finally {
+            button.disabled = false;
+            icon.classList.remove('fa-spinner', 'loading');
+            icon.classList.add('fa-save');
+        }
+    });
+
+    function showFlash(message, category) {
+        const container = document.querySelector('.flash-messages');
+        const flash = document.createElement('div');
+        flash.className = `flash flash-${category}`;
+        
+        const icon = document.createElement('i');
+        icon.className = `fas fa-${category === 'success' ? 'check' : 'exclamation'}-circle`;
+        
+        flash.appendChild(icon);
+        flash.appendChild(document.createTextNode(' ' + message));
+        container.appendChild(flash);
+
+        setTimeout(() => {
+            flash.style.animation = 'slideOut 0.3s ease forwards';
+            setTimeout(() => flash.remove(), 300);
+        }, 5000);
+    }
+</script>
+{% endblock %} 

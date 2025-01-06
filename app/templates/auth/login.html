@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Attendance System{% endblock %}
+
+{% block styles %}
+<style>
+    .login-container {
+        max-width: 400px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .login-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+
+    .login-title {
+        font-size: 1.5rem;
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .login-subtitle {
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .login-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .form-group {
+        position: relative;
+    }
+
+    .form-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-light);
+    }
+
+    .form-control {
+        padding-left: 2.5rem;
+    }
+
+    .form-control:focus + .form-icon {
+        color: var(--primary-color);
+    }
+
+    .form-error {
+        color: var(--error-color);
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    .login-button {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 1rem;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    .login-button:hover {
+        background: var(--primary-dark);
+    }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 1.5rem;
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .login-footer a {
+        color: var(--primary-color);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .login-footer a:hover {
+        text-decoration: underline;
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-light);
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .password-toggle:hover {
+        color: var(--primary-color);
+    }
+
+    @media (max-width: 480px) {
+        .login-container {
+            margin: 1rem;
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-header">
+        <div class="login-icon">
+            <i class="fas fa-user-check"></i>
+        </div>
+        <h1 class="login-title">Welcome Back</h1>
+        <p class="login-subtitle">Please sign in to continue</p>
+    </div>
+
+    <form class="login-form" method="POST" action="{{ url_for('auth.login') }}">
+        {{ form.csrf_token }}
+        
+        <div class="form-group">
+            {{ form.username(class="form-control", placeholder="Username") }}
+            <i class="fas fa-user form-icon"></i>
+            {% if form.username.errors %}
+            <div class="form-error">
+                {% for error in form.username.errors %}
+                {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            {{ form.password(class="form-control", placeholder="Password", type="password") }}
+            <i class="fas fa-lock form-icon"></i>
+            <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                <i class="fas fa-eye"></i>
+            </button>
+            {% if form.password.errors %}
+            <div class="form-error">
+                {% for error in form.password.errors %}
+                {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="login-button">
+            Sign In
+        </button>
+    </form>
+
+    <div class="login-footer">
+        Don't have an account? Contact your administrator
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Password visibility toggle
+    document.querySelector('.password-toggle').addEventListener('click', function() {
+        const passwordInput = document.querySelector('input[type="password"]');
+        const icon = this.querySelector('i');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+</script>
+{% endblock %} 

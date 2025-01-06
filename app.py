@@ -244,35 +244,35 @@ def manage_users():
 @role_required(['admin'])
 def create_user():
     if request.method == "POST":
-        username = request.form.get("username").strip()
-        password = request.form.get("password").strip()
-        role = request.form.get("role").strip()
+    username = request.form.get("username").strip()
+    password = request.form.get("password").strip()
+    role = request.form.get("role").strip()
         classes = request.form.getlist("classes")  # For teachers
 
-        if not username or not password or not role:
-            flash("All fields are required.", "warning")
+    if not username or not password or not role:
+        flash("All fields are required.", "warning")
             return redirect(url_for('admin.create_user'))
 
-        # Validate role
-        if role not in ['admin', 'teacher', 'student']:
-            flash("Invalid role selected.", "danger")
+    # Validate role
+    if role not in ['admin', 'teacher', 'student']:
+        flash("Invalid role selected.", "danger")
             return redirect(url_for('admin.create_user'))
 
-        # Hash the password
-        password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+    # Hash the password
+    password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 
-        # Create user in Firestore
-        try:
-            db.collection("users").add({
-                "username": username,
-                "password_hash": password_hash,
-                "role": role,
+    # Create user in Firestore
+    try:
+        db.collection("users").add({
+            "username": username,
+            "password_hash": password_hash,
+            "role": role,
                 "classes": classes if role == 'teacher' else []
-            })
-            flash(f"User '{username}' with role '{role}' created successfully!", "success")
+        })
+        flash(f"User '{username}' with role '{role}' created successfully!", "success")
             return redirect(url_for('admin.manage_users'))
-        except Exception as e:
-            flash(f"Error creating user: {str(e)}", "danger")
+    except Exception as e:
+        flash(f"Error creating user: {str(e)}", "danger")
             return redirect(url_for('admin.create_user'))
 
     # GET request - show create user form

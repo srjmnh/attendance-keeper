@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: attendance-system
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: FIREBASE_ADMIN_CREDENTIALS_BASE64
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DEFAULT_ADMIN_USERNAME
+        sync: false
+      - key: HF_API_KEY
+        sync: false
+      - key: PORT
+        value: 10000
+      - key: FLASK_APP
+        value: run.py
+      - key: FLASK_ENV
+        value: production
+    healthCheckPath: /health
+    autoDeploy: true 

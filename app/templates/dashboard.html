@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Attendance System{% endblock %}
+
+{% block styles %}
+<style>
+    .dashboard-container {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .stat-title {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .activity-section {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .activity-title {
+        font-size: 1.2rem;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.5rem;
+    }
+
+    .activity-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .activity-item {
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-info {
+        flex-grow: 1;
+    }
+
+    .activity-time {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .activity-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-present {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .status-absent {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .insights-section {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .insights-title {
+        font-size: 1.2rem;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.5rem;
+    }
+
+    .insights-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .insight-item {
+        padding: 1rem;
+        border-left: 4px solid #3498db;
+        background-color: #f8f9fa;
+        margin-bottom: 1rem;
+        border-radius: 0 5px 5px 0;
+    }
+
+    .attendance-summary {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+
+    .attendance-summary th,
+    .attendance-summary td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .attendance-summary th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    .attendance-percentage {
+        font-weight: 600;
+    }
+
+    .percentage-high {
+        color: #28a745;
+    }
+
+    .percentage-medium {
+        color: #ffc107;
+    }
+
+    .percentage-low {
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    {% if error_message %}
+    <div class="alert alert-danger" role="alert">
+        {{ error_message }}
+    </div>
+    {% endif %}
+
+    <div class="stats-grid">
+        {% if stats.attendance_today is defined %}
+        <div class="stat-card">
+            <div class="stat-title">Today's Attendance</div>
+            <div class="stat-value">{{ stats.attendance_today }}</div>
+        </div>
+        {% endif %}
+
+        {% if stats.total_users is defined %}
+        <div class="stat-card">
+            <div class="stat-title">Total Users</div>
+            <div class="stat-value">{{ stats.total_users }}</div>
+        </div>
+        {% endif %}
+
+        {% if stats.total_subjects is defined %}
+        <div class="stat-card">
+            <div class="stat-title">Total Subjects</div>
+            <div class="stat-value">{{ stats.total_subjects }}</div>
+        </div>
+        {% endif %}
+
+        {% if stats.total_students is defined %}
+        <div class="stat-card">
+            <div class="stat-title">Total Students</div>
+            <div class="stat-value">{{ stats.total_students }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if current_user.is_admin or current_user.is_teacher %}
+    {% if recent_activity %}
+    <div class="activity-section">
+        <h2 class="activity-title">Recent Activity</h2>
+        <ul class="activity-list">
+            {% for activity in recent_activity %}
+            <li class="activity-item">
+                <div class="activity-info">
+                    <strong>{{ activity.student_name }}</strong> in
+                    <span>{{ activity.subject_name }}</span>
+                    <div class="activity-time">{{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}</div>
+                </div>
+                <span class="activity-status {% if activity.status.upper() == 'PRESENT' %}status-present{% else %}status-absent{% endif %}">
+                    {{ activity.status }}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if insights %}
+    <div class="insights-section">
+        <h2 class="insights-title">AI Insights</h2>
+        <ul class="insights-list">
+            {% for insight in insights %}
+            <li class="insight-item">{{ insight }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if attendance_summary %}
+    <div class="activity-section">
+        <h2 class="activity-title">Your Attendance Summary</h2>
+        <table class="attendance-summary">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Present</th>
+                    <th>Total Classes</th>
+                    <th>Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for subject in attendance_summary %}
+                {% set percentage = (subject.present_count / subject.total_classes * 100) if subject.total_classes > 0 else 0 %}
+                <tr>
+                    <td>{{ subject.name }}</td>
+                    <td>{{ subject.present_count }}</td>
+                    <td>{{ subject.total_classes }}</td>
+                    <td>
+                        <span class="attendance-percentage 
+                            {% if percentage >= 75 %}percentage-high
+                            {% elif percentage >= 60 %}percentage-medium
+                            {% else %}percentage-low{% endif %}">
+                            {{ "%.1f"|format(percentage) }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 
