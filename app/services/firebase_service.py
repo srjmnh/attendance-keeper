@@ -9,7 +9,14 @@ DEFAULT_CREDENTIALS = {
     "type": "service_account",
     "project_id": "facial-f5096",
     "private_key_id": "development-key-id",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEogIBAAKCAQEAwJENDz5pf2pNjbRyXcNaHpZFwikoHdmHxHPPcJKijI6KQYhQ\nXjR3F7IW7zZHk7GmWWiHBJTm9doQNj9M7TnmYDqrWIJh1zDqMb+7RoCI0Qz1r/m+\nEYhPVZkgqq6phVUCncIBHrSP6cjD4KouPzBxgHCQk8M2yKdzGKsf6fZkGD4rHPvM\nGLwBp6Zmpj0lBqGuXHDXeYwwZw1zXxqEhXC2z4MUGl8LrYqHVkXb+1Cf6TEVcXzO\nQA1vLuZ6mXz6h6PuABqx/qLF4OoQhu8zqudqGk0/s3IxvPFkQ/g0aHiXzk3UHn5o\nBQVmGxaZQJi6sBukaw1AF6JPp1p+tF1dXuGj2QIDAQABAoIBAA8Yk4z6c9wr6yiE\ns7BzD6H9kaHW0qxAy0fEi0H1ZI9U\n-----END PRIVATE KEY-----\n",
+    "private_key": """-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAx7/2UFuSqhF6LwBMwrGnPHGUuMJ0g4f8kWq/GOzHuJQsF8bH
+Yl5gXe8LQZlHPLhGHGSC8JR5GMDTrYRmRI8rpRfGT5Q8G5UZBSvX0jQB4YqKuRuE
+ByGXEQELXxf1d3iXIuW3K4KqRXvCm6Lq4l2JvYQzD6QGCC6dEBqqQQEQEQEQEQEQ
+EQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQ
+EQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEQEw
+DQYJKoZIhvcNAQELBQADggEBAMW0HVDLQcbIsY9ewTxGorwOVj4Dy/SkfxDq/6pn
+-----END RSA PRIVATE KEY-----""",
     "client_email": "firebase-adminsdk-dev@facial-f5096.iam.gserviceaccount.com",
     "client_id": "development-client-id",
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -27,8 +34,10 @@ def get_firebase_credentials():
         try:
             creds = json.loads(json_cred_str)
             # Ensure private key is properly formatted
-            if not creds["private_key"].startswith("-----BEGIN PRIVATE KEY-----\n"):
-                creds["private_key"] = f"-----BEGIN PRIVATE KEY-----\n{creds['private_key']}\n-----END PRIVATE KEY-----\n"
+            if not creds["private_key"].startswith("-----BEGIN"):
+                # Try to format as RSA key
+                key = creds["private_key"].replace("\\n", "\n")
+                creds["private_key"] = f"-----BEGIN RSA PRIVATE KEY-----\n{key}\n-----END RSA PRIVATE KEY-----"
             return creds
         except Exception as e:
             logger.error(f"Error parsing Firebase credentials: {e}")
