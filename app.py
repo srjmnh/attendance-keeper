@@ -306,7 +306,8 @@ def create_user():
 # 8) Single-Page HTML + Chat Widget with Role-Based Tabs
 # -----------------------------
 
-@app.route("/", methods=["GET"])
+@app.route("/")
+@app.route("/dashboard")
 @login_required
 def dashboard():
     # Get subjects for the dropdown
