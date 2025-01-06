@@ -1,11 +1,14 @@
-from flask import Flask
+from flask import Flask, render_template
 from flask_login import LoginManager
 from flask_cors import CORS
 from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from app.models.user import User
-from app.services.db_service import DatabaseService
+import firebase_admin
+from firebase_admin import credentials, firestore
+import base64
+import json
+import os
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -16,30 +19,28 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"]
 )
 
+# Initialize Firebase
+base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
+if not base64_cred_str:
+    raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
+
+decoded_cred_json = base64.b64decode(base64_cred_str)
+cred_dict = json.loads(decoded_cred_json)
+cred = credentials.Certificate(cred_dict)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
 @login_manager.user_loader
 def load_user(user_id):
-    db = DatabaseService()
-    user_data = db.get_user_by_id(user_id)
-    return User.from_dict(user_data) if user_data else None
+    from app.models.user import User
+    user_data = db.collection('users').document(user_id).get()
+    return User.from_dict(user_data.to_dict()) if user_data.exists else None
 
 def create_app():
     app = Flask(__name__)
     
     # Load configuration
     app.config.from_object('app.config.Config')
-    
-    # Initialize Firebase with credentials
-    db_service = None
-    firebase_creds = app.config.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
-    if not firebase_creds:
-        raise RuntimeError("Firebase credentials not found. Please set FIREBASE_ADMIN_CREDENTIALS_BASE64 environment variable.")
-    
-    try:
-        db_service = DatabaseService(cred_base64=firebase_creds)
-    except ValueError as e:
-        raise RuntimeError(f"Failed to initialize Firebase: {str(e)}")
-    except Exception as e:
-        raise RuntimeError(f"Unexpected error initializing Firebase: {str(e)}")
     
     # Initialize extensions
     login_manager.init_app(app)

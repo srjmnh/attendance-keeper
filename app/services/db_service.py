@@ -1,37 +1,12 @@
-import base64
-import json
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import firestore
 from datetime import datetime
 from ..models.user import User
 from ..models.subject import Subject
 from ..models.attendance import Attendance
 
 class DatabaseService:
-    def __init__(self, cred_base64=None):
-        if not firebase_admin._apps:
-            if cred_base64:
-                try:
-                    # Remove any whitespace and newlines that might have been added
-                    cred_base64 = cred_base64.strip()
-                    # Decode base64 to bytes
-                    cred_bytes = base64.b64decode(cred_base64)
-                    # Convert bytes to string
-                    cred_json = cred_bytes.decode('utf-8')
-                    # Parse JSON string to dictionary
-                    cred_dict = json.loads(cred_json)
-                    cred = credentials.Certificate(cred_dict)
-                except base64.binascii.Error as e:
-                    raise ValueError(f"Invalid base64 encoding: {str(e)}")
-                except json.JSONDecodeError as e:
-                    raise ValueError(f"Invalid JSON format after base64 decode: {str(e)}")
-                except Exception as e:
-                    raise ValueError(f"Error processing credentials: {str(e)}")
-            else:
-                cred = credentials.ApplicationDefault()
-            
-            firebase_admin.initialize_app(cred)
-        
+    def __init__(self):
         self.db = firestore.client()
         self._setup_collections()
 
