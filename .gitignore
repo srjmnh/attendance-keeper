@@ -1,2 +1,5 @@
-
 .DS_Store
+**/.DS_Store
+v1face_temp/
+*.pyc
+__pycache__/
