@@ -28,6 +28,12 @@ def create_app():
     # Load configuration
     app.config.from_object('app.config.Config')
     
+    # Initialize Firebase with credentials if available
+    if app.config.get('FIREBASE_CREDENTIALS_BASE64'):
+        DatabaseService(cred_base64=app.config['FIREBASE_CREDENTIALS_BASE64'])
+    else:
+        DatabaseService()
+    
     # Initialize extensions
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'

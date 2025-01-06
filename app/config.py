@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 
@@ -49,6 +50,12 @@ class Config:
     
     # CORS Configuration
     CORS_ORIGINS = ['*']  # Update with specific origins in production
+    
+    # Firebase configuration
+    FIREBASE_CREDENTIALS_BASE64 = os.environ.get('FIREBASE_CREDENTIALS_BASE64')
+    
+    # Google AI configuration
+    GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
     
     @staticmethod
     def init_app(app):
