@@ -19,7 +19,8 @@ from flask import (
     redirect,
     url_for,
     flash,
-    session
+    session,
+    Blueprint
 )
 from flask_login import (
     LoginManager,
@@ -128,6 +129,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'  # Redirect to 'login' when login is required
 
+# Create Blueprint for admin routes
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+app.register_blueprint(admin_bp)
+
 # -----------------------------
 # 5) User Model and Authentication
 # -----------------------------
@@ -220,7 +225,8 @@ def logout():
 # 7) Admin Routes for User Management
 # -----------------------------
 
-@app.route("/admin/manage_users")
+@admin_bp.route("/manage_users")
+@login_required
 @role_required(['admin'])
 def manage_users():
     users = db.collection("users").stream()
@@ -230,11 +236,11 @@ def manage_users():
         user_list.append({
             'username': user_data.get('username', 'N/A'),
             'role': user_data.get('role', 'N/A'),
-            'classes': user_data.get('classes', [])
+            # Add other fields as necessary
         })
     return render_template("manage_users.html", users=user_list)
 
-@app.route("/admin/create_user", methods=["GET", "POST"])
+@admin_bp.route("/create_user", methods=["GET", "POST"])
 @role_required(['admin'])
 def create_user():
     if request.method == "POST":
@@ -245,12 +251,12 @@ def create_user():
 
         if not username or not password or not role:
             flash("All fields are required.", "warning")
-            return redirect(url_for('create_user'))
+            return redirect(url_for('admin.create_user'))
 
         # Validate role
         if role not in ['admin', 'teacher', 'student']:
             flash("Invalid role selected.", "danger")
-            return redirect(url_for('create_user'))
+            return redirect(url_for('admin.create_user'))
 
         # Hash the password
         password_hash = generate_password_hash(password, method="pbkdf2:sha256")
@@ -264,10 +270,10 @@ def create_user():
                 "classes": classes if role == 'teacher' else []
             })
             flash(f"User '{username}' with role '{role}' created successfully!", "success")
-            return redirect(url_for('manage_users'))
+            return redirect(url_for('admin.manage_users'))
         except Exception as e:
             flash(f"Error creating user: {str(e)}", "danger")
-            return redirect(url_for('create_user'))
+            return redirect(url_for('admin.create_user'))
 
     # GET request - show create user form
     # Get classes list for teacher assignment
@@ -903,21 +909,6 @@ def change_password():
             return redirect(url_for('change_password'))
     
     return render_template("change_password.html")
-
-@app.route("/manage_users")
-@login_required
-@role_required(['admin'])
-def manage_users():
-    users = db.collection("users").stream()
-    user_list = []
-    for user in users:
-        user_data = user.to_dict()
-        user_list.append({
-            'username': user_data.get('username', 'N/A'),
-            'role': user_data.get('role', 'N/A'),
-            # Add other fields as necessary
-        })
-    return render_template("manage_users.html", users=user_list)
 
 # -----------------------------
 # Subjects Management Routes
