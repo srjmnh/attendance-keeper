@@ -19,16 +19,39 @@ class DatabaseService:
             if not base64_cred_str:
                 raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
 
-            if not firebase_admin._apps:
-                # Decode and load Firebase credentials
+            # Decode and verify credentials format
+            try:
                 decoded_cred_json = base64.b64decode(base64_cred_str)
                 cred_dict = json.loads(decoded_cred_json)
+                
+                # Verify required fields
+                required_fields = [
+                    "type", "project_id", "private_key_id", "private_key",
+                    "client_email", "client_id", "auth_uri", "token_uri",
+                    "auth_provider_x509_cert_url", "client_x509_cert_url"
+                ]
+                
+                missing_fields = [field for field in required_fields if field not in cred_dict]
+                if missing_fields:
+                    raise ValueError(f"Missing required fields in credentials: {', '.join(missing_fields)}")
+                
+                if cred_dict["type"] != "service_account":
+                    raise ValueError("Invalid credential type. Must be 'service_account'")
+                
+            except base64.binascii.Error:
+                raise ValueError("Invalid base64 encoded credentials")
+            except json.JSONDecodeError:
+                raise ValueError("Invalid JSON format in decoded credentials")
+
+            if not firebase_admin._apps:
+                # Initialize Firebase with decoded credentials
                 cred = credentials.Certificate(cred_dict)
                 firebase_admin.initialize_app(cred)
             
             self.db = firestore.client()
             self._initialize_collections()
             self.initialized = True
+            logger.info("Firebase initialized successfully!")
             
         except Exception as e:
             logger.error(f"Failed to initialize Firebase: {str(e)}")
