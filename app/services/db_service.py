@@ -3,39 +3,40 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Union
+from flask import current_app
 
 import firebase_admin
 from firebase_admin import credentials, firestore
-from werkzeug.security import generate_password_hash
-
-from ..config import Config
 
 logger = logging.getLogger(__name__)
 
 class DatabaseService:
     def __init__(self):
         """Initialize Firebase connection"""
-        if not firebase_admin._apps:
-            try:
+        self.initialized = False
+        try:
+            base64_cred_str = current_app.config.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
+            if not base64_cred_str:
+                raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
+
+            if not firebase_admin._apps:
                 # Decode and load Firebase credentials
-                cred_json = base64.b64decode(Config.FIREBASE_ADMIN_CREDENTIALS_BASE64)
-                cred_dict = json.loads(cred_json)
+                decoded_cred_json = base64.b64decode(base64_cred_str)
+                cred_dict = json.loads(decoded_cred_json)
                 cred = credentials.Certificate(cred_dict)
                 firebase_admin.initialize_app(cred)
-            except Exception as e:
-                logger.error(f"Failed to initialize Firebase: {str(e)}")
-                raise
-        
-        self.db = firestore.client()
-        self._initialize_collections()
+            
+            self.db = firestore.client()
+            self._initialize_collections()
+            self.initialized = True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Firebase: {str(e)}")
+            raise
 
     def _initialize_collections(self) -> None:
         """Initialize database collections if they don't exist"""
-        collections = [
-            Config.USERS_COLLECTION,
-            Config.ATTENDANCE_COLLECTION,
-            Config.SUBJECTS_COLLECTION
-        ]
+        collections = ['users', 'attendance', 'subjects']
         for collection in collections:
             if not self.db.collection(collection).get():
                 logger.info(f"Initializing collection: {collection}")
@@ -45,21 +46,20 @@ class DatabaseService:
         """Create a new user"""
         try:
             # Check if username exists
-            existing = self.db.collection(Config.USERS_COLLECTION)\
-                .where('username', '==', username).get()
+            existing = self.db.collection('users').where('username', '==', username).get()
             if any(existing):
                 raise ValueError("Username already exists")
 
             # Create user document
             user_data = {
                 'username': username,
-                'password_hash': generate_password_hash(password, method='pbkdf2:sha256'),
+                'password': password,
                 'role': role,
                 'classes': classes or [],
                 'created_at': datetime.utcnow().isoformat()
             }
             
-            doc_ref = self.db.collection(Config.USERS_COLLECTION).document()
+            doc_ref = self.db.collection('users').document()
             doc_ref.set(user_data)
             return doc_ref.id
             
@@ -70,7 +70,7 @@ class DatabaseService:
     def get_user(self, user_id: str) -> Optional[Dict]:
         """Get user by ID"""
         try:
-            doc = self.db.collection(Config.USERS_COLLECTION).document(user_id).get()
+            doc = self.db.collection('users').document(user_id).get()
             return doc.to_dict() if doc.exists else None
         except Exception as e:
             logger.error(f"Error getting user: {str(e)}")
@@ -79,8 +79,7 @@ class DatabaseService:
     def get_user_by_username(self, username: str) -> Optional[Dict]:
         """Get user by username"""
         try:
-            users = self.db.collection(Config.USERS_COLLECTION)\
-                .where('username', '==', username).get()
+            users = self.db.collection('users').where('username', '==', username).get()
             for user in users:
                 return {'id': user.id, **user.to_dict()}
             return None
@@ -98,8 +97,7 @@ class DatabaseService:
                 code = code.ljust(3, 'X')[:3]
 
             # Check if code exists
-            existing = self.db.collection(Config.SUBJECTS_COLLECTION)\
-                .where('code', '==', code).get()
+            existing = self.db.collection('subjects').where('code', '==', code).get()
             if any(existing):
                 raise ValueError(f"Subject code '{code}' already exists")
 
@@ -109,7 +107,7 @@ class DatabaseService:
                 'created_at': datetime.utcnow().isoformat()
             }
             
-            doc_ref = self.db.collection(Config.SUBJECTS_COLLECTION).document()
+            doc_ref = self.db.collection('subjects').document()
             doc_ref.set(subject_data)
             return doc_ref.id
             
@@ -118,9 +116,9 @@ class DatabaseService:
             raise
 
     def get_subjects(self, teacher_classes: List[str] = None) -> List[Dict]:
-        """Get all subjects, filtered by teacher's classes if provided"""
+        """Get all subjects"""
         try:
-            query = self.db.collection(Config.SUBJECTS_COLLECTION)
+            query = self.db.collection('subjects')
             if teacher_classes:
                 query = query.where('code', 'in', teacher_classes)
             
@@ -148,7 +146,7 @@ class DatabaseService:
                 'status': attendance_data.get('status', 'PRESENT')
             })
             
-            doc_ref = self.db.collection(Config.ATTENDANCE_COLLECTION).document()
+            doc_ref = self.db.collection('attendance').document()
             doc_ref.set(attendance_data)
             return doc_ref.id
             
@@ -162,9 +160,9 @@ class DatabaseService:
                       start_date: str = None,
                       end_date: str = None,
                       teacher_classes: List[str] = None) -> List[Dict]:
-        """Get attendance records with optional filters"""
+        """Get attendance records"""
         try:
-            query = self.db.collection(Config.ATTENDANCE_COLLECTION)
+            query = self.db.collection('attendance')
             
             # Apply filters
             if student_id:
@@ -190,7 +188,7 @@ class DatabaseService:
     def update_attendance(self, record_id: str, updates: Dict) -> bool:
         """Update attendance record"""
         try:
-            doc_ref = self.db.collection(Config.ATTENDANCE_COLLECTION).document(record_id)
+            doc_ref = self.db.collection('attendance').document(record_id)
             if not doc_ref.get().exists:
                 raise ValueError("Attendance record not found")
                 
@@ -204,7 +202,7 @@ class DatabaseService:
     def delete_attendance(self, record_id: str) -> bool:
         """Delete attendance record"""
         try:
-            doc_ref = self.db.collection(Config.ATTENDANCE_COLLECTION).document(record_id)
+            doc_ref = self.db.collection('attendance').document(record_id)
             if not doc_ref.get().exists:
                 raise ValueError("Attendance record not found")
                 
@@ -213,4 +211,4 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error deleting attendance: {str(e)}")
-            raise 
+            raise
