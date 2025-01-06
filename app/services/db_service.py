@@ -6,7 +6,7 @@ from flask import current_app
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-from ..firebase_config import FIREBASE_CREDENTIALS
+from .firebase_service import get_firebase_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +16,10 @@ class DatabaseService:
         self.initialized = False
         try:
             if not firebase_admin._apps:
-                # Initialize Firebase with credentials directly
-                cred = credentials.Certificate(FIREBASE_CREDENTIALS)
+                # Initialize Firebase with credentials from environment
+                cred = credentials.Certificate(get_firebase_credentials())
                 firebase_admin.initialize_app(cred, {
-                    'databaseURL': 'https://facial-f5096.firebaseio.com'
+                    'databaseURL': current_app.config.get('FIREBASE_DATABASE_URL', 'https://facial-f5096.firebaseio.com')
                 })
             
             self.db = firestore.client()
