@@ -10,6 +10,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -18,8 +19,11 @@ from flask_caching import Cache
 from flask_session import Session
 from celery import Celery
 
-# Initialize extensions
+# Initialize SQLAlchemy
+db = SQLAlchemy()
 login_manager = LoginManager()
+
+# Initialize extensions
 cors = CORS()
 limiter = Limiter(key_func=get_remote_address)
 cache = Cache()
@@ -105,7 +109,12 @@ def create_app(config_name=None):
     except OSError:
         pass
 
+    # Configure SQLAlchemy
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
     # Initialize extensions
+    db.init_app(app)
     login_manager.init_app(app)
     cors.init_app(app)
     limiter.init_app(app)
