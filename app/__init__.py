@@ -9,6 +9,7 @@ from firebase_admin import credentials, firestore
 import base64
 import json
 import os
+import sys
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -22,13 +23,44 @@ limiter = Limiter(
 # Initialize Firebase
 base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
 if not base64_cred_str:
+    print("ERROR: FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment", file=sys.stderr)
     raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
 
-decoded_cred_json = base64.b64decode(base64_cred_str)
-cred_dict = json.loads(decoded_cred_json)
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+print(f"Base64 string length: {len(base64_cred_str)}", file=sys.stderr)
+print(f"First 50 chars of base64: {base64_cred_str[:50]}", file=sys.stderr)
+
+try:
+    # Try to clean the base64 string
+    base64_cred_str = base64_cred_str.strip()
+    # Add padding if necessary
+    padding = len(base64_cred_str) % 4
+    if padding:
+        base64_cred_str += '=' * (4 - padding)
+    
+    decoded_cred_json = base64.b64decode(base64_cred_str)
+    print(f"Decoded JSON length: {len(decoded_cred_json)}", file=sys.stderr)
+    print(f"First 50 chars of decoded JSON: {decoded_cred_json[:50]}", file=sys.stderr)
+    
+    # Try to decode as UTF-8 first to see the content
+    try:
+        json_str = decoded_cred_json.decode('utf-8')
+        print(f"Decoded as UTF-8 successfully, first 50 chars: {json_str[:50]}", file=sys.stderr)
+    except UnicodeDecodeError as e:
+        print(f"Failed to decode as UTF-8: {str(e)}", file=sys.stderr)
+    
+    cred_dict = json.loads(decoded_cred_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+except base64.binascii.Error as e:
+    print(f"Base64 decoding error: {str(e)}", file=sys.stderr)
+    raise
+except json.JSONDecodeError as e:
+    print(f"JSON decoding error: {str(e)}", file=sys.stderr)
+    raise
+except Exception as e:
+    print(f"Unexpected error: {str(e)}", file=sys.stderr)
+    raise
 
 @login_manager.user_loader
 def load_user(user_id):
