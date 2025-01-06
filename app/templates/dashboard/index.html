@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Attendance System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.5rem;
+    }
+    .chart-container {
+        height: 300px;
+    }
+    .quick-action {
+        transition: all 0.2s;
+    }
+    .quick-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+    }
+    .attendance-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .student-avatar {
+        width: 32px;
+        height: 32px;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+    .insight-card {
+        transition: all 0.2s;
+    }
+    .insight-card:hover {
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Welcome Section -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Welcome back, {{ current_user.name }}!</h1>
+            <p class="text-muted">Here's what's happening with your attendance system.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#takeAttendanceModal">
+                <i class="fas fa-camera"></i> Take Attendance
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-primary bg-opacity-10 text-primary me-3">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Total Students</h6>
+                            <h2 class="mt-2 mb-0">{{ stats.total_students }}</h2>
+                            <small class="text-success">
+                                <i class="fas fa-arrow-up"></i>
+                                +{{ stats.new_students }} this month
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-success bg-opacity-10 text-success me-3">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Average Attendance</h6>
+                            <h2 class="mt-2 mb-0">{{ stats.avg_attendance }}%</h2>
+                            <small class="text-{{ 'success' if stats.avg_attendance >= 75 else 'danger' }}">
+                                <i class="fas fa-{{ 'arrow-up' if stats.avg_attendance >= 75 else 'arrow-down' }}"></i>
+                                {{ stats.attendance_trend }}% vs last month
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-warning bg-opacity-10 text-warning me-3">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Today's Classes</h6>
+                            <h2 class="mt-2 mb-0">{{ stats.todays_classes }}</h2>
+                            <small class="text-muted">
+                                {{ stats.completed_classes }} completed
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-danger bg-opacity-10 text-danger me-3">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Low Attendance</h6>
+                            <h2 class="mt-2 mb-0">{{ stats.low_attendance_count }}</h2>
+                            <small class="text-muted">
+                                students below 75%
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts and Quick Actions -->
+    <div class="row mb-4">
+        <!-- Attendance Trend Chart -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Attendance Trends</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary btn-sm active" onclick="updateChart('week')">Week</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="updateChart('month')">Month</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="updateChart('year')">Year</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="attendanceTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-md-4">
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card quick-action">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                                        <i class="fas fa-camera"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-1">Take Attendance</h6>
+                                    <p class="text-muted mb-0">Use facial recognition to mark attendance</p>
+                                </div>
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#takeAttendanceModal">
+                                    Start
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card quick-action">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="stat-icon bg-success bg-opacity-10 text-success">
+                                        <i class="fas fa-file-alt"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-1">Generate Report</h6>
+                                    <p class="text-muted mb-0">Create detailed attendance reports</p>
+                                </div>
+                                <button class="btn btn-success" onclick="window.location.href='{{ url_for('report.generate') }}'">
+                                    Create
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card quick-action">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="stat-icon bg-info bg-opacity-10 text-info">
+                                        <i class="fas fa-robot"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-1">AI Assistant</h6>
+                                    <p class="text-muted mb-0">Get insights and recommendations</p>
+                                </div>
+                                <button class="btn btn-info" onclick="window.location.href='{{ url_for('chat.assistant') }}'">
+                                    Chat
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity and Insights -->
+    <div class="row">
+        <!-- Recent Attendance -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Attendance</h5>
+                        <a href="{{ url_for('attendance.manage_attendance') }}" class="btn btn-link">View All</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="attendance-list">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Subject</th>
+                                        <th>Time</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for record in recent_attendance %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <img src="{{ record.student_avatar or url_for('static', filename='img/default-avatar.png') }}" 
+                                                     alt="{{ record.student_name }}" class="student-avatar me-2">
+                                                <div>
+                                                    <div class="fw-bold">{{ record.student_name }}</div>
+                                                    <small class="text-muted">{{ record.student_id }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>{{ record.subject_name }}</td>
+                                        <td>{{ record.timestamp }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if record.status == 'present' else 'danger' }}">
+                                                {{ record.status|title }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Insights -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">AI Insights</h5>
+                        <button class="btn btn-link" onclick="refreshInsights()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% for insight in ai_insights %}
+                    <div class="card insight-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas {{ insight.icon }} text-{{ insight.color }} me-2"></i>
+                                <h6 class="mb-0">{{ insight.title }}</h6>
+                            </div>
+                            <p class="card-text small mb-0">{{ insight.description }}</p>
+                            {% if insight.action %}
+                            <div class="mt-2">
+                                <a href="{{ insight.action.url }}" class="btn btn-sm btn-outline-primary">
+                                    {{ insight.action.text }}
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Initialize attendance trend chart
+const ctx = document.getElementById('attendanceTrendChart').getContext('2d');
+const attendanceTrendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ trend_labels|tojson }},
+        datasets: [{
+            label: 'Attendance Rate',
+            data: {{ trend_data|tojson }},
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                    callback: value => value + '%'
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+// Update chart data
+async function updateChart(period) {
+    try {
+        const response = await fetch(`/api/dashboard/trend?period=${period}`);
+        const data = await response.json();
+        
+        attendanceTrendChart.data.labels = data.labels;
+        attendanceTrendChart.data.datasets[0].data = data.data;
+        attendanceTrendChart.update();
+        
+        // Update active button
+        document.querySelectorAll('.btn-group .btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+    } catch (error) {
+        utils.showToast('Error updating chart', 'danger');
+    }
+}
+
+// Refresh dashboard
+async function refreshDashboard() {
+    try {
+        const response = await fetch('/api/dashboard/refresh');
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Failed to refresh dashboard');
+        }
+    } catch (error) {
+        utils.showToast(error.message, 'danger');
+    }
+}
+
+// Refresh insights
+async function refreshInsights() {
+    try {
+        const response = await fetch('/api/dashboard/insights');
+        const insights = await response.json();
+        
+        const container = document.querySelector('.insight-card').parentElement;
+        container.innerHTML = insights.map(insight => `
+            <div class="card insight-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas ${insight.icon} text-${insight.color} me-2"></i>
+                        <h6 class="mb-0">${insight.title}</h6>
+                    </div>
+                    <p class="card-text small mb-0">${insight.description}</p>
+                    ${insight.action ? `
+                        <div class="mt-2">
+                            <a href="${insight.action.url}" class="btn btn-sm btn-outline-primary">
+                                ${insight.action.text}
+                            </a>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        utils.showToast('Insights updated successfully', 'success');
+    } catch (error) {
+        utils.showToast('Error refreshing insights', 'danger');
+    }
+}
+
+// Initialize tooltips
+const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+});
+</script>
+{% endblock %} 

@@ -1,7 +1,11 @@
 import os
 from app import create_app
 
-app = create_app(os.getenv('FLASK_CONFIG', 'production'))
+# Get environment
+env = os.getenv('FLASK_ENV', 'development')
+
+# Create app instance
+app = create_app()
 
 @app.route('/health')
 def health_check():
@@ -9,5 +13,9 @@ def health_check():
     return {'status': 'healthy'}, 200
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port) 
+    # Run the application
+    app.run(
+        host=app.config.get('HOST', '0.0.0.0'),
+        port=int(app.config.get('PORT', 5000)),
+        debug=app.config.get('DEBUG', False)
+    ) 

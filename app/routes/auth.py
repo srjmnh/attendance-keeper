@@ -1,103 +1,230 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from datetime import datetime, timedelta
+from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from ..models.user import User
-from ..forms.auth import LoginForm, RegistrationForm
-import logging
+from werkzeug.security import check_password_hash, generate_password_hash
+from jose import jwt
 
-logger = logging.getLogger(__name__)
+from ..models.user import User
+from .. import db_service
+
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-@bp.route('/login', methods=['GET', 'POST'])
+def generate_token(user_id: str, expires_delta: timedelta = None) -> str:
+    """Generate JWT token for user"""
+    if expires_delta is None:
+        expires_delta = timedelta(days=1)
+    
+    expires = datetime.utcnow() + expires_delta
+    
+    to_encode = {
+        'exp': expires,
+        'iat': datetime.utcnow(),
+        'sub': user_id
+    }
+    
+    return jwt.encode(
+        to_encode,
+        current_app.config['SECRET_KEY'],
+        algorithm='HS256'
+    )
+
+@bp.route('/login', methods=['POST'])
 def login():
-    """Handle user login"""
-    if current_user.is_authenticated:
-        return redirect(url_for('index.dashboard'))
+    """Login user and return access token"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
 
-    form = LoginForm()
-    if form.validate_on_submit():
-        try:
-            user = User.get_by_username(form.username.data)
-            if user and check_password_hash(user.password_hash, form.password.data):
-                login_user(user)
-                flash('Login successful!', 'success')
-                next_page = request.args.get('next')
-                return redirect(next_page if next_page else url_for('index.dashboard'))
-            else:
-                flash('Invalid username or password', 'error')
-        except Exception as e:
-            logger.error(f"Login error: {str(e)}")
-            flash('An error occurred during login', 'error')
+        username = data.get('username')
+        password = data.get('password')
+        remember = data.get('remember', False)
 
-    return render_template('auth/login.html', form=form)
+        if not username or not password:
+            return jsonify({
+                'error': 'Missing required fields: username, password'
+            }), 400
 
-@bp.route('/logout')
+        # Get user
+        user = User.get_by_username(username)
+        if not user:
+            return jsonify({'error': 'Invalid username or password'}), 401
+
+        # Check password
+        if not check_password_hash(user.password_hash, password):
+            return jsonify({'error': 'Invalid username or password'}), 401
+
+        # Check if user is active
+        if not user.active:
+            return jsonify({'error': 'Account is inactive'}), 401
+
+        # Login user
+        login_user(user, remember=remember)
+
+        # Generate access token
+        token = generate_token(user.id)
+
+        return jsonify({
+            'message': 'Login successful',
+            'token': token,
+            'user': user.to_dict()
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error logging in: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
-    """Handle user logout"""
-    logout_user()
-    flash('You have been logged out', 'success')
-    return redirect(url_for('auth.login'))
+    """Logout current user"""
+    try:
+        logout_user()
+        return jsonify({'message': 'Logout successful'})
 
-@bp.route('/register', methods=['GET', 'POST'])
+    except Exception as e:
+        current_app.logger.error(f"Error logging out: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/token/refresh', methods=['POST'])
 @login_required
-def register():
-    """Handle user registration (admin only)"""
-    if not current_user.is_admin:
-        flash('Access denied. Admin privileges required.', 'error')
-        return redirect(url_for('index.dashboard'))
+def refresh_token():
+    """Refresh access token"""
+    try:
+        token = generate_token(current_user.id)
+        return jsonify({
+            'message': 'Token refreshed successfully',
+            'token': token
+        })
 
-    form = RegistrationForm()
-    if form.validate_on_submit():
+    except Exception as e:
+        current_app.logger.error(f"Error refreshing token: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/password/change', methods=['POST'])
+@login_required
+def change_password():
+    """Change user password"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+
+        if not current_password or not new_password:
+            return jsonify({
+                'error': 'Missing required fields: current_password, new_password'
+            }), 400
+
+        # Check current password
+        if not check_password_hash(current_user.password_hash, current_password):
+            return jsonify({'error': 'Current password is incorrect'}), 401
+
+        # Update password
+        password_hash = generate_password_hash(new_password)
+        if not current_user.update({'password': password_hash}):
+            return jsonify({'error': 'Failed to update password'}), 500
+
+        return jsonify({'message': 'Password updated successfully'})
+
+    except Exception as e:
+        current_app.logger.error(f"Error changing password: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/password/reset/request', methods=['POST'])
+def request_password_reset():
+    """Request password reset"""
+    try:
+        data = request.get_json()
+        if not data or 'username' not in data:
+            return jsonify({'error': 'Username is required'}), 400
+
+        # Get user
+        user = User.get_by_username(data['username'])
+        if not user:
+            # Return success even if user doesn't exist (security)
+            return jsonify({
+                'message': 'If the username exists, a reset link will be sent'
+            })
+
+        # Generate reset token (24 hour expiry)
+        token = generate_token(user.id, expires_delta=timedelta(hours=24))
+
+        # Send reset email (implement email sending logic)
+        reset_link = f"{request.host_url}reset-password?token={token}"
+        # TODO: Implement email sending
+
+        return jsonify({
+            'message': 'If the username exists, a reset link will be sent'
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error requesting password reset: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/password/reset/verify', methods=['POST'])
+def verify_reset_token():
+    """Verify password reset token"""
+    try:
+        data = request.get_json()
+        if not data or 'token' not in data:
+            return jsonify({'error': 'Reset token is required'}), 400
+
         try:
-            # Check if username already exists
-            if User.get_by_username(form.username.data):
-                flash('Username already exists', 'error')
-                return render_template('auth/register.html', form=form)
-
-            # Create new user
-            user = User.create(
-                username=form.username.data,
-                password_hash=generate_password_hash(form.password.data),
-                email=form.email.data,
-                role=form.role.data,
-                name=form.name.data
+            payload = jwt.decode(
+                data['token'],
+                current_app.config['SECRET_KEY'],
+                algorithms=['HS256']
             )
+            user_id = payload['sub']
+        except jwt.JWTError:
+            return jsonify({'error': 'Invalid or expired reset token'}), 401
 
-            flash(f'User {user.username} registered successfully', 'success')
-            return redirect(url_for('admin.manage_users'))
+        # Check if user exists
+        user = User.get_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
 
-        except Exception as e:
-            logger.error(f"Registration error: {str(e)}")
-            flash('An error occurred during registration', 'error')
+        return jsonify({'message': 'Reset token is valid'})
 
-    return render_template('auth/register.html', form=form)
+    except Exception as e:
+        current_app.logger.error(f"Error verifying reset token: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
-@bp.route('/profile', methods=['GET', 'POST'])
-@login_required
-def profile():
-    """Handle user profile updates"""
-    if request.method == 'POST':
+@bp.route('/password/reset', methods=['POST'])
+def reset_password():
+    """Reset password using token"""
+    try:
+        data = request.get_json()
+        if not data or 'token' not in data or 'new_password' not in data:
+            return jsonify({
+                'error': 'Reset token and new password are required'
+            }), 400
+
         try:
-            data = request.get_json()
-            
-            # Update email
-            if 'email' in data:
-                current_user.update_email(data['email'])
-            
-            # Update password
-            if 'current_password' in data and 'new_password' in data:
-                if not check_password_hash(current_user.password_hash, data['current_password']):
-                    return jsonify({'error': 'Current password is incorrect'}), 400
-                
-                current_user.update_password(
-                    generate_password_hash(data['new_password'])
-                )
-            
-            return jsonify({'message': 'Profile updated successfully'})
-        
-        except Exception as e:
-            logger.error(f"Profile update error: {str(e)}")
-            return jsonify({'error': 'An error occurred updating profile'}), 500
+            payload = jwt.decode(
+                data['token'],
+                current_app.config['SECRET_KEY'],
+                algorithms=['HS256']
+            )
+            user_id = payload['sub']
+        except jwt.JWTError:
+            return jsonify({'error': 'Invalid or expired reset token'}), 401
 
-    return render_template('auth/profile.html') 
+        # Get user
+        user = User.get_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Update password
+        password_hash = generate_password_hash(data['new_password'])
+        if not user.update({'password': password_hash}):
+            return jsonify({'error': 'Failed to reset password'}), 500
+
+        return jsonify({'message': 'Password reset successfully'})
+
+    except Exception as e:
+        current_app.logger.error(f"Error resetting password: {str(e)}")
+        return jsonify({'error': str(e)}), 500 

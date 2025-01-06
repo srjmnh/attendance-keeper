@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ error.code }} - {{ error.name }} | Attendance System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            background-color: #f8f9fa;
+        }
+        
+        .error-container {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .error-code {
+            font-size: 6rem;
+            font-weight: bold;
+            color: #0d6efd;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+        
+        .error-name {
+            font-size: 2rem;
+            color: #212529;
+            margin-bottom: 1rem;
+        }
+        
+        .error-message {
+            font-size: 1.1rem;
+            color: #6c757d;
+            margin-bottom: 2rem;
+        }
+        
+        .error-illustration {
+            max-width: 400px;
+            margin: 0 auto 2rem;
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        
+        .error-actions .btn {
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+        }
+        
+        /* Error-specific illustrations */
+        .error-404 {
+            background: url("{{ url_for('static', filename='img/errors/404.svg') }}") no-repeat center;
+            height: 300px;
+            background-size: contain;
+        }
+        
+        .error-500 {
+            background: url("{{ url_for('static', filename='img/errors/500.svg') }}") no-repeat center;
+            height: 300px;
+            background-size: contain;
+        }
+        
+        .error-403 {
+            background: url("{{ url_for('static', filename='img/errors/403.svg') }}") no-repeat center;
+            height: 300px;
+            background-size: contain;
+        }
+        
+        .error-default {
+            background: url("{{ url_for('static', filename='img/errors/default.svg') }}") no-repeat center;
+            height: 300px;
+            background-size: contain;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <!-- Error Illustration -->
+            <div class="error-illustration">
+                <div class="error-{{ error.code if error.code in [404, 500, 403] else 'default' }}"></div>
+            </div>
+            
+            <!-- Error Details -->
+            <div class="error-code">{{ error.code }}</div>
+            <div class="error-name">{{ error.name }}</div>
+            <div class="error-message">{{ error.description }}</div>
+            
+            <!-- Action Buttons -->
+            <div class="error-actions">
+                <button class="btn btn-primary" onclick="window.history.back()">
+                    <i class="fas fa-arrow-left"></i> Go Back
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-home"></i> Go Home
+                </a>
+                {% if error.code == 500 %}
+                <button class="btn btn-outline-secondary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i> Try Again
+                </button>
+                {% endif %}
+            </div>
+            
+            <!-- Additional Help -->
+            {% if error.code == 404 %}
+            <div class="mt-4">
+                <p class="text-muted">
+                    Looking for something specific? Try using the search feature or check the navigation menu.
+                </p>
+            </div>
+            {% elif error.code == 500 %}
+            <div class="mt-4">
+                <p class="text-muted">
+                    We're experiencing technical difficulties. Please try again later or contact support if the problem persists.
+                </p>
+                <a href="mailto:support@example.com" class="btn btn-link">
+                    <i class="fas fa-envelope"></i> Contact Support
+                </a>
+            </div>
+            {% elif error.code == 403 %}
+            <div class="mt-4">
+                <p class="text-muted">
+                    You don't have permission to access this resource. If you believe this is a mistake, please contact your administrator.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

@@ -5,27 +5,99 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python run.py
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
       - key: AWS_REGION
-        sync: false
+        value: us-east-1
       - key: FIREBASE_ADMIN_CREDENTIALS_BASE64
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: DEFAULT_ADMIN_USERNAME
-        sync: false
-      - key: HF_API_KEY
-        sync: false
       - key: PORT
         value: 10000
-      - key: FLASK_APP
-        value: run.py
+      - key: HOST
+        value: 0.0.0.0
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: RATELIMIT_DEFAULT
+        value: "100 per minute"
+      - key: SESSION_TYPE
+        value: redis
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: attendance-cache
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: attendance-queue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: attendance-queue
+          property: connectionString
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 10
+
+  - type: redis
+    name: attendance-cache
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+    plan: free
+
+  - type: redis
+    name: attendance-queue
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+    plan: free
+
+  - type: worker
+    name: attendance-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A app.celery worker --loglevel=info
+    envVars:
       - key: FLASK_ENV
         value: production
-    healthCheckPath: /health
-    autoDeploy: true 
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: FIREBASE_ADMIN_CREDENTIALS_BASE64
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: attendance-queue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: attendance-queue
+          property: connectionString 

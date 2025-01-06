@@ -21,39 +21,190 @@ wheels/
 *.egg
 
 # Virtual Environment
+venv/
+env/
+ENV/
 .env
 .venv
-env/
-venv/
-ENV/
+.python-version
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store
+Thumbs.db
 
 # Flask
 instance/
 .webassets-cache
+flask_session/
 
 # Logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Local development
+# Testing
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Uploads
+uploads/
+!uploads/.gitkeep
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+
+# Redis
+dump.rdb
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Backup files
+*~
+*.bak
+*.swp
+*.swo
+
+# System files
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+Thumbs.db
+desktop.ini
 
-# AWS credentials
-.aws/
-aws_credentials.json
-
-# Firebase
-firebase_credentials.json
-*firebase*.json
-
-# Dependencies
+# Node modules (if using any JavaScript)
 node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Local development settings
+local_settings.py
+
+# Media files
+media/
+!media/.gitkeep
+
+# Static files
+static/
+!static/.gitkeep
+
+# Documentation
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Coverage reports
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff (if using Django)
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff
+instance/
+.webassets-cache
+
+# Scrapy stuff
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# Cython debug symbols
+cython_debug/

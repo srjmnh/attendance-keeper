@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+
+{% block title %}AI Assistant - Attendance System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chat-container {
+        height: calc(100vh - 150px);
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .chat-header {
+        padding: 1rem;
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .message {
+        max-width: 80%;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: flex-start;
+    }
+    
+    .message.user {
+        margin-left: auto;
+        flex-direction: row-reverse;
+    }
+    
+    .message-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        margin: 0 0.5rem;
+    }
+    
+    .message-content {
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        background-color: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    .message.user .message-content {
+        background-color: #0d6efd;
+        color: #fff;
+    }
+    
+    .message.assistant .message-content {
+        background-color: #fff;
+    }
+    
+    .message-time {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+        text-align: right;
+    }
+    
+    .message.user .message-time {
+        color: rgba(255, 255, 255, 0.75);
+    }
+    
+    .chat-input {
+        padding: 1rem;
+        background-color: #fff;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .chat-input form {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .chat-input textarea {
+        resize: none;
+        height: 38px;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        margin-top: 0.5rem;
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .typing-dots {
+        display: flex;
+        margin-left: 0.5rem;
+    }
+    
+    .typing-dot {
+        width: 6px;
+        height: 6px;
+        margin: 0 1px;
+        background-color: #6c757d;
+        border-radius: 50%;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+    
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    
+    @keyframes typing {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+    }
+    
+    .code-block {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+        font-family: monospace;
+        white-space: pre-wrap;
+        position: relative;
+    }
+    
+    .code-block .copy-button {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        color: #6c757d;
+        background-color: transparent;
+        border: none;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    .code-block:hover .copy-button {
+        opacity: 1;
+    }
+    
+    .suggestions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .suggestion-chip {
+        padding: 0.25rem 0.75rem;
+        background-color: #e9ecef;
+        border-radius: 1rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .suggestion-chip:hover {
+        background-color: #dee2e6;
+    }
+    
+    .markdown-content {
+        line-height: 1.6;
+    }
+    
+    .markdown-content p {
+        margin-bottom: 1rem;
+    }
+    
+    .markdown-content ul, .markdown-content ol {
+        margin-bottom: 1rem;
+        padding-left: 1.5rem;
+    }
+    
+    .markdown-content h1, .markdown-content h2, .markdown-content h3,
+    .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+        margin: 1.5rem 0 1rem;
+    }
+    
+    .markdown-content code:not(.code-block) {
+        padding: 0.2rem 0.4rem;
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        font-family: monospace;
+    }
+    
+    .markdown-content table {
+        width: 100%;
+        margin-bottom: 1rem;
+        border-collapse: collapse;
+    }
+    
+    .markdown-content th, .markdown-content td {
+        padding: 0.5rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .markdown-content th {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <!-- Chat Header -->
+    <div class="chat-header">
+        <div class="d-flex align-items-center">
+            <img src="{{ url_for('static', filename='img/ai-avatar.png') }}" alt="AI Assistant" class="message-avatar">
+            <div class="ms-2">
+                <h5 class="mb-0">AI Assistant</h5>
+                <small class="text-muted">Powered by Gemini</small>
+            </div>
+            <div class="ms-auto">
+                <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()">
+                    <i class="fas fa-trash"></i> Clear Chat
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chat Messages -->
+    <div class="chat-messages" id="chatMessages">
+        {% for message in chat_history %}
+        <div class="message {{ message.role }}">
+            <img src="{{ url_for('static', filename='img/ai-avatar.png' if message.role == 'assistant' else 'img/default-avatar.png') }}" 
+                 alt="{{ message.role|title }}" class="message-avatar">
+            <div>
+                <div class="message-content markdown-content">
+                    {{ message.content|safe }}
+                </div>
+                <div class="message-time">{{ message.timestamp|datetime }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Chat Input -->
+    <div class="chat-input">
+        <form id="chatForm" onsubmit="return sendMessage(event)">
+            <textarea class="form-control" id="messageInput" placeholder="Type your message..." 
+                      rows="1" required></textarea>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </form>
+        
+        <!-- Suggestions -->
+        <div class="suggestions">
+            <div class="suggestion-chip" onclick="useSuggestion('Show my attendance statistics')">
+                Show my attendance statistics
+            </div>
+            <div class="suggestion-chip" onclick="useSuggestion('Generate attendance report')">
+                Generate attendance report
+            </div>
+            <div class="suggestion-chip" onclick="useSuggestion('Analyze attendance patterns')">
+                Analyze attendance patterns
+            </div>
+            <div class="suggestion-chip" onclick="useSuggestion('Help with face recognition')">
+                Help with face recognition
+            </div>
+        </div>
+        
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" style="display: none;">
+            <span>AI is typing</span>
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+// Initialize marked.js
+marked.setOptions({
+    breaks: true,
+    gfm: true,
+    highlight: function(code, language) {
+        return `<div class="code-block ${language}">
+            ${code}
+            <button class="copy-button" onclick="copyCode(this)">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>`;
+    }
+});
+
+// Auto-resize textarea
+const messageInput = document.getElementById('messageInput');
+messageInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+});
+
+// Send message
+async function sendMessage(event) {
+    event.preventDefault();
+    
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    appendMessage({
+        role: 'user',
+        content: message,
+        timestamp: new Date().toISOString()
+    });
+    
+    // Clear input and reset height
+    input.value = '';
+    input.style.height = '38px';
+    
+    // Show typing indicator
+    document.querySelector('.typing-indicator').style.display = 'flex';
+    
+    try {
+        const response = await fetch('/api/chat/message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            appendMessage({
+                role: 'assistant',
+                content: result.response,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            throw new Error('Failed to get response');
+        }
+    } catch (error) {
+        utils.showToast(error.message, 'danger');
+    } finally {
+        // Hide typing indicator
+        document.querySelector('.typing-indicator').style.display = 'none';
+    }
+    
+    return false;
+}
+
+// Append message to chat
+function appendMessage(message) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${message.role}`;
+    
+    const avatarSrc = message.role === 'assistant' ? 
+        "{{ url_for('static', filename='img/ai-avatar.png') }}" : 
+        "{{ url_for('static', filename='img/default-avatar.png') }}";
+    
+    messageDiv.innerHTML = `
+        <img src="${avatarSrc}" alt="${message.role}" class="message-avatar">
+        <div>
+            <div class="message-content markdown-content">
+                ${marked(message.content)}
+            </div>
+            <div class="message-time">${formatTimestamp(message.timestamp)}</div>
+        </div>
+    `;
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Format timestamp
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Copy code to clipboard
+function copyCode(button) {
+    const codeBlock = button.parentElement;
+    const code = codeBlock.textContent.trim();
+    
+    navigator.clipboard.writeText(code).then(() => {
+        const icon = button.querySelector('i');
+        icon.className = 'fas fa-check';
+        setTimeout(() => {
+            icon.className = 'fas fa-copy';
+        }, 2000);
+    }).catch(error => {
+        utils.showToast('Failed to copy code', 'danger');
+    });
+}
+
+// Use suggestion
+function useSuggestion(text) {
+    const input = document.getElementById('messageInput');
+    input.value = text;
+    input.focus();
+}
+
+// Clear chat
+function clearChat() {
+    if (confirm('Are you sure you want to clear the chat history?')) {
+        fetch('/api/chat/clear', { method: 'POST' })
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('chatMessages').innerHTML = '';
+                    utils.showToast('Chat history cleared', 'success');
+                } else {
+                    throw new Error('Failed to clear chat history');
+                }
+            })
+            .catch(error => {
+                utils.showToast(error.message, 'danger');
+            });
+    }
+}
+
+// Handle Ctrl+Enter to send message
+document.getElementById('messageInput').addEventListener('keydown', function(event) {
+    if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+    }
+});
+</script>
+{% endblock %} 

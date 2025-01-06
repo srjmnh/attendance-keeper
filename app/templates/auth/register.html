@@ -1,344 +1,460 @@
-{% extends "base.html" %}
-
-{% block title %}Register User - Attendance System{% endblock %}
-
-{% block styles %}
-<style>
-    .registration-container {
-        max-width: 600px;
-        margin: 2rem auto;
-        padding: 2rem;
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .registration-header {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-
-    .registration-icon {
-        font-size: 3rem;
-        color: var(--primary-color);
-        margin-bottom: 1rem;
-    }
-
-    .registration-title {
-        font-size: 1.5rem;
-        color: var(--text-color);
-        margin-bottom: 0.5rem;
-    }
-
-    .registration-subtitle {
-        color: var(--text-light);
-        font-size: 0.9rem;
-    }
-
-    .registration-form {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-    }
-
-    .form-group {
-        position: relative;
-    }
-
-    .form-icon {
-        position: absolute;
-        left: 1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-light);
-    }
-
-    .form-control {
-        padding-left: 2.5rem;
-    }
-
-    .form-control:focus + .form-icon {
-        color: var(--primary-color);
-    }
-
-    .form-error {
-        color: var(--error-color);
-        font-size: 0.8rem;
-        margin-top: 0.25rem;
-    }
-
-    .password-toggle {
-        position: absolute;
-        right: 1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        color: var(--text-light);
-        cursor: pointer;
-        padding: 0;
-    }
-
-    .password-toggle:hover {
-        color: var(--primary-color);
-    }
-
-    .password-requirements {
-        background-color: var(--background-color);
-        padding: 1rem;
-        border-radius: 5px;
-        margin-top: 1rem;
-        font-size: 0.9rem;
-    }
-
-    .requirement-list {
-        list-style: none;
-        padding: 0;
-        margin: 0.5rem 0 0;
-    }
-
-    .requirement-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.25rem;
-        color: var(--text-light);
-    }
-
-    .requirement-item i {
-        font-size: 0.8rem;
-    }
-
-    .requirement-met {
-        color: var(--success-color);
-    }
-
-    .register-button {
-        width: 100%;
-        padding: 0.75rem;
-        font-size: 1rem;
-        background: var(--primary-color);
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-    }
-
-    .register-button:hover {
-        background: var(--primary-dark);
-    }
-
-    .register-button:disabled {
-        background: var(--text-light);
-        cursor: not-allowed;
-    }
-
-    @media (max-width: 480px) {
-        .registration-container {
-            margin: 1rem;
-            padding: 1.5rem;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Attendance System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(135deg, #0d6efd 0%, #0099ff 100%);
         }
-
-        .form-row {
-            grid-template-columns: 1fr;
+        
+        .register-container {
+            background-color: #fff;
+            border-radius: 1rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            margin: 2rem 0;
         }
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="registration-container">
-    <div class="registration-header">
-        <div class="registration-icon">
-            <i class="fas fa-user-plus"></i>
-        </div>
-        <h1 class="registration-title">Register New User</h1>
-        <p class="registration-subtitle">Create an account for a new student, teacher, or administrator</p>
-    </div>
-
-    <form class="registration-form" method="POST" action="{{ url_for('auth.register') }}">
-        {{ form.csrf_token }}
-
-        <div class="form-row">
-            <div class="form-group">
-                {{ form.username(class="form-control", placeholder="Username") }}
-                <i class="fas fa-user form-icon"></i>
-                {% if form.username.errors %}
-                <div class="form-error">
-                    {% for error in form.username.errors %}
-                    {{ error }}
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="form-group">
-                {{ form.email(class="form-control", placeholder="Email") }}
-                <i class="fas fa-envelope form-icon"></i>
-                {% if form.email.errors %}
-                <div class="form-error">
-                    {% for error in form.email.errors %}
-                    {{ error }}
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="form-group">
-            {{ form.name(class="form-control", placeholder="Full Name") }}
-            <i class="fas fa-id-card form-icon"></i>
-            {% if form.name.errors %}
-            <div class="form-error">
-                {% for error in form.name.errors %}
-                {{ error }}
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="form-group">
-            {{ form.role(class="form-control") }}
-            <i class="fas fa-user-tag form-icon"></i>
-            {% if form.role.errors %}
-            <div class="form-error">
-                {% for error in form.role.errors %}
-                {{ error }}
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="form-row">
-            <div class="form-group">
-                {{ form.password(class="form-control", placeholder="Password", type="password") }}
-                <i class="fas fa-lock form-icon"></i>
-                <button type="button" class="password-toggle" aria-label="Toggle password visibility">
-                    <i class="fas fa-eye"></i>
-                </button>
-                {% if form.password.errors %}
-                <div class="form-error">
-                    {% for error in form.password.errors %}
-                    {{ error }}
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="form-group">
-                {{ form.confirm_password(class="form-control", placeholder="Confirm Password", type="password") }}
-                <i class="fas fa-lock form-icon"></i>
-                <button type="button" class="password-toggle" aria-label="Toggle password visibility">
-                    <i class="fas fa-eye"></i>
-                </button>
-                {% if form.confirm_password.errors %}
-                <div class="form-error">
-                    {% for error in form.confirm_password.errors %}
-                    {{ error }}
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="password-requirements">
-            <strong>Password Requirements:</strong>
-            <ul class="requirement-list">
-                <li class="requirement-item" data-requirement="length">
-                    <i class="fas fa-circle"></i>
-                    At least 8 characters long
-                </li>
-                <li class="requirement-item" data-requirement="uppercase">
-                    <i class="fas fa-circle"></i>
-                    At least one uppercase letter
-                </li>
-                <li class="requirement-item" data-requirement="lowercase">
-                    <i class="fas fa-circle"></i>
-                    At least one lowercase letter
-                </li>
-                <li class="requirement-item" data-requirement="number">
-                    <i class="fas fa-circle"></i>
-                    At least one number
-                </li>
-                <li class="requirement-item" data-requirement="special">
-                    <i class="fas fa-circle"></i>
-                    At least one special character
-                </li>
-                <li class="requirement-item" data-requirement="match">
-                    <i class="fas fa-circle"></i>
-                    Passwords match
-                </li>
-            </ul>
-        </div>
-
-        <button type="submit" class="register-button">
-            <i class="fas fa-user-plus"></i> Register User
-        </button>
-    </form>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Password visibility toggle
-    document.querySelectorAll('.password-toggle').forEach(button => {
-        button.addEventListener('click', function() {
-            const input = this.parentElement.querySelector('input');
-            const icon = this.querySelector('i');
-            
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
+        
+        .register-header {
+            background-color: #f8f9fa;
+            padding: 2rem;
+            text-align: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .register-header img {
+            height: 48px;
+            margin-bottom: 1rem;
+        }
+        
+        .register-form {
+            padding: 2rem;
+        }
+        
+        .form-floating {
+            margin-bottom: 1rem;
+        }
+        
+        .form-floating label {
+            color: #6c757d;
+        }
+        
+        .form-control:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        
+        .password-toggle {
+            position: absolute;
+            top: 50%;
+            right: 1rem;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #6c757d;
+            z-index: 4;
+        }
+        
+        .btn-register {
+            padding: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .register-footer {
+            text-align: center;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .avatar-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin: 0 auto 1rem;
+            border: 2px solid #dee2e6;
+            position: relative;
+        }
+        
+        .avatar-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .avatar-preview .upload-icon {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            padding: 0.25rem;
+            font-size: 0.875rem;
+            text-align: center;
+            cursor: pointer;
+        }
+        
+        .role-fields {
+            display: none;
+        }
+        
+        .role-fields.active {
+            display: block;
+        }
+        
+        .alert {
+            margin-bottom: 1rem;
+        }
+        
+        .alert-dismissible .btn-close {
+            padding: 1.25rem;
+        }
+        
+        .password-requirements {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-top: 0.5rem;
+        }
+        
+        .password-requirements ul {
+            padding-left: 1.25rem;
+            margin-bottom: 0;
+        }
+        
+        .password-requirements li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .password-requirements li.valid {
+            color: #198754;
+        }
+        
+        .password-requirements li.valid i {
+            color: #198754;
+        }
+        
+        @media (max-width: 576px) {
+            .register-container {
+                margin: 1rem;
+                border-radius: 0.5rem;
             }
-        });
-    });
-
-    // Password requirements validation
-    const passwordInput = document.querySelector('input[name="password"]');
-    const confirmInput = document.querySelector('input[name="confirm_password"]');
-    const submitButton = document.querySelector('.register-button');
-    const requirements = {
-        length: str => str.length >= 8,
-        uppercase: str => /[A-Z]/.test(str),
-        lowercase: str => /[a-z]/.test(str),
-        number: str => /\d/.test(str),
-        special: str => /[!@#$%^&*(),.?":{}|<>]/.test(str),
-        match: (str, confirm) => str === confirm && str !== ''
-    };
-
-    function validatePassword() {
-        const password = passwordInput.value;
-        const confirm = confirmInput.value;
-        let valid = true;
-
-        Object.entries(requirements).forEach(([key, validator]) => {
-            const element = document.querySelector(`[data-requirement="${key}"]`);
-            const icon = element.querySelector('i');
-            const isValid = validator(password, confirm);
             
-            element.classList.toggle('requirement-met', isValid);
-            icon.classList.toggle('fa-circle', !isValid);
-            icon.classList.toggle('fa-check-circle', isValid);
-            
-            if (!isValid) valid = false;
-        });
-
-        submitButton.disabled = !valid;
+            .register-header, .register-form {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="register-container">
+                    <!-- Register Header -->
+                    <div class="register-header">
+                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
+                        <h4>Create Account</h4>
+                        <p class="text-muted mb-0">Fill in your details to get started</p>
+                    </div>
+                    
+                    <!-- Register Form -->
+                    <div class="register-form">
+                        <!-- Flash Messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <form method="POST" action="{{ url_for('auth.register') }}" enctype="multipart/form-data">
+                            {{ form.csrf_token }}
+                            
+                            <!-- Avatar Upload -->
+                            <div class="avatar-preview mb-4">
+                                <img id="avatarPreview" src="{{ url_for('static', filename='img/default-avatar.png') }}" alt="Avatar">
+                                <div class="upload-icon" onclick="document.getElementById('avatar').click()">
+                                    <i class="fas fa-camera"></i>
+                                </div>
+                                {{ form.avatar(class="d-none", accept="image/*", onchange="previewAvatar(event)") }}
+                            </div>
+                            
+                            <!-- Role Selection -->
+                            <div class="form-floating mb-3">
+                                {{ form.role(class="form-select", onchange="toggleRoleFields(this.value)") }}
+                                {{ form.role.label }}
+                                {% if form.role.errors %}
+                                    {% for error in form.role.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Basic Information -->
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        {{ form.first_name(class="form-control", placeholder="First Name") }}
+                                        {{ form.first_name.label }}
+                                        {% if form.first_name.errors %}
+                                            {% for error in form.first_name.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        {{ form.last_name(class="form-control", placeholder="Last Name") }}
+                                        {{ form.last_name.label }}
+                                        {% if form.last_name.errors %}
+                                            {% for error in form.last_name.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Contact Information -->
+                            <div class="form-floating mb-3">
+                                {{ form.email(class="form-control", placeholder="name@example.com") }}
+                                {{ form.email.label }}
+                                {% if form.email.errors %}
+                                    {% for error in form.email.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Student Fields -->
+                            <div id="studentFields" class="role-fields">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ form.student_id(class="form-control", placeholder="Student ID") }}
+                                            {{ form.student_id.label }}
+                                            {% if form.student_id.errors %}
+                                                {% for error in form.student_id.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ form.batch(class="form-control", placeholder="Batch") }}
+                                            {{ form.batch.label }}
+                                            {% if form.batch.errors %}
+                                                {% for error in form.batch.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Teacher Fields -->
+                            <div id="teacherFields" class="role-fields">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ form.employee_id(class="form-control", placeholder="Employee ID") }}
+                                            {{ form.employee_id.label }}
+                                            {% if form.employee_id.errors %}
+                                                {% for error in form.employee_id.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ form.department(class="form-select") }}
+                                            {{ form.department.label }}
+                                            {% if form.department.errors %}
+                                                {% for error in form.department.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Password Fields -->
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        {{ form.password(class="form-control", placeholder="Password") }}
+                                        {{ form.password.label }}
+                                        <span class="password-toggle" onclick="togglePassword('password')">
+                                            <i class="fas fa-eye"></i>
+                                        </span>
+                                        {% if form.password.errors %}
+                                            {% for error in form.password.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        {{ form.confirm_password(class="form-control", placeholder="Confirm Password") }}
+                                        {{ form.confirm_password.label }}
+                                        <span class="password-toggle" onclick="togglePassword('confirm_password')">
+                                            <i class="fas fa-eye"></i>
+                                        </span>
+                                        {% if form.confirm_password.errors %}
+                                            {% for error in form.confirm_password.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Password Requirements -->
+                            <div class="password-requirements">
+                                <p class="mb-2">Password must contain:</p>
+                                <ul class="list-unstyled">
+                                    <li id="length"><i class="fas fa-times me-2"></i>At least 8 characters</li>
+                                    <li id="uppercase"><i class="fas fa-times me-2"></i>One uppercase letter</li>
+                                    <li id="lowercase"><i class="fas fa-times me-2"></i>One lowercase letter</li>
+                                    <li id="number"><i class="fas fa-times me-2"></i>One number</li>
+                                    <li id="special"><i class="fas fa-times me-2"></i>One special character</li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Terms and Conditions -->
+                            <div class="form-check mb-3">
+                                {{ form.accept_terms(class="form-check-input") }}
+                                {{ form.accept_terms.label(class="form-check-label") }}
+                                {% if form.accept_terms.errors %}
+                                    {% for error in form.accept_terms.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Register Button -->
+                            <button type="submit" class="btn btn-primary w-100 btn-register">
+                                <i class="fas fa-user-plus me-2"></i> Create Account
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Register Footer -->
+                    <div class="register-footer">
+                        <p class="mb-0">Already have an account? 
+                            <a href="{{ url_for('auth.login') }}" class="text-primary text-decoration-none">
+                                Login Here
+                            </a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+    // Toggle password visibility
+    function togglePassword(field) {
+        const input = document.querySelector(`input[name="${field}"]`);
+        const icon = input.nextElementSibling.querySelector('i');
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
     }
-
-    passwordInput.addEventListener('input', validatePassword);
-    confirmInput.addEventListener('input', validatePassword);
-</script>
-{% endblock %} 
+    
+    // Toggle role-specific fields
+    function toggleRoleFields(role) {
+        const studentFields = document.getElementById('studentFields');
+        const teacherFields = document.getElementById('teacherFields');
+        
+        studentFields.classList.remove('active');
+        teacherFields.classList.remove('active');
+        
+        if (role === 'student') {
+            studentFields.classList.add('active');
+        } else if (role === 'teacher') {
+            teacherFields.classList.add('active');
+        }
+    }
+    
+    // Preview avatar image
+    function previewAvatar(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('avatarPreview').src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+    
+    // Password strength validation
+    const password = document.querySelector('input[name="password"]');
+    const requirements = {
+        length: /.{8,}/,
+        uppercase: /[A-Z]/,
+        lowercase: /[a-z]/,
+        number: /[0-9]/,
+        special: /[^A-Za-z0-9]/
+    };
+    
+    password.addEventListener('input', function() {
+        const value = this.value;
+        
+        for (const [requirement, regex] of Object.entries(requirements)) {
+            const element = document.getElementById(requirement);
+            const icon = element.querySelector('i');
+            
+            if (regex.test(value)) {
+                element.classList.add('valid');
+                icon.className = 'fas fa-check me-2';
+            } else {
+                element.classList.remove('valid');
+                icon.className = 'fas fa-times me-2';
+            }
+        }
+    });
+    
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Set initial role fields visibility
+    toggleRoleFields(document.querySelector('select[name="role"]').value);
+    </script>
+</body>
+</html> 
