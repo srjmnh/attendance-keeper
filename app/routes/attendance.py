@@ -5,11 +5,15 @@ from app.services.face_service import FaceService
 from app.services.image_service import ImageService
 import base64
 from datetime import datetime
+import os
 
 attendance = Blueprint('attendance', __name__)
 db = DatabaseService()
 face_service = FaceService()
-image_service = ImageService()
+
+# Set up upload folder
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
+image_service = ImageService(UPLOAD_FOLDER)
 
 @attendance.route('/mark', methods=['GET', 'POST'])
 @login_required
