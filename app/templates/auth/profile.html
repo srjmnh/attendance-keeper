@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Attendance System{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <!-- Profile Sidebar -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-lg fade-in">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <div class="position-relative d-inline-block">
+                            <div class="rounded-circle bg-light p-4 mb-3" style="width: 150px; height: 150px; margin: 0 auto;">
+                                <i class="mdi mdi-account text-primary" style="font-size: 5rem;"></i>
+                            </div>
+                            {% if current_user.is_student() %}
+                            <span class="position-absolute bottom-0 end-0 p-2 bg-primary rounded-circle">
+                                <i class="mdi mdi-face text-white"></i>
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <h5 class="mb-1">{{ current_user.full_name }}</h5>
+                    <p class="text-muted mb-3">{{ current_user.email }}</p>
+                    <div class="d-flex justify-content-center mb-3">
+                        <span class="badge bg-primary">{{ current_user.role.title() }}</span>
+                        {% if current_user.is_student() %}
+                        <span class="badge bg-info ms-2">{{ current_user.class_name }} - {{ current_user.division }}</span>
+                        {% endif %}
+                    </div>
+                    {% if current_user.is_student() %}
+                    <a href="{{ url_for('recognition.register_face') }}" class="btn btn-outline-primary">
+                        <i class="mdi mdi-face-recognition"></i> Update Face ID
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            {% if current_user.is_student() %}
+            <div class="card shadow-lg mt-4 fade-in">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">Quick Stats</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <p class="text-muted mb-0">Overall Attendance</p>
+                            <h4 class="mb-0" id="overallAttendance">--%</h4>
+                        </div>
+                        <div class="rounded-circle bg-light p-3">
+                            <i class="mdi mdi-chart-arc text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar" role="progressbar" id="attendanceProgress"></div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Profile Settings -->
+        <div class="col-lg-8">
+            <div class="card shadow-lg fade-in">
+                <div class="card-header bg-transparent">
+                    <h5 class="mb-0">Profile Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="needs-validation" novalidate>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="first_name" class="form-label">First Name</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="mdi mdi-account"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="first_name" name="first_name"
+                                           value="{{ current_user.first_name }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="last_name" class="form-label">Last Name</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="mdi mdi-account"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="last_name" name="last_name"
+                                           value="{{ current_user.last_name }}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="mdi mdi-email"></i>
+                                </span>
+                                <input type="email" class="form-control" id="email" value="{{ current_user.email }}" disabled>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h6 class="mb-3">Change Password</h6>
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="mdi mdi-lock"></i>
+                                </span>
+                                <input type="password" class="form-control" id="current_password" name="current_password">
+                                <button class="btn btn-outline-secondary" type="button" data-toggle-password="current_password">
+                                    <i class="mdi mdi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="mdi mdi-lock-plus"></i>
+                                </span>
+                                <input type="password" class="form-control" id="new_password" name="new_password"
+                                       pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$">
+                                <button class="btn btn-outline-secondary" type="button" data-toggle-password="new_password">
+                                    <i class="mdi mdi-eye"></i>
+                                </button>
+                                <div class="invalid-feedback">
+                                    Password must be at least 8 characters long and contain letters and numbers.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="mdi mdi-content-save"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="card shadow-lg mt-4 fade-in">
+                <div class="card-header bg-transparent">
+                    <h5 class="mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="timeline" id="activityTimeline">
+                        <div class="text-center text-muted">
+                            <i class="mdi mdi-loading mdi-spin"></i> Loading activities...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Toggle password visibility
+    $('[data-toggle-password]').on('click', function() {
+        const targetId = $(this).data('toggle-password');
+        const input = $(`#${targetId}`);
+        const icon = $(this).find('i');
+        
+        if (input.attr('type') === 'password') {
+            input.attr('type', 'text');
+            icon.removeClass('mdi-eye').addClass('mdi-eye-off');
+        } else {
+            input.attr('type', 'password');
+            icon.removeClass('mdi-eye-off').addClass('mdi-eye');
+        }
+    });
+
+    // Password strength indicator
+    $('#new_password').on('input', function() {
+        const password = $(this).val();
+        if (!password) {
+            $(this).removeClass('is-valid is-invalid');
+            return;
+        }
+        
+        const hasLetter = /[A-Za-z]/.test(password);
+        const hasNumber = /\d/.test(password);
+        const isLongEnough = password.length >= 8;
+        
+        if (hasLetter && hasNumber && isLongEnough) {
+            $(this).removeClass('is-invalid').addClass('is-valid');
+        } else {
+            $(this).removeClass('is-valid').addClass('is-invalid');
+        }
+    });
+
+    {% if current_user.is_student() %}
+    // Load attendance statistics
+    $.get('/attendance/stats')
+        .done(function(response) {
+            const percentage = response.percentage;
+            $('#overallAttendance').text(`${Math.round(percentage)}%`);
+            $('#attendanceProgress')
+                .css('width', `${percentage}%`)
+                .addClass(percentage >= 75 ? 'bg-success' : 'bg-warning');
+        })
+        .fail(function(xhr) {
+            console.error('Error loading attendance stats:', xhr);
+        });
+
+    // Load recent activities
+    const timeline = $('#activityTimeline');
+    $.get('/attendance', { student_id: '{{ current_user.id }}', limit: 5 })
+        .done(function(response) {
+            timeline.empty();
+            if (response.records && response.records.length > 0) {
+                response.records.forEach(function(record) {
+                    timeline.append(`
+                        <div class="d-flex mb-3">
+                            <div class="flex-shrink-0">
+                                <div class="p-2 rounded-circle bg-light">
+                                    <i class="mdi mdi-calendar-check text-primary"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">${record.subject_name}</h6>
+                                <p class="text-muted mb-0">
+                                    <small>${formatDate(record.date)}</small>
+                                    <span class="badge bg-${record.status === 'present' ? 'success' : 'danger'} ms-2">
+                                        ${record.status}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    `);
+                });
+            } else {
+                timeline.html('<p class="text-muted text-center">No recent activities</p>');
+            }
+        })
+        .fail(function(xhr) {
+            console.error('Error loading activities:', xhr);
+            timeline.html('<p class="text-danger text-center">Error loading activities</p>');
+        });
+    {% endif %}
+});
+</script>
+{% endblock %} 

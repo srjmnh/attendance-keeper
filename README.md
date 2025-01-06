@@ -1,39 +1,118 @@
-# Face Recognition Project for Render
+# Student Attendance System
 
-This project uses AWS Rekognition to register and recognize faces. It is designed to run on the Render platform.
+A modern attendance management system using face recognition and AI assistance.
 
-## Running the Project on Render
+## Features
 
-1. **Set Up Environment Variables**:
-   - Add the following environment variables in Render:
-     - `AWS_ACCESS_KEY_ID`: Your AWS access key.
-     - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key.
-     - `AWS_REGION`: The AWS region for Rekognition (e.g., `us-east-1`).
-   - Ensure your Rekognition collection is named `students`.
+- Face recognition-based attendance using AWS Rekognition
+- Role-based access control (Admin, Teacher, Student)
+- Real-time attendance tracking
+- Subject management
+- Attendance reports and analytics
+- AI-powered chatbot using Gemini 1.5
+- Modern and responsive UI
 
-2. **Deploy the Application**:
-   - Upload this repository to a GitHub repository or zip it for direct upload.
-   - In Render, create a new web service.
-     - Choose the repository or upload the zip file.
-     - Select `Python` as the runtime.
-     - Set the **Start Command** to `python app.py`.
+## Technologies Used
 
-3. **Dependencies**:
-   - Render will automatically install the dependencies listed in `requirements.txt`.
+- Python 3.8+
+- Flask
+- AWS Rekognition
+- Firebase
+- Gemini AI
+- Bootstrap 5
+- jQuery
 
-4. **Usage**:
-   - Navigate to the deployed application.
-   - Use the "Register" feature to register a student's face with their name and ID.
-   - Use the "Recognize" feature to identify a face and retrieve the corresponding name and ID.
+## Prerequisites
 
-## File Structure
+- Python 3.8 or higher
+- AWS Account with Rekognition access
+- Firebase project
+- Gemini API key
 
-- `app.py`: Flask backend for face registration and recognition.
-- `templates/index.html`: Frontend interface for interacting with the app.
-- `static/script.js`: JavaScript for handling image uploads and API calls.
-- `requirements.txt`: List of Python dependencies.
+## Installation
 
-## Important Notes
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd attendance-keeper
+```
 
-Ensure your AWS IAM user has the necessary permissions for Rekognition and that the collection is created before deploying.
+2. Create and activate a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Set up environment variables:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` file with your credentials:
+- AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+- Firebase credentials (FIREBASE_ADMIN_CREDENTIALS_BASE64)
+- Gemini API key (GEMINI_API_KEY)
+
+5. Initialize the database:
+```bash
+python create_admin.py
+```
+
+## Running the Application
+
+1. Start the development server:
+```bash
+python run.py
+```
+
+2. Access the application at `http://localhost:5000`
+
+## Deployment
+
+The application is configured for deployment on Render. Follow these steps:
+
+1. Create a new Web Service on Render
+2. Connect your repository
+3. Set the following:
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn run:app`
+4. Add environment variables in Render dashboard
+5. Deploy
+
+## Usage
+
+1. Admin:
+   - Manage users (create, edit, delete)
+   - Manage subjects
+   - View system-wide attendance statistics
+   - Configure system settings
+
+2. Teacher:
+   - Mark attendance using face recognition
+   - Manage attendance records
+   - View attendance reports
+   - Interact with AI assistant
+
+3. Student:
+   - Register face
+   - View attendance records
+   - Check attendance percentage
+   - Get AI assistance
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
