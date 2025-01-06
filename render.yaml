@@ -2,8 +2,8 @@ services:
   - type: web
     name: attendance-system
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python run.py
+    buildCommand: ./build.sh
+    startCommand: gunicorn run:app
     envVars:
       - key: FLASK_ENV
         value: production
@@ -65,7 +65,7 @@ services:
   - type: worker
     name: attendance-worker
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: ./build.sh
     startCommand: celery -A app.celery worker --loglevel=info
     envVars:
       - key: FLASK_ENV
