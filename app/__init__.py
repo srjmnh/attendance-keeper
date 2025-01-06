@@ -24,7 +24,7 @@ base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
 if not base64_cred_str:
     raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
 
-decoded_cred_json = base64.b64decode(base64_cred_str).decode('utf-8')
+decoded_cred_json = base64.b64decode(base64_cred_str)
 cred_dict = json.loads(decoded_cred_json)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
