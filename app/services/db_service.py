@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Union
+from flask import current_app
 
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -18,7 +19,7 @@ class DatabaseService:
                 # Initialize Firebase with credentials directly
                 cred = credentials.Certificate(FIREBASE_CREDENTIALS)
                 firebase_admin.initialize_app(cred, {
-                    'databaseURL': current_app.config.get('FIREBASE_DATABASE_URL', 'https://facial-f5096.firebaseio.com')
+                    'databaseURL': 'https://facial-f5096.firebaseio.com'
                 })
             
             self.db = firestore.client()
