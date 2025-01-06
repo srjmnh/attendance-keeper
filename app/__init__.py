@@ -28,11 +28,12 @@ def create_app():
     # Load configuration
     app.config.from_object('app.config.Config')
     
-    # Initialize Firebase with credentials if available
-    if app.config.get('FIREBASE_CREDENTIALS_BASE64'):
-        DatabaseService(cred_base64=app.config['FIREBASE_CREDENTIALS_BASE64'])
+    # Initialize Firebase with credentials
+    db_service = None
+    if app.config.get('FIREBASE_ADMIN_CREDENTIALS_BASE64'):
+        db_service = DatabaseService(cred_base64=app.config['FIREBASE_ADMIN_CREDENTIALS_BASE64'])
     else:
-        DatabaseService()
+        raise RuntimeError("Firebase credentials not found. Please set FIREBASE_ADMIN_CREDENTIALS_BASE64 environment variable.")
     
     # Initialize extensions
     login_manager.init_app(app)
