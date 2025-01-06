@@ -11,9 +11,22 @@ class DatabaseService:
     def __init__(self, cred_base64=None):
         if not firebase_admin._apps:
             if cred_base64:
-                cred_json = base64.b64decode(cred_base64).decode('utf-8')
-                cred_dict = json.loads(cred_json)
-                cred = credentials.Certificate(cred_dict)
+                try:
+                    # Remove any whitespace and newlines that might have been added
+                    cred_base64 = cred_base64.strip()
+                    # Decode base64 to bytes
+                    cred_bytes = base64.b64decode(cred_base64)
+                    # Convert bytes to string
+                    cred_json = cred_bytes.decode('utf-8')
+                    # Parse JSON string to dictionary
+                    cred_dict = json.loads(cred_json)
+                    cred = credentials.Certificate(cred_dict)
+                except base64.binascii.Error as e:
+                    raise ValueError(f"Invalid base64 encoding: {str(e)}")
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Invalid JSON format after base64 decode: {str(e)}")
+                except Exception as e:
+                    raise ValueError(f"Error processing credentials: {str(e)}")
             else:
                 cred = credentials.ApplicationDefault()
             
