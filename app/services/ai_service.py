@@ -9,6 +9,8 @@ import google.generativeai as genai
 from flask import current_app
 from firebase_admin import firestore
 
+logger = logging.getLogger(__name__)
+
 class AIService:
     """Service for AI-powered features using Gemini"""
 
@@ -38,24 +40,32 @@ class AIService:
     """
 
     def __init__(self):
-        """Initialize the AI service"""
+        """Initialize AI service"""
         try:
-            genai.configure(api_key=current_app.config.get('GEMINI_API_KEY'))
+            api_key = current_app.config.get('GEMINI_API_KEY')
+            if not api_key:
+                logger.warning("GEMINI_API_KEY not found in config")
+                return
+
+            genai.configure(api_key=api_key)
+            
+            # Configure model settings
             self.model = genai.GenerativeModel(
-                model_name=current_app.config.get('GEMINI_MODEL', 'models/gemini-1.5-flash'),
+                model_name=current_app.config.get('GEMINI_MODEL', 'gemini-pro'),
                 generation_config={
-                    'temperature': current_app.config.get('GEMINI_TEMPERATURE', 0.7),
-                    'top_p': current_app.config.get('GEMINI_TOP_P', 0.95),
-                    'top_k': current_app.config.get('GEMINI_TOP_K', 40)
+                    "temperature": current_app.config.get('GEMINI_TEMPERATURE', 0.7),
+                    "top_p": current_app.config.get('GEMINI_TOP_P', 0.95),
+                    "top_k": current_app.config.get('GEMINI_TOP_K', 40),
                 }
             )
-            self.conversation_memory = [{"role": "system", "content": self.system_context}]
-            self.db = firestore.client()
-            self.logger = logging.getLogger(__name__)
-            self.initialized = True
+            
+            # Initialize chat
+            self.chat = self.model.start_chat(history=[])
+            logger.info("AI service initialized successfully!")
+            
         except Exception as e:
-            self.logger.error(f"Failed to initialize AI service: {str(e)}")
-            self.initialized = False
+            logger.error(f"Failed to initialize AI service: {str(e)}")
+            raise
 
     def process_chat(
         self,
