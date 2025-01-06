@@ -26,14 +26,23 @@ cache = Cache()
 session = Session()
 celery = Celery()
 
-# Initialize services
+# Import services
 from .services.face_service import FaceService
 from .services.db_service import DatabaseService
 from .services.ai_service import AIService
 
-face_service = FaceService()
-db_service = DatabaseService()
-ai_service = AIService()
+# Global service instances
+face_service = None
+db_service = None
+ai_service = None
+
+def init_services(app):
+    """Initialize services with application context"""
+    global face_service, db_service, ai_service
+    
+    face_service = FaceService()
+    db_service = DatabaseService()
+    ai_service = AIService()
 
 def create_app(config_name=None):
     """Create and configure the Flask application"""
@@ -59,6 +68,10 @@ def create_app(config_name=None):
 
     # Configure Celery
     celery.conf.update(app.config)
+    
+    # Initialize services within application context
+    with app.app_context():
+        init_services(app)
 
     # Configure logging
     if not app.debug and not app.testing:
