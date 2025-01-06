@@ -12,19 +12,50 @@ from firebase_admin import firestore
 class AIService:
     """Service for AI-powered features using Gemini"""
 
+    # Chat memory configuration
+    MAX_MEMORY = 20
+    system_context = """You are Gemini, a somewhat witty (but polite) AI assistant.
+    Facial Recognition Attendance system features:
+
+    1) AWS Rekognition:
+       - We keep a 'students' collection on startup.
+       - /register indexes a face by (name + student_id).
+       - /recognize detects faces in an uploaded image, logs attendance in Firestore if matched.
+
+    2) Attendance:
+       - Firestore 'attendance' collection: { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
+       - UI has tabs: Register, Recognize, Subjects, Attendance (Bootstrap + DataTables).
+       - Attendance can filter, inline-edit, download/upload Excel.
+
+    3) Subjects:
+       - We can add subjects to 'subjects' collection, referenced in recognition.
+
+    4) Multi-Face:
+       - If multiple recognized faces, each is logged to attendance.
+
+    5) Chat:
+       - You are the assistant, a bit humorous, guiding usage or code features.
+    """
+
     def __init__(self):
         """Initialize the AI service"""
-        genai.configure(api_key=current_app.config['GEMINI_API_KEY'])
-        self.model = genai.GenerativeModel(
-            model_name=current_app.config['GEMINI_MODEL'],
-            generation_config={
-                'temperature': current_app.config['GEMINI_TEMPERATURE'],
-                'top_p': current_app.config['GEMINI_TOP_P'],
-                'top_k': current_app.config['GEMINI_TOP_K']
-            }
-        )
-        self.db = firestore.client()
-        self.logger = logging.getLogger(__name__)
+        try:
+            genai.configure(api_key=current_app.config.get('GEMINI_API_KEY'))
+            self.model = genai.GenerativeModel(
+                model_name=current_app.config.get('GEMINI_MODEL', 'models/gemini-1.5-flash'),
+                generation_config={
+                    'temperature': current_app.config.get('GEMINI_TEMPERATURE', 0.7),
+                    'top_p': current_app.config.get('GEMINI_TOP_P', 0.95),
+                    'top_k': current_app.config.get('GEMINI_TOP_K', 40)
+                }
+            )
+            self.conversation_memory = [{"role": "system", "content": self.system_context}]
+            self.db = firestore.client()
+            self.logger = logging.getLogger(__name__)
+            self.initialized = True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize AI service: {str(e)}")
+            self.initialized = False
 
     def process_chat(
         self,
@@ -33,32 +64,49 @@ class AIService:
         conversation_id: Optional[str] = None
     ) -> Dict:
         """Process chat messages with context-aware responses"""
-        try:
-            # Build conversation history if provided
-            history = []
-            if conversation_id:
-                history = self._get_conversation_history(conversation_id)
-
-            # Build context prompt
-            context_prompt = self._build_context_prompt(context)
+        if not self.initialized:
+            return {'error': 'AI service not properly initialized'}
             
+        try:
+            # Add user message to memory
+            self.conversation_memory.append({"role": "user", "content": message})
+
+            # Build conversation string
+            conv_str = ""
+            for msg in self.conversation_memory:
+                if msg["role"] == "system":
+                    conv_str += f"System: {msg['content']}\n"
+                elif msg["role"] == "user":
+                    conv_str += f"User: {msg['content']}\n"
+                else:
+                    conv_str += f"Assistant: {msg['content']}\n"
+
             # Generate response
-            chat = self.model.start_chat(history=history)
-            response = chat.send_message(
-                f"{context_prompt}\n\nUser: {message}",
-                stream=False
-            )
+            response = self.model.generate_content(conv_str)
+            
+            if not response.candidates:
+                assistant_reply = "Hmm, I'm having trouble responding right now."
+            else:
+                parts = response.candidates[0].content.parts
+                assistant_reply = "".join(part.text for part in parts).strip()
+
+            # Add assistant reply to memory
+            self.conversation_memory.append({"role": "assistant", "content": assistant_reply})
+
+            # Trim memory if too long
+            if len(self.conversation_memory) > self.MAX_MEMORY:
+                self.conversation_memory.pop(1)  # Keep system message, remove oldest user message
 
             # Extract suggestions and insights
-            suggestions = self._extract_suggestions(response.text)
-            insights = self._extract_insights(response.text)
+            suggestions = self._extract_suggestions(assistant_reply)
+            insights = self._extract_insights(assistant_reply)
 
-            # Save conversation
+            # Save conversation if ID provided
             if conversation_id:
-                self._save_conversation(conversation_id, message, response.text)
+                self._save_conversation(conversation_id, message, assistant_reply)
 
             return {
-                'message': response.text,
+                'message': assistant_reply,
                 'conversation_id': conversation_id,
                 'suggestions': suggestions,
                 'insights': insights

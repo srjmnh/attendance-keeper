@@ -40,9 +40,31 @@ def init_services(app):
     """Initialize services with application context"""
     global face_service, db_service, ai_service
     
-    face_service = FaceService()
-    db_service = DatabaseService()
-    ai_service = AIService()
+    services_initialized = True
+    
+    try:
+        db_service = DatabaseService()
+        app.logger.info("Database service initialized successfully")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize database service: {str(e)}")
+        services_initialized = False
+
+    try:
+        face_service = FaceService()
+        app.logger.info("Face service initialized successfully")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize face service: {str(e)}")
+        services_initialized = False
+
+    try:
+        ai_service = AIService()
+        app.logger.info("AI service initialized successfully")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize AI service: {str(e)}")
+        services_initialized = False
+
+    if not services_initialized:
+        app.logger.warning("Some services failed to initialize. Application may have limited functionality.")
 
 def create_default_admin(app):
     """Create default admin user if it doesn't exist"""

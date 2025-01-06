@@ -21,13 +21,17 @@ class Config:
     AWS_COLLECTION_ID = os.environ.get('AWS_COLLECTION_ID', 'attendance-faces')
     AWS_BUCKET_NAME = os.environ.get('AWS_BUCKET_NAME', 'attendance-images')
     
-    # Firebase configuration
-    FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_CREDENTIALS_PATH')
-    FIREBASE_DATABASE_URL = os.environ.get('FIREBASE_DATABASE_URL')
+    # Firebase configuration - using direct credentials
+    FIREBASE_DATABASE_URL = "https://facial-f5096.firebaseio.com"
     
     # Google Cloud configuration for Gemini AI
     GOOGLE_CLOUD_PROJECT = os.environ.get('GOOGLE_CLOUD_PROJECT')
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'your-gemini-api-key')
+    GEMINI_MODEL = 'models/gemini-1.5-flash'
+    GEMINI_TEMPERATURE = 0.7
+    GEMINI_TOP_P = 0.95
+    GEMINI_TOP_K = 40
     
     # Mail configuration
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')

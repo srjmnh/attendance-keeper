@@ -1,12 +1,11 @@
-import base64
-import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Union
-from flask import current_app
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+
+from ..firebase_config import FIREBASE_CREDENTIALS
 
 logger = logging.getLogger(__name__)
 
@@ -15,38 +14,12 @@ class DatabaseService:
         """Initialize Firebase connection"""
         self.initialized = False
         try:
-            base64_cred_str = current_app.config.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
-            if not base64_cred_str:
-                raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
-
-            # Decode and verify credentials format
-            try:
-                decoded_cred_json = base64.b64decode(base64_cred_str)
-                cred_dict = json.loads(decoded_cred_json)
-                
-                # Verify required fields
-                required_fields = [
-                    "type", "project_id", "private_key_id", "private_key",
-                    "client_email", "client_id", "auth_uri", "token_uri",
-                    "auth_provider_x509_cert_url", "client_x509_cert_url"
-                ]
-                
-                missing_fields = [field for field in required_fields if field not in cred_dict]
-                if missing_fields:
-                    raise ValueError(f"Missing required fields in credentials: {', '.join(missing_fields)}")
-                
-                if cred_dict["type"] != "service_account":
-                    raise ValueError("Invalid credential type. Must be 'service_account'")
-                
-            except base64.binascii.Error:
-                raise ValueError("Invalid base64 encoded credentials")
-            except json.JSONDecodeError:
-                raise ValueError("Invalid JSON format in decoded credentials")
-
             if not firebase_admin._apps:
-                # Initialize Firebase with decoded credentials
-                cred = credentials.Certificate(cred_dict)
-                firebase_admin.initialize_app(cred)
+                # Initialize Firebase with credentials directly
+                cred = credentials.Certificate(FIREBASE_CREDENTIALS)
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': current_app.config.get('FIREBASE_DATABASE_URL', 'https://facial-f5096.firebaseio.com')
+                })
             
             self.db = firestore.client()
             self._initialize_collections()
@@ -56,6 +29,11 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Failed to initialize Firebase: {str(e)}")
             raise
+
+    def _check_initialized(self):
+        """Check if service is initialized"""
+        if not self.initialized:
+            raise RuntimeError("Database service not properly initialized")
 
     def _initialize_collections(self) -> None:
         """Initialize database collections if they don't exist"""
@@ -67,6 +45,7 @@ class DatabaseService:
     # User Management Methods
     def create_user(self, username: str, password: str, role: str, classes: List[str] = None) -> str:
         """Create a new user"""
+        self._check_initialized()
         try:
             # Check if username exists
             existing = self.db.collection('users').where('username', '==', username).get()
@@ -92,6 +71,7 @@ class DatabaseService:
 
     def get_user(self, user_id: str) -> Optional[Dict]:
         """Get user by ID"""
+        self._check_initialized()
         try:
             doc = self.db.collection('users').document(user_id).get()
             return doc.to_dict() if doc.exists else None
