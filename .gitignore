@@ -208,3 +208,9 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Firebase credentials
+firebase_credentials_base64.txt
+
+# Firebase config
+app/firebase_config.py
