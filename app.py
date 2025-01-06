@@ -155,56 +155,7 @@ def load_user(user_id):
         )
     return None
 
-# -----------------------------
-# 6) Login and Registration Routes
-# -----------------------------
-
-# HTML template for login page
-LOGIN_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Login - Facial Recognition Attendance</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <style>
-    body { display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f8f9fa; }
-    .login-container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-  </style>
-</head>
-<body>
-  <div class="login-container">
-    <h3 class="mb-4">Login</h3>
-    <form method="POST" action="{{ url_for('login') }}">
-      <div class="mb-3">
-        <label for="username" class="form-label">Username</label>
-        <input type="text" class="form-control" id="username" name="username" required />
-      </div>
-      <div class="mb-3">
-        <label for="password" class="form-label">Password</label>
-        <input type="password" class="form-control" id="password" name="password" required />
-      </div>
-      <button type="submit" class="btn btn-primary">Login</button>
-    </form>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="mt-3">
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }}" role="alert">
-              {{ message }}
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-  </div>
-</body>
-</html>
-"""
-
-#define role_required decorator
+# Define role_required decorator
 from functools import wraps
 
 def role_required(required_roles):
@@ -214,10 +165,14 @@ def role_required(required_roles):
         def wrapped(*args, **kwargs):
             if current_user.role not in required_roles:
                 flash("You do not have permission to access this page.", "danger")
-                return redirect(url_for('index'))
+                return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
         return wrapped
     return decorator
+
+# -----------------------------
+# 6) Login and Registration Routes
+# -----------------------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -226,7 +181,7 @@ def login():
         password = request.form.get("password").strip()
         if not username or not password:
             flash("Please enter both username and password.", "warning")
-            return render_template_string(LOGIN_HTML)
+            return render_template("login.html")
         
         # Query Firestore for user
         users_ref = db.collection("users")
@@ -247,12 +202,12 @@ def login():
         if user:
             login_user(user)
             flash("Logged in successfully!", "success")
-            return redirect(url_for("index"))
+            return redirect(url_for("dashboard"))
         else:
             flash("Invalid username or password.", "danger")
-            return render_template_string(LOGIN_HTML)
+            return render_template("login.html")
     else:
-        return render_template_string(LOGIN_HTML)
+        return render_template("login.html")
 
 @app.route("/logout")
 @login_required
@@ -264,119 +219,6 @@ def logout():
 # -----------------------------
 # 7) Admin Routes for User Management
 # -----------------------------
-
-# HTML template for admin panel
-ADMIN_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Admin Panel - User Management</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-</head>
-<body class="container mt-4">
-  <h2>Admin Panel - User Management</h2>
-  
-  <!-- Create User Form -->
-  <div class="card mt-3">
-    <div class="card-header">
-      Create New User
-    </div>
-    <div class="card-body">
-      <form method="POST" action="{{ url_for('create_user') }}">
-        <div class="mb-3">
-          <label for="username" class="form-label">Username</label>
-          <input type="text" class="form-control" id="username" name="username" required />
-        </div>
-        <div class="mb-3">
-          <label for="password" class="form-label">Password</label>
-          <input type="password" class="form-control" id="password" name="password" required />
-        </div>
-        <div class="mb-3">
-          <label for="role" class="form-label">Role</label>
-          <select class="form-select" id="role" name="role" required>
-            <option value="">Select Role</option>
-            <option value="teacher">Teacher</option>
-            <option value="student">Student</option>
-          </select>
-        </div>
-        <div class="mb-3" id="classes_div" style="display: none;">
-          <label for="classes" class="form-label">Assign Classes (Comma-Separated IDs)</label>
-          <input type="text" class="form-control" id="classes" name="classes" placeholder="e.g., math101,phy201" />
-        </div>
-        <button type="submit" class="btn btn-primary">Create User</button>
-      </form>
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="mt-3">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}" role="alert">
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-    </div>
-  </div>
-  
-  <!-- Existing Users List -->
-  <div class="card mt-4">
-    <div class="card-header">
-      Existing Users
-    </div>
-    <div class="card-body">
-      <table class="table table-bordered">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Assigned Classes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for user in users %}
-            <tr>
-              <td>{{ user.username }}</td>
-              <td>
-                {% if user.role %}
-                  {{ user.role.capitalize() }}
-                {% else %}
-                  N/A
-                {% endif %}
-              </td>
-              <td>
-                {% if user.classes %}
-                  {{ ", ".join(user.classes) }}
-                {% else %}
-                  N/A
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  
-  <a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
-
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    document.getElementById('role').addEventListener('change', function() {
-      if (this.value === 'teacher') {
-        document.getElementById('classes_div').style.display = 'block';
-      } else {
-        document.getElementById('classes_div').style.display = 'none';
-      }
-    });
-  </script>
-</body>
-</html>
-"""
 
 @app.route("/admin/manage_users", methods=["GET", "POST"])
 @role_required(['admin'])
@@ -425,7 +267,7 @@ def admin_panel():
             "classes": user_data.get("classes", [])
         })
 
-    return render_template_string(ADMIN_HTML, users=users_list)
+    return render_template("admin_panel.html", users=users_list)
 
 @app.route("/admin/create_user", methods=["POST"])
 @role_required(['admin'])
@@ -466,7 +308,7 @@ def create_user():
 
 @app.route("/", methods=["GET"])
 @login_required
-def index():
+def dashboard():
     # Get subjects for the dropdown
     subjects = []
     if current_user.role in ['admin', 'teacher']:
@@ -1138,7 +980,7 @@ def manage_subjects():
             'created_at': subject_data.get('created_at', 'N/A')
         })
     
-    return render_template_string(MANAGE_SUBJECTS_HTML, subjects=subjects_list)
+    return render_template("manage_subjects.html", subjects=subjects_list)
 
 @app.route("/admin/delete_subject/<subject_id>", methods=["POST"])
 @login_required
