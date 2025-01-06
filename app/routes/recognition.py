@@ -1,14 +1,19 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
+from app.services.db_service import DatabaseService
 from app.services.face_service import FaceService
 from app.services.image_service import ImageService
-from app.services.db_service import DatabaseService
 import base64
+from datetime import datetime
+import os
 
 recognition = Blueprint('recognition', __name__)
-face_service = FaceService()
-image_service = ImageService()
 db = DatabaseService()
+face_service = FaceService()
+
+# Set up upload folder
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
+image_service = ImageService(UPLOAD_FOLDER)
 
 @recognition.route('/register', methods=['GET', 'POST'])
 @login_required

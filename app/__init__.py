@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import sys
+import urllib.parse
 
 # Initialize extensions
 login_manager = LoginManager()
@@ -30,13 +31,18 @@ print(f"Base64 string length: {len(base64_cred_str)}", file=sys.stderr)
 print(f"First 50 chars of base64: {base64_cred_str[:50]}", file=sys.stderr)
 
 try:
-    # Try to clean the base64 string
+    # Clean up the base64 string
     base64_cred_str = base64_cred_str.strip()
+    # URL-decode in case it's URL-encoded
+    base64_cred_str = urllib.parse.unquote(base64_cred_str)
+    # Remove any '%' at the end if present
+    base64_cred_str = base64_cred_str.rstrip('%')
     # Add padding if necessary
     padding = len(base64_cred_str) % 4
     if padding:
         base64_cred_str += '=' * (4 - padding)
     
+    # Decode base64
     decoded_cred_json = base64.b64decode(base64_cred_str)
     print(f"Decoded JSON length: {len(decoded_cred_json)}", file=sys.stderr)
     print(f"First 50 chars of decoded JSON: {decoded_cred_json[:50]}", file=sys.stderr)
@@ -45,10 +51,13 @@ try:
     try:
         json_str = decoded_cred_json.decode('utf-8')
         print(f"Decoded as UTF-8 successfully, first 50 chars: {json_str[:50]}", file=sys.stderr)
+        # Parse the JSON string
+        cred_dict = json.loads(json_str)
     except UnicodeDecodeError as e:
         print(f"Failed to decode as UTF-8: {str(e)}", file=sys.stderr)
+        # Try parsing the raw bytes
+        cred_dict = json.loads(decoded_cred_json)
     
-    cred_dict = json.loads(decoded_cred_json)
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
     db = firestore.client()
