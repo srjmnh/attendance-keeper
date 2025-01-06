@@ -44,6 +44,30 @@ def init_services(app):
     db_service = DatabaseService()
     ai_service = AIService()
 
+def create_default_admin(app):
+    """Create default admin user if it doesn't exist"""
+    from .models.user import User
+    from .constants import UserRole, UserStatus
+    
+    # Check if admin exists
+    admin = User.query.filter_by(email='admin@example.com').first()
+    if not admin:
+        # Create admin user
+        admin = User(
+            email='admin@example.com',
+            password='admin123',  # This will be hashed automatically
+            first_name='Admin',
+            last_name='User',
+            role=UserRole.ADMIN.value,
+            status=UserStatus.ACTIVE.value,
+            email_verified=True
+        )
+        
+        # Add to database
+        db.session.add(admin)
+        db.session.commit()
+        app.logger.info("Default admin user created successfully!")
+
 def create_app(config_name=None):
     """Create and configure the Flask application"""
     app = Flask(__name__)
@@ -72,6 +96,7 @@ def create_app(config_name=None):
     # Initialize services within application context
     with app.app_context():
         init_services(app)
+        create_default_admin(app)  # Create default admin user
 
     # Configure logging
     if not app.debug and not app.testing:
