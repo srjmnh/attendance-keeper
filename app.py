@@ -332,6 +332,14 @@ def dashboard():
                 'classes': user_data.get('classes', [])
             })
     
+    # Get classes list for admin panel
+    classes = []
+    if current_user.role == 'admin':
+        classes_ref = db.collection("classes").stream()
+        for doc in classes_ref:
+            class_data = doc.to_dict()
+            classes.append(class_data.get('class_id', ''))
+    
     # Determine which tab is active based on query parameter
     active_tab = request.args.get("tab", "recognize")
     
@@ -340,7 +348,8 @@ def dashboard():
         active_tab=active_tab,
         role=current_user.role,
         subjects=subjects,
-        users=users
+        users=users,
+        classes=classes
     )
 
 # -----------------------------
@@ -1031,6 +1040,30 @@ def update_subject():
         return jsonify({"message": "Subject updated successfully."}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update subject: {str(e)}"}), 500
+
+# -----------------------------
+# Class Management Routes
+# -----------------------------
+
+@app.route("/admin/add_class", methods=["POST"])
+@role_required(['admin'])
+def add_class():
+    class_id = request.form.get("class_id", "").strip()
+    if not class_id:
+        flash("Class ID cannot be empty.", "warning")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Add the class to a classes collection in Firestore
+        db.collection("classes").add({
+            "class_id": class_id,
+            "created_at": datetime.utcnow().isoformat()
+        })
+        flash(f"Class '{class_id}' added successfully!", "success")
+    except Exception as e:
+        flash(f"Error adding class: {str(e)}", "danger")
+    
+    return redirect(url_for('dashboard'))
 
 if __name__ == "__main__":
     # Create default admin if none exists
