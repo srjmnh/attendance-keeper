@@ -74,7 +74,7 @@ def create_default_admin(app):
     """Create default admin user if it doesn't exist"""
     from .models.user import User
     
-    with app.app_context():
+    try:
         # Check if admin exists
         admin = User.query.filter_by(email='admin@example.com').first()
         if not admin:
@@ -93,6 +93,10 @@ def create_default_admin(app):
             db.session.add(admin)
             db.session.commit()
             app.logger.info("Default admin user created successfully!")
+    except Exception as e:
+        app.logger.error(f"Error creating default admin: {str(e)}")
+        # Don't raise the exception, let the app continue without admin user
+        pass
 
 def create_app(config_name=None):
     """Create and configure the Flask application"""
@@ -124,17 +128,6 @@ def create_app(config_name=None):
     # Configure Celery
     celery.conf.update(app.config)
     
-    # Initialize services within application context
-    with app.app_context():
-        # Create database tables
-        db.create_all()
-        
-        # Initialize services
-        init_services(app)
-        
-        # Create default admin user
-        create_default_admin(app)
-
     # Register blueprints
     from .routes import (
         index,
@@ -160,5 +153,23 @@ def create_app(config_name=None):
         """Load user by ID"""
         from .models.user import User
         return User.get_by_id(user_id)
+
+    # Initialize database and services within application context
+    with app.app_context():
+        try:
+            # Create database tables
+            db.create_all()
+            app.logger.info("Database tables created successfully")
+            
+            # Create default admin user
+            create_default_admin(app)
+            
+            # Initialize services
+            init_services(app)
+            
+        except Exception as e:
+            app.logger.error(f"Error during initialization: {str(e)}")
+            # Don't raise the exception, let the app continue with limited functionality
+            pass
 
     return app 

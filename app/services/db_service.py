@@ -14,6 +14,8 @@ class DatabaseService:
     def __init__(self):
         """Initialize Firebase connection"""
         self.initialized = False
+        self.db = None
+        
         try:
             if not firebase_admin._apps:
                 # Initialize Firebase with credentials from environment
@@ -29,24 +31,35 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Failed to initialize Firebase: {str(e)}")
-            raise
+            # Don't raise the exception, let the service continue with limited functionality
+            pass
 
     def _check_initialized(self):
         """Check if service is initialized"""
         if not self.initialized:
-            raise RuntimeError("Database service not properly initialized")
+            logger.warning("Database service not properly initialized, some features may be unavailable")
+            return False
+        return True
 
     def _initialize_collections(self) -> None:
         """Initialize database collections if they don't exist"""
-        collections = ['users', 'attendance', 'subjects']
-        for collection in collections:
-            if not self.db.collection(collection).get():
-                logger.info(f"Initializing collection: {collection}")
+        if not self._check_initialized():
+            return
+            
+        try:
+            collections = ['users', 'attendance', 'subjects']
+            for collection in collections:
+                if not self.db.collection(collection).get():
+                    logger.info(f"Initializing collection: {collection}")
+        except Exception as e:
+            logger.error(f"Error initializing collections: {str(e)}")
 
     # User Management Methods
-    def create_user(self, username: str, password: str, role: str, classes: List[str] = None) -> str:
+    def create_user(self, username: str, password: str, role: str, classes: List[str] = None) -> Optional[str]:
         """Create a new user"""
-        self._check_initialized()
+        if not self._check_initialized():
+            return None
+            
         try:
             # Check if username exists
             existing = self.db.collection('users').where('username', '==', username).get()
@@ -68,20 +81,25 @@ class DatabaseService:
             
         except Exception as e:
             logger.error(f"Error creating user: {str(e)}")
-            raise
+            return None
 
     def get_user(self, user_id: str) -> Optional[Dict]:
         """Get user by ID"""
-        self._check_initialized()
+        if not self._check_initialized():
+            return None
+            
         try:
             doc = self.db.collection('users').document(user_id).get()
             return doc.to_dict() if doc.exists else None
         except Exception as e:
             logger.error(f"Error getting user: {str(e)}")
-            raise
+            return None
 
     def get_user_by_username(self, username: str) -> Optional[Dict]:
         """Get user by username"""
+        if not self._check_initialized():
+            return None
+            
         try:
             users = self.db.collection('users').where('username', '==', username).get()
             for user in users:
@@ -89,7 +107,7 @@ class DatabaseService:
             return None
         except Exception as e:
             logger.error(f"Error getting user by username: {str(e)}")
-            raise
+            return None
 
     # Subject Management Methods
     def create_subject(self, name: str, code: str = None) -> str:
