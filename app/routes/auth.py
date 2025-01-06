@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.services.db_service import DatabaseService
 from app.models.user import User
+from datetime import datetime
 import re
 
 auth = Blueprint('auth', __name__)
@@ -31,7 +32,7 @@ def login():
             flash('Your account is not active. Please contact the administrator.', 'warning')
             return redirect(url_for('auth.login'))
         
-        login_user(User.from_dict(user), remember=remember)
+        login_user(user, remember=remember)
         return redirect(url_for('main.index'))
     
     return render_template('auth/login.html')
@@ -68,14 +69,15 @@ def register():
             flash('Password must be at least 8 characters long and contain letters and numbers.', 'danger')
             return redirect(url_for('auth.register'))
         
-        # Create user object
-        user = {
+        # Create user data
+        user_data = {
             'email': email,
-            'password': generate_password_hash(password),
             'first_name': first_name,
             'last_name': last_name,
             'role': role,
-            'status': 'active'
+            'status': 'active',
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
         }
         
         # Add class and division for students
@@ -83,15 +85,18 @@ def register():
             if not class_name or not division:
                 flash('Please select your class and division.', 'danger')
                 return redirect(url_for('auth.register'))
-            user['class_name'] = class_name
-            user['division'] = division
+            user_data['class_name'] = class_name
+            user_data['division'] = division
         
-        # Save user to database
+        # Create User object and set password
         try:
-            user_id = db.create_user(user)
-            if user_id:
-                flash('Registration successful! Please login.', 'success')
-                return redirect(url_for('auth.login'))
+            user = User(user_data)
+            user.set_password(password)
+            
+            # Save user to database
+            db.create_user(user)
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('auth.login'))
         except Exception as e:
             flash('An error occurred during registration. Please try again.', 'danger')
             return redirect(url_for('auth.register'))
