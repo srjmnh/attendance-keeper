@@ -36,17 +36,17 @@ services:
       - key: REDIS_URL
         fromService:
           type: redis
-          name: attendance-cache
+          name: attendance-redis
           property: connectionString
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
-          name: attendance-queue
+          name: attendance-redis
           property: connectionString
       - key: CELERY_RESULT_BACKEND
         fromService:
           type: redis
-          name: attendance-queue
+          name: attendance-redis
           property: connectionString
     healthCheckPath: /health
     autoDeploy: true
@@ -56,14 +56,7 @@ services:
       sizeGB: 10
 
   - type: redis
-    name: attendance-cache
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-    plan: free
-
-  - type: redis
-    name: attendance-queue
+    name: attendance-redis
     ipAllowList:
       - source: 0.0.0.0/0
         description: everywhere
@@ -94,10 +87,10 @@ services:
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
-          name: attendance-queue
+          name: attendance-redis
           property: connectionString
       - key: CELERY_RESULT_BACKEND
         fromService:
           type: redis
-          name: attendance-queue
+          name: attendance-redis
           property: connectionString 
