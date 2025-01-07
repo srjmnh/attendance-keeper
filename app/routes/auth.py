@@ -351,3 +351,45 @@ def create_admin():
         logger.exception("Full traceback:")
         flash('Error creating admin account. Please try again.', 'danger')
         return redirect(url_for('auth.login')) 
+
+@auth.route('/setup-admin')
+def setup_admin():
+    """Create the default admin account"""
+    try:
+        email = "admin@attendance.com"
+        password = "Admin@123"
+        
+        logger.info("Checking for existing admin account...")
+        existing_admin = db.get_user_by_email(email)
+        
+        if existing_admin:
+            logger.info("Admin account already exists")
+            flash('Admin account already exists. Please login with admin@attendance.com', 'info')
+            return redirect(url_for('auth.login'))
+        
+        # Create admin user data
+        admin_data = {
+            'email': email,
+            'first_name': 'System',
+            'last_name': 'Admin',
+            'role': 'admin',
+            'status': 'active',
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Create User object and set password
+        admin = User(admin_data)
+        admin.set_password(password)
+        
+        # Save to database
+        db.create_user(admin.to_dict())
+        
+        logger.info("Admin account created successfully")
+        flash('Admin account created! Please login with admin@attendance.com / Admin@123', 'success')
+        return redirect(url_for('auth.login'))
+        
+    except Exception as e:
+        logger.error(f"Error creating admin account: {str(e)}")
+        flash('Error creating admin account. Please try again.', 'danger')
+        return redirect(url_for('auth.login')) 
