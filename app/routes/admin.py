@@ -3,9 +3,9 @@ from flask_login import login_required, current_user
 from app.services.db_service import DatabaseService
 from app.utils.decorators import admin_required
 
-bp = Blueprint('admin', __name__)
+admin = Blueprint('admin', __name__)
 
-@bp.route('/admin/users')
+@admin.route('/admin/users')
 @login_required
 @admin_required
 def manage_users():
@@ -19,7 +19,7 @@ def manage_users():
         flash('An error occurred while loading users.', 'danger')
         return redirect(url_for('main.index'))
 
-@bp.route('/admin/users/create', methods=['GET', 'POST'])
+@admin.route('/admin/users/create', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def create_user():
@@ -55,7 +55,7 @@ def create_user():
     
     return render_template('admin/create_user.html')
 
-@bp.route('/admin/users/<user_id>/edit', methods=['GET', 'POST'])
+@admin.route('/admin/users/<user_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def edit_user(user_id):
@@ -95,7 +95,7 @@ def edit_user(user_id):
         flash('An error occurred while editing the user.', 'danger')
         return redirect(url_for('admin.manage_users'))
 
-@bp.route('/admin/users/<user_id>/delete', methods=['POST'])
+@admin.route('/admin/users/<user_id>/delete', methods=['POST'])
 @login_required
 @admin_required
 def delete_user(user_id):
@@ -109,7 +109,7 @@ def delete_user(user_id):
         flash('An error occurred while deleting the user.', 'danger')
     return redirect(url_for('admin.manage_users'))
 
-@bp.route('/admin/subjects')
+@admin.route('/admin/subjects')
 @login_required
 @admin_required
 def manage_subjects():
@@ -124,7 +124,7 @@ def manage_subjects():
         flash('An error occurred while loading subjects.', 'danger')
         return redirect(url_for('main.index'))
 
-@bp.route('/admin/subjects/create', methods=['GET', 'POST'])
+@admin.route('/admin/subjects/create', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def create_subject():
@@ -160,7 +160,7 @@ def create_subject():
         flash('An error occurred while creating the subject.', 'danger')
         return redirect(url_for('admin.manage_subjects'))
 
-@bp.route('/admin/subjects/<subject_id>/edit', methods=['GET', 'POST'])
+@admin.route('/admin/subjects/<subject_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def edit_subject(subject_id):
@@ -195,7 +195,7 @@ def edit_subject(subject_id):
         flash('An error occurred while editing the subject.', 'danger')
         return redirect(url_for('admin.manage_subjects'))
 
-@bp.route('/admin/subjects/<subject_id>/delete', methods=['POST'])
+@admin.route('/admin/subjects/<subject_id>/delete', methods=['POST'])
 @login_required
 @admin_required
 def delete_subject(subject_id):
