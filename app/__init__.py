@@ -13,6 +13,10 @@ import sys
 import logging
 import urllib.parse
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Initialize extensions
 login_manager = LoginManager()
 cors = CORS()
@@ -21,10 +25,6 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"]
 )
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Initialize Firebase
 base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
@@ -38,12 +38,23 @@ try:
     
     # Decode base64 credentials
     cred_json = base64.b64decode(base64_cred_str)
+    logger.info(f"Decoded JSON length: {len(cred_json)}")
+    
+    # Parse JSON
     cred_dict = json.loads(cred_json)
+    logger.info(f"Project ID: {cred_dict.get('project_id')}")
     
     # Initialize Firebase Admin
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-    logger.info("Firebase initialized successfully")
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        logger.info("Firebase initialized successfully")
+    else:
+        logger.info("Firebase already initialized")
+    
+    # Test Firestore connection
+    db = firestore.client()
+    logger.info("Firestore client created successfully")
     
 except Exception as e:
     logger.error(f"Firebase initialization error: {str(e)}")
