@@ -3,17 +3,27 @@ import google.generativeai as genai
 from flask import current_app
 
 class GeminiService:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GeminiService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
         """Initialize Gemini service with API key"""
+        if self._initialized:
+            return
+            
         api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-pro')
-        
-        # Initialize chat history
         self.chat = self.model.start_chat(history=[])
+        self._initialized = True
     
     def analyze_attendance(self, attendance_data):
         """Analyze attendance data and provide insights"""

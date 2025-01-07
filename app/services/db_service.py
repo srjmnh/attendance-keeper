@@ -5,9 +5,20 @@ from app.models.user import User
 class DatabaseService:
     """Service class for database operations"""
     
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DatabaseService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
         """Initialize database service with Firestore client"""
+        if self._initialized:
+            return
         self.db = current_app.db
+        self._initialized = True
     
     def get_user_by_id(self, user_id):
         """Get user by ID and return User model instance"""
@@ -20,7 +31,7 @@ class DatabaseService:
                     email=user_data.get('email'),
                     name=user_data.get('name'),
                     role=user_data.get('role'),
-                    password=user_data.get('password')
+                    password=user_data.get('password_hash')
                 )
             return None
         except Exception as e:
