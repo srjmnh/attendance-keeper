@@ -5,6 +5,20 @@ from app.utils.decorators import admin_required
 
 admin = Blueprint('admin', __name__)
 
+@admin.route('/admin/dashboard')
+@login_required
+@admin_required
+def dashboard():
+    """Admin dashboard"""
+    try:
+        db = DatabaseService()
+        stats = db.get_system_attendance_stats()
+        return render_template('admin/dashboard.html', stats=stats)
+    except Exception as e:
+        current_app.logger.error(f"Error in dashboard route: {str(e)}")
+        flash('An error occurred while loading dashboard.', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
 @admin.route('/admin/users')
 @login_required
 @admin_required
@@ -17,7 +31,7 @@ def manage_users():
     except Exception as e:
         current_app.logger.error(f"Error in manage users route: {str(e)}")
         flash('An error occurred while loading users.', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('admin.dashboard'))
 
 @admin.route('/admin/users/create', methods=['GET', 'POST'])
 @login_required
@@ -122,7 +136,7 @@ def manage_subjects():
     except Exception as e:
         current_app.logger.error(f"Error in manage subjects route: {str(e)}")
         flash('An error occurred while loading subjects.', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('admin.dashboard'))
 
 @admin.route('/admin/subjects/create', methods=['GET', 'POST'])
 @login_required
