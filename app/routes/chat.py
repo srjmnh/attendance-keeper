@@ -4,9 +4,9 @@ from app.services.ai_service import GeminiAIService
 from app.services.db_service import DatabaseService
 from datetime import datetime
 
-bp = Blueprint('chat', __name__)
+chat = Blueprint('chat', __name__)
 
-@bp.route('/chat', methods=['GET', 'POST'])
+@chat.route('/chat', methods=['GET', 'POST'])
 @login_required
 def chat():
     """Handle chat messages with AI assistant"""
@@ -81,7 +81,7 @@ def chat():
         current_app.logger.error(f"Error in chat route: {str(e)}")
         return jsonify({'error': 'An error occurred processing your message'}), 500
 
-@bp.route('/chat/history')
+@chat.route('/chat/history')
 @login_required
 def chat_history():
     """Get chat history for current user"""
@@ -93,7 +93,7 @@ def chat_history():
         current_app.logger.error(f"Error getting chat history: {str(e)}")
         return jsonify({'error': 'An error occurred retrieving chat history'}), 500
 
-@bp.route('/chat/analytics')
+@chat.route('/chat/analytics')
 @login_required
 def chat_analytics():
     """Get chat analytics"""
