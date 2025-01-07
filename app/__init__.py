@@ -4,13 +4,13 @@ from flask_login import LoginManager
 from firebase_admin import credentials, initialize_app, firestore
 import base64
 import json
+from app.services.db_service import DatabaseService
 
 login_manager = LoginManager()
 
 @login_manager.user_loader
 def load_user(user_id):
     """Load user by ID."""
-    from app.services.db_service import DatabaseService
     if not hasattr(g, 'db_service'):
         g.db_service = DatabaseService()
     return g.db_service.get_user_by_id(user_id)

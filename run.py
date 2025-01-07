@@ -1,14 +1,13 @@
 import os
 from app import create_app
 from werkzeug.security import generate_password_hash
+from app.services.db_service import DatabaseService
 
 def create_default_admin(app):
     """Creates a default admin user if no admin exists"""
     try:
-        from app.services.firebase_service import get_user_by_email
-        
-        # Check if admin exists
-        admin = get_user_by_email('admin@example.com')
+        db = DatabaseService()
+        admin = db.get_user_by_email('admin@example.com')
         
         if not admin:
             default_username = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin')
@@ -22,8 +21,7 @@ def create_default_admin(app):
                 "role": "admin"
             }
             
-            from app.services.firebase_service import create_user
-            create_user(admin_data)
+            db.create_user(admin_data)
             print(f"Default admin created with username: {default_username}")
             print(f"Password hash: {password_hash}")
         else:
