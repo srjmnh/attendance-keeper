@@ -1,45 +1,90 @@
+import os
 from flask import Flask
 from flask_login import LoginManager
-from app.config import config
-from app.models.user import User
-from app.services.firebase_service import initialize_firebase
+from firebase_admin import credentials, initialize_app, firestore
+import base64
 
 login_manager = LoginManager()
-login_manager.login_view = 'auth.login'
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Load user by ID."""
     from app.services.db_service import DatabaseService
     db = DatabaseService()
     return db.get_user_by_id(user_id)
 
-def create_app(config_name='default'):
-    """Application factory function"""
+class Config:
+    """Base configuration."""
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev')
+    DEBUG = False
+    TESTING = False
+    
+    # Firebase configuration
+    FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
+    
+    # AWS configuration
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+    
+    # Email configuration
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')
+
+class DevelopmentConfig(Config):
+    """Development configuration."""
+    DEBUG = True
+
+class ProductionConfig(Config):
+    """Production configuration."""
+    DEBUG = False
+
+class TestingConfig(Config):
+    """Testing configuration."""
+    TESTING = True
+    DEBUG = True
+
+config = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'testing': TestingConfig,
+    'default': DevelopmentConfig
+}
+
+def create_app(config_name=None):
+    """Create and configure the Flask application."""
     app = Flask(__name__)
     
-    # Load config
+    # Load configuration
+    if config_name is None:
+        config_name = os.environ.get('FLASK_CONFIG', 'default')
     app.config.from_object(config[config_name])
     
-    # Initialize Firebase with credentials from environment
-    credentials_base64 = app.config['FIREBASE_ADMIN_CREDENTIALS_BASE64']
-    if not credentials_base64:
-        raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment variables")
-    initialize_firebase(credentials_base64)
+    # Initialize Firebase Admin SDK
+    if app.config['FIREBASE_CREDENTIALS']:
+        try:
+            cred_json = base64.b64decode(app.config['FIREBASE_CREDENTIALS']).decode('utf-8')
+            cred = credentials.Certificate(cred_json)
+            firebase_app = initialize_app(cred)
+            db = firestore.client()
+            app.db = db
+        except Exception as e:
+            app.logger.error(f"Failed to initialize Firebase: {str(e)}")
+            raise
     
     # Initialize Flask-Login
     login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message_category = 'info'
     
     # Register blueprints
-    from app.blueprints.auth import auth_bp
-    from app.blueprints.admin import admin_bp
-    from app.blueprints.teacher import teacher_bp
-    from app.blueprints.student import student_bp
-    from app.blueprints.main import main_bp
-    
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(teacher_bp)
-    app.register_blueprint(student_bp)
-    app.register_blueprint(main_bp)
+    from app.routes import auth, main, admin
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(main.bp)
+    app.register_blueprint(admin.bp)
     
     return app 
