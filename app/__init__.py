@@ -3,6 +3,7 @@ from flask import Flask
 from flask_login import LoginManager
 from firebase_admin import credentials, initialize_app, firestore
 import base64
+import json
 
 login_manager = LoginManager()
 
@@ -69,7 +70,8 @@ def create_app(config_name=None):
     if firebase_creds:
         try:
             cred_json = base64.b64decode(firebase_creds).decode('utf-8')
-            cred = credentials.Certificate(cred_json)
+            cred_dict = json.loads(cred_json)
+            cred = credentials.Certificate(cred_dict)
             firebase_app = initialize_app(cred)
             db = firestore.client()
             app.db = db
