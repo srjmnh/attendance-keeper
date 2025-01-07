@@ -1,9 +1,12 @@
 import firebase_admin
 from firebase_admin import firestore
 from datetime import datetime
+import logging
 from ..models.user import User
 from ..models.subject import Subject
 from ..models.attendance import Attendance
+
+logger = logging.getLogger(__name__)
 
 class DatabaseService:
     def __init__(self):
@@ -19,29 +22,56 @@ class DatabaseService:
     # User operations
     def create_user(self, user):
         """Create a new user"""
-        doc_ref = self.users_ref.document()
-        user.id = doc_ref.id
-        doc_ref.set(user.to_dict())
-        return user
+        try:
+            doc_ref = self.users_ref.document()
+            user.id = doc_ref.id
+            user_dict = user.to_dict()
+            doc_ref.set(user_dict)
+            logger.info(f"Created user with ID: {user.id}")
+            return user_dict
+        except Exception as e:
+            logger.error(f"Error creating user: {str(e)}")
+            raise
 
     def get_user(self, user_id):
         """Get user by ID"""
-        doc = self.users_ref.document(user_id).get()
-        if doc.exists:
-            return User.from_dict(doc.to_dict())
-        return None
+        try:
+            doc = self.users_ref.document(user_id).get()
+            if doc.exists:
+                user_dict = doc.to_dict()
+                user_dict['id'] = doc.id
+                logger.info(f"Retrieved user with ID: {user_id}")
+                return user_dict
+            logger.warning(f"No user found with ID: {user_id}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user {user_id}: {str(e)}")
+            raise
 
     def get_user_by_email(self, email):
         """Get user by email"""
-        users = self.users_ref.where('email', '==', email).limit(1).stream()
-        for user in users:
-            return User.from_dict(user.to_dict())
-        return None
+        try:
+            users = self.users_ref.where('email', '==', email).limit(1).stream()
+            for doc in users:
+                user_dict = doc.to_dict()
+                user_dict['id'] = doc.id
+                logger.info(f"Retrieved user with email: {email}")
+                return user_dict
+            logger.warning(f"No user found with email: {email}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user by email {email}: {str(e)}")
+            raise
 
-    def update_user(self, user):
+    def update_user(self, user_id, update_data):
         """Update user"""
-        self.users_ref.document(user.id).update(user.to_dict())
-        return user
+        try:
+            self.users_ref.document(user_id).update(update_data)
+            logger.info(f"Updated user with ID: {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user {user_id}: {str(e)}")
+            raise
 
     def delete_user(self, user_id):
         """Delete user"""

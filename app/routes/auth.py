@@ -61,58 +61,61 @@ def register():
         return redirect(url_for('main.index'))
     
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        role = request.form.get('role')
-        class_name = request.form.get('class_name')
-        division = request.form.get('division')
-        
-        # Validate email format
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            flash('Please enter a valid email address.', 'danger')
-            return redirect(url_for('auth.register'))
-        
-        # Check if email already exists
-        if db.get_user_by_email(email):
-            flash('Email address already exists.', 'danger')
-            return redirect(url_for('auth.register'))
-        
-        # Validate password strength
-        if not re.match(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$", password):
-            flash('Password must be at least 8 characters long and contain letters and numbers.', 'danger')
-            return redirect(url_for('auth.register'))
-        
-        # Create user data
-        user_data = {
-            'email': email,
-            'first_name': first_name,
-            'last_name': last_name,
-            'role': role,
-            'status': 'active',
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        }
-        
-        # Add class and division for students
-        if role == 'student':
-            if not class_name or not division:
-                flash('Please select your class and division.', 'danger')
-                return redirect(url_for('auth.register'))
-            user_data['class_name'] = class_name
-            user_data['division'] = division
-        
-        # Create User object and set password
         try:
+            email = request.form.get('email')
+            password = request.form.get('password')
+            first_name = request.form.get('first_name')
+            last_name = request.form.get('last_name')
+            role = request.form.get('role')
+            class_name = request.form.get('class_name')
+            division = request.form.get('division')
+            
+            # Validate email format
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+                flash('Please enter a valid email address.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Check if email already exists
+            if db.get_user_by_email(email):
+                flash('Email address already exists.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Validate password strength
+            if not re.match(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$", password):
+                flash('Password must be at least 8 characters long and contain letters and numbers.', 'danger')
+                return redirect(url_for('auth.register'))
+            
+            # Create user data
+            user_data = {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'role': role,
+                'status': 'active',
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            
+            # Add class and division for students
+            if role == 'student':
+                if not class_name or not division:
+                    flash('Please select your class and division.', 'danger')
+                    return redirect(url_for('auth.register'))
+                user_data['class_name'] = class_name
+                user_data['division'] = division
+            
+            # Create User object and set password
             user = User(user_data)
             user.set_password(password)
             
             # Save user to database
-            db.create_user(user)
+            user_dict = db.create_user(user)
+            logger.info(f"User registered successfully: {email}")
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('auth.login'))
+            
         except Exception as e:
+            logger.error(f"Registration error: {str(e)}")
             flash('An error occurred during registration. Please try again.', 'danger')
             return redirect(url_for('auth.register'))
     
