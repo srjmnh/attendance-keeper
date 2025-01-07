@@ -2,9 +2,9 @@ from flask import Blueprint, render_template, current_app
 from flask_login import login_required, current_user
 from app.services.db_service import DatabaseService
 
-bp = Blueprint('main', __name__)
+main = Blueprint('main', __name__)
 
-@bp.route('/')
+@main.route('/')
 @login_required
 def index():
     """Main dashboard route"""
@@ -45,7 +45,7 @@ def index():
         error = "An error occurred while loading the dashboard. Please try again later."
         return render_template('main/index.html', error=error)
 
-@bp.route('/profile')
+@main.route('/profile')
 @login_required
 def profile():
     """
