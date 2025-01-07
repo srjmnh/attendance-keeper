@@ -26,13 +26,22 @@ def validate_password(password):
         return False
     return True
 
+def get_dashboard_url():
+    """Get the appropriate dashboard URL based on user role"""
+    if current_user.is_admin():
+        return url_for('admin.dashboard')
+    elif current_user.is_teacher():
+        return url_for('teacher.dashboard')
+    else:
+        return url_for('student.dashboard')
+
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     """
     Handle user login.
     """
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(get_dashboard_url())
     
     if request.method == 'POST':
         try:
@@ -75,9 +84,9 @@ def login():
             login_user(user, remember=remember)
             logger.info(f"User {email} logged in successfully")
             
-            # Redirect to next page if specified, otherwise go to index
+            # Redirect to next page if specified, otherwise go to role-specific dashboard
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('main.index'))
+            return redirect(next_page or get_dashboard_url())
             
         except Exception as e:
             logger.error(f"Login error: {str(e)}")
@@ -93,7 +102,7 @@ def register():
     Handle user registration.
     """
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(get_dashboard_url())
     
     if request.method == 'POST':
         try:
@@ -177,7 +186,7 @@ def reset_password():
     Handle password reset request.
     """
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(get_dashboard_url())
     
     if request.method == 'POST':
         email = request.form.get('email')
@@ -210,7 +219,7 @@ def reset_password_confirm(token):
     Handle password reset confirmation.
     """
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(get_dashboard_url())
     
     # Verify token
     email = db.verify_reset_token(token)
