@@ -1,8 +1,11 @@
 from flask import Blueprint, render_template, current_app
 from flask_login import login_required, current_user
 from app.services.db_service import DatabaseService
+import logging
 
 main = Blueprint('main', __name__)
+db = DatabaseService()
+logger = logging.getLogger(__name__)
 
 @main.route('/')
 @login_required
@@ -53,13 +56,17 @@ def profile():
     """
     User profile page.
     """
-    if current_user.is_student():
-        attendance_stats = db.get_student_attendance_percentage(current_user.id)
-        recent_activities = db.get_recent_attendance_by_student(current_user.id, limit=5)
-    else:
-        attendance_stats = None
-        recent_activities = None
-    
-    return render_template('auth/profile.html',
-                         attendance_stats=attendance_stats,
-                         recent_activities=recent_activities) 
+    try:
+        if current_user.is_student():
+            attendance_stats = db.get_student_attendance_percentage(current_user.id)
+            recent_activities = db.get_recent_attendance_by_student(current_user.id, limit=5)
+        else:
+            attendance_stats = None
+            recent_activities = None
+        
+        return render_template('auth/profile.html',
+                            attendance_stats=attendance_stats,
+                            recent_activities=recent_activities)
+    except Exception as e:
+        logger.error(f"Error in profile route: {str(e)}")
+        return render_template('auth/profile.html', error=str(e)) 
