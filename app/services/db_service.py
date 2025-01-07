@@ -8,6 +8,9 @@ from flask import current_app
 from app.models.user import User
 from app.models.subject import Subject
 from app.models.attendance import Attendance
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseService:
     """Service for interacting with Firebase Firestore database"""
@@ -41,12 +44,21 @@ class DatabaseService:
     def create_user(self, user_data):
         """Create a new user"""
         try:
+            logger.info(f"Creating user with data: {user_data}")
+            
+            # Generate a new document ID
             doc_ref = self.users_ref.document()
             user_data['id'] = doc_ref.id
+            logger.info(f"Generated document ID: {doc_ref.id}")
+            
+            # Set the document data
             doc_ref.set(user_data)
-            return user_data  # Return the dictionary instead of User object
+            logger.info(f"User document created with ID: {doc_ref.id}")
+            
+            return user_data
         except Exception as e:
-            current_app.logger.error(f"Error creating user: {str(e)}")
+            logger.error(f"Error creating user: {str(e)}")
+            logger.exception("Full traceback:")
             raise
 
     def get_user_by_id(self, user_id):
@@ -65,15 +77,21 @@ class DatabaseService:
     def get_user_by_email(self, email):
         """Get user by email"""
         try:
+            logger.info(f"Looking up user by email: {email}")
             query = self.users_ref.where('email', '==', email).limit(1)
             docs = query.stream()
+            
             for doc in docs:
                 data = doc.to_dict()
                 data['id'] = doc.id
-                return data  # Return the dictionary instead of User object
+                logger.info(f"Found user: {data}")
+                return data
+            
+            logger.warning(f"No user found with email: {email}")
             return None
         except Exception as e:
-            current_app.logger.error(f"Error getting user by email {email}: {str(e)}")
+            logger.error(f"Error getting user by email: {str(e)}")
+            logger.exception("Full traceback:")
             return None
 
     def update_user(self, user_id, user_data):
