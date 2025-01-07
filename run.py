@@ -1,6 +1,5 @@
 import os
 from app import create_app
-from app.services.db_service import DatabaseService
 from werkzeug.security import generate_password_hash
 
 # Create the Flask application instance
@@ -9,22 +8,25 @@ app = create_app(os.getenv('FLASK_CONFIG', 'default'))
 def create_default_admin():
     """Creates a default admin user if no admin exists"""
     try:
-        db = DatabaseService()
-        admins = db.get_users_by_role('admin')
+        from app.services.firebase_service import get_user_by_email
         
-        if not admins:
-            default_username = "admin"
+        # Check if admin exists
+        admin = get_user_by_email('admin@example.com')
+        
+        if not admin:
+            default_username = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin')
             default_password = "Admin123!"  # Change this immediately after first login
             password_hash = generate_password_hash(default_password)
             
             admin_data = {
-                "username": default_username,
-                "password_hash": password_hash,
-                "role": "admin",
-                "classes": []
+                "email": "admin@example.com",
+                "name": "Admin User",
+                "password": password_hash,
+                "role": "admin"
             }
             
-            db.create_user(admin_data)
+            from app.services.firebase_service import create_user
+            create_user(admin_data)
             print(f"Default admin created with username: {default_username}")
         else:
             print("Admin user already exists")
