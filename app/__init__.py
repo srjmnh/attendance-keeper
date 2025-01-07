@@ -5,6 +5,7 @@ from firebase_admin import credentials, initialize_app, firestore
 import base64
 import json
 from app.services.db_service import DatabaseService
+from datetime import timedelta
 
 login_manager = LoginManager()
 
@@ -87,12 +88,13 @@ def create_app(config_name=None):
     
     # Register blueprints
     with app.app_context():
-        from app.routes import auth, main, admin, ai, recognition
+        from app.routes import auth, main, admin, ai, recognition, attendance
         app.register_blueprint(auth.bp)
         app.register_blueprint(main.bp)
         app.register_blueprint(admin.bp)
         app.register_blueprint(ai.bp)
         app.register_blueprint(recognition.bp)
+        app.register_blueprint(attendance.bp)
     
     @app.before_request
     def before_request():
