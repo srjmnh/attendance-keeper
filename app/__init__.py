@@ -66,7 +66,7 @@ def load_user(user_id):
     from app.models.user import User
     try:
         db = DatabaseService()
-        user_dict = db.get_user(user_id)
+        user_dict = db.get_user_by_id(user_id)
         if user_dict:
             return User(user_dict)
         return None

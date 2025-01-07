@@ -1,6 +1,8 @@
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class User(UserMixin):
     """User model for authentication and authorization"""
@@ -14,11 +16,9 @@ class User(UserMixin):
         self.role = user_data.get('role', 'student')
         self.class_name = user_data.get('class_name')
         self.division = user_data.get('division')
-        self.password_hash = user_data.get('password')
+        self.password_hash = user_data.get('password')  # This should be the hashed password
         self.status = user_data.get('status', 'active')
-        self.face_id = user_data.get('face_id')
-        self.created_at = user_data.get('created_at')
-        self.updated_at = user_data.get('updated_at')
+        logger.info(f"User object created for {self.email} with role {self.role}")
 
     @property
     def full_name(self):
@@ -28,16 +28,25 @@ class User(UserMixin):
     def set_password(self, password):
         """Set user password - this will hash the password"""
         if not password:
+            logger.error("Attempted to set empty password")
             raise ValueError("Password cannot be empty")
         self.password_hash = generate_password_hash(password)
+        logger.info(f"Password set for user {self.email}")
 
     def check_password(self, password):
         """Check if password is correct"""
-        if not self.password_hash or not password:
+        if not self.password_hash:
+            logger.warning(f"No password hash found for user {self.email}")
+            return False
+        if not password:
+            logger.warning(f"Empty password provided for user {self.email}")
             return False
         try:
-            return check_password_hash(self.password_hash, password)
-        except Exception:
+            result = check_password_hash(self.password_hash, password)
+            logger.info(f"Password check for {self.email}: {'success' if result else 'failed'}")
+            return result
+        except Exception as e:
+            logger.error(f"Error checking password for {self.email}: {str(e)}")
             return False
 
     def is_admin(self):
@@ -54,7 +63,7 @@ class User(UserMixin):
 
     def to_dict(self):
         """Convert user object to dictionary"""
-        return {
+        data = {
             'id': self.id,
             'email': self.email,
             'first_name': self.first_name,
@@ -62,16 +71,16 @@ class User(UserMixin):
             'role': self.role,
             'class_name': self.class_name,
             'division': self.division,
-            'password': self.password_hash,
-            'status': self.status,
-            'face_id': self.face_id,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'password': self.password_hash,  # This is already hashed
+            'status': self.status
         }
+        logger.info(f"Converting user {self.email} to dictionary")
+        return data
 
     @staticmethod
     def from_dict(user_dict):
         """Create user object from dictionary"""
+        logger.info(f"Creating user object from dictionary with email: {user_dict.get('email')}")
         return User(user_dict)
 
     def update(self, data):

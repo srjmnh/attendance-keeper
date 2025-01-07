@@ -40,26 +40,35 @@ def login():
             password = request.form.get('password')
             remember = True if request.form.get('remember') else False
             
+            logger.info(f"Login attempt for email: {email}")
+            
             if not email or not password:
+                logger.warning("Missing email or password")
                 flash('Please enter both email and password.', 'danger')
                 return redirect(url_for('auth.login'))
             
             # Get user from database
             user_dict = db.get_user_by_email(email)
+            logger.info(f"User lookup result: {user_dict}")
+            
             if not user_dict:
+                logger.warning(f"No user found for email: {email}")
                 flash('Please check your login details and try again.', 'danger')
                 return redirect(url_for('auth.login'))
             
             # Create User object from dictionary
             user = User(user_dict)
+            logger.info(f"User object created with role: {user.role}")
             
             # Check password using the password_hash from user object
             if not user.check_password(password):
+                logger.warning(f"Invalid password for user: {email}")
                 flash('Please check your login details and try again.', 'danger')
                 return redirect(url_for('auth.login'))
             
             # Check if user is active
             if user_dict.get('status') != 'active':
+                logger.warning(f"Inactive user attempted login: {email}")
                 flash('Your account is not active. Please contact the administrator.', 'warning')
                 return redirect(url_for('auth.login'))
             
@@ -72,6 +81,7 @@ def login():
             
         except Exception as e:
             logger.error(f"Login error: {str(e)}")
+            logger.exception("Full traceback:")
             flash('An error occurred during login. Please try again.', 'danger')
             return redirect(url_for('auth.login'))
     
@@ -297,15 +307,15 @@ def create_admin():
         email = "admin@attendance.com"
         password = "Admin@123"
         
-        # Validate password strength
-        if not validate_password(password):
-            flash('Admin password must be at least 8 characters long and contain both letters and numbers.', 'danger')
-            return redirect(url_for('auth.login'))
+        logger.info("Attempting to create admin account...")
         
         # Check if admin already exists
         existing_admin = db.get_user_by_email(email)
+        logger.info(f"Existing admin check result: {existing_admin}")
+        
         if existing_admin:
-            flash('Admin account already exists', 'info')
+            logger.info("Admin account already exists")
+            flash('Admin account already exists. Please login.', 'info')
             return redirect(url_for('auth.login'))
         
         # Create admin user data
@@ -318,21 +328,26 @@ def create_admin():
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
+        logger.info(f"Admin data prepared: {admin_data}")
         
         # Create User object and set password
         admin = User(admin_data)
         admin.set_password(password)
+        logger.info("Password set for admin user")
         
         # Convert to dictionary for database storage
         admin_dict = admin.to_dict()
+        logger.info(f"Admin dictionary created: {admin_dict}")
         
         # Save to database
-        db.create_user(admin_dict)
+        result = db.create_user(admin_dict)
+        logger.info(f"Admin user creation result: {result}")
         
         flash('Admin account created successfully! Email: admin@attendance.com, Password: Admin@123', 'success')
         return redirect(url_for('auth.login'))
         
     except Exception as e:
         logger.error(f"Error creating admin user: {str(e)}")
-        flash('Error creating admin account', 'danger')
+        logger.exception("Full traceback:")
+        flash('Error creating admin account. Please try again.', 'danger')
         return redirect(url_for('auth.login')) 
