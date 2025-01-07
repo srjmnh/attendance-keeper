@@ -1,0 +1,74 @@
+{% extends "email/base.html" %}
+
+{% block title %}Low Attendance Alert - AttendanceAI{% endblock %}
+
+{% block header %}Low Attendance Alert{% endblock %}
+
+{% block content %}
+<h2>Attendance Warning</h2>
+
+<p>Dear Parent/Guardian,</p>
+
+<p>This is to inform you that your ward's attendance has fallen below the required minimum percentage:</p>
+
+<div style="background-color: #fee2e2; border-radius: 8px; padding: 20px; margin: 20px 0;">
+    <table style="width: 100%;">
+        <tr>
+            <td style="color: #991b1b; padding: 5px 0;">Student:</td>
+            <td style="font-weight: 500; text-align: right; color: #991b1b;">{{ student_name }}</td>
+        </tr>
+        <tr>
+            <td style="color: #991b1b; padding: 5px 0;">Subject:</td>
+            <td style="font-weight: 500; text-align: right; color: #991b1b;">{{ subject_name }}</td>
+        </tr>
+        <tr>
+            <td style="color: #991b1b; padding: 5px 0;">Current Attendance:</td>
+            <td style="text-align: right;">
+                <span class="badge badge-danger">
+                    {{ attendance_percentage }}%
+                </span>
+            </td>
+        </tr>
+        <tr>
+            <td style="color: #991b1b; padding: 5px 0;">Required Minimum:</td>
+            <td style="text-align: right;">
+                <span class="badge badge-warning">
+                    {{ minimum_required }}%
+                </span>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<p>Please note:</p>
+<ul style="color: #4b5563; margin: 20px 0; padding-left: 20px;">
+    <li>Regular attendance is crucial for academic success</li>
+    <li>Students must maintain a minimum of {{ minimum_required }}% attendance</li>
+    <li>Low attendance may affect academic performance and eligibility for examinations</li>
+</ul>
+
+<p>Actions required:</p>
+<ul style="color: #4b5563; margin: 20px 0; padding-left: 20px;">
+    <li>Ensure regular attendance in upcoming classes</li>
+    <li>Contact the subject teacher for missed lessons</li>
+    <li>Submit valid documentation for any unavoidable absences</li>
+</ul>
+
+<div class="text-center">
+    <a href="{{ url_for('main.attendance_records', _external=True) }}" class="button">
+        View Detailed Attendance Records
+    </a>
+</div>
+
+<p class="text-sm text-gray mt-4">
+    If you have any concerns or need to discuss this matter, please contact the class teacher or academic coordinator.
+</p>
+
+<div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+    <p style="margin: 0; color: #374151; font-size: 14px;">
+        <strong>Contact Information:</strong><br>
+        Academic Office: {{ school_phone }}<br>
+        Email: {{ school_email }}
+    </p>
+</div>
+{% endblock %} 

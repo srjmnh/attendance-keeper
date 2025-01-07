@@ -1,0 +1,54 @@
+{% extends "email/base.html" %}
+
+{% block title %}Attendance Update - AttendanceAI{% endblock %}
+
+{% block header %}Attendance Update{% endblock %}
+
+{% block content %}
+<h2>Attendance Recorded</h2>
+
+<p>Hello,</p>
+
+<p>This is to notify you that attendance has been recorded for:</p>
+
+<div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+    <table style="width: 100%;">
+        <tr>
+            <td style="color: #6b7280; padding: 5px 0;">Student:</td>
+            <td style="font-weight: 500; text-align: right;">{{ student_name }}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280; padding: 5px 0;">Subject:</td>
+            <td style="font-weight: 500; text-align: right;">{{ subject_name }}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280; padding: 5px 0;">Date:</td>
+            <td style="font-weight: 500; text-align: right;">{{ date }}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280; padding: 5px 0;">Time:</td>
+            <td style="font-weight: 500; text-align: right;">{{ time }}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280; padding: 5px 0;">Status:</td>
+            <td style="text-align: right;">
+                <span class="badge {% if status == 'PRESENT' %}badge-success{% else %}badge-danger{% endif %}">
+                    {{ status }}
+                </span>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<p>You can view detailed attendance records by clicking the button below:</p>
+
+<div class="text-center">
+    <a href="{{ url_for('main.attendance_records', _external=True) }}" class="button">
+        View Attendance Records
+    </a>
+</div>
+
+<p class="text-sm text-gray mt-4">
+    If you did not expect this notification or believe this is an error, please contact your administrator immediately.
+</p>
+{% endblock %} 

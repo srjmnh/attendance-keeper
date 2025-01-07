@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Attendance System{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Chatbot styles */
+        #chatbotToggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50;
+        }
+        
+        #chatbotWindow {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 300px;
+            max-height: 400px;
+            z-index: 50;
+            display: none;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <!-- Logo -->
+                    <div class="flex-shrink-0 flex items-center">
+                        <span class="text-xl font-bold text-indigo-600">AttendanceAI</span>
+                    </div>
+                    
+                    <!-- Navigation Links -->
+                    {% if current_user.is_authenticated %}
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        <a href="{{ url_for('main.dashboard') }}" 
+                           class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Dashboard
+                        </a>
+                        {% if current_user.role in ['admin', 'teacher'] %}
+                        <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Manage Students
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Right side -->
+                <div class="flex items-center">
+                    {% if current_user.is_authenticated %}
+                    <div class="ml-3 relative">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-sm text-gray-700">{{ current_user.username }}</span>
+                            <a href="{{ url_for('auth.logout') }}" 
+                               class="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500">
+                                <span class="material-icons">logout</span>
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('auth.login') }}" 
+                       class="text-gray-500 hover:text-gray-700">Login</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+                {% for category, message in messages %}
+                    <div class="rounded-md p-4 mb-4 {% if category == 'success' %}bg-green-50 text-green-700{% elif category == 'danger' %}bg-red-50 text-red-700{% elif category == 'warning' %}bg-yellow-50 text-yellow-700{% else %}bg-blue-50 text-blue-700{% endif %}"
+                         role="alert">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <span class="material-icons">
+                                    {% if category == 'success' %}check_circle
+                                    {% elif category == 'danger' %}error
+                                    {% elif category == 'warning' %}warning
+                                    {% else %}info{% endif %}
+                                </span>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium">{{ message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Chatbot Toggle Button -->
+    {% if current_user.is_authenticated %}
+    <button id="chatbotToggle" 
+            class="bg-indigo-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors">
+        <span class="material-icons">chat</span>
+    </button>
+
+    <!-- Chatbot Window -->
+    <div id="chatbotWindow" class="glass-effect rounded-lg shadow-xl">
+        <div class="bg-indigo-600 text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
+            <span class="font-medium">AI Assistant</span>
+            <button id="chatCloseBtn" class="text-white hover:text-gray-200">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div id="chatMessages" class="p-4 h-80 overflow-y-auto"></div>
+        <div class="border-t p-4 bg-white rounded-b-lg">
+            <div class="flex space-x-2">
+                <input type="text" id="chatInput" 
+                       class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                       placeholder="Type your message...">
+                <button id="chatSendBtn" 
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {% block extra_js %}{% endblock %}
+    
+    <!-- Chatbot Script -->
+    {% if current_user.is_authenticated %}
+    <script>
+        const toggleBtn = document.getElementById('chatbotToggle');
+        const chatWindow = document.getElementById('chatbotWindow');
+        const chatCloseBtn = document.getElementById('chatCloseBtn');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const chatSendBtn = document.getElementById('chatSendBtn');
+
+        toggleBtn.addEventListener('click', () => {
+            chatWindow.style.display = chatWindow.style.display === 'none' ? 'block' : 'none';
+        });
+
+        chatCloseBtn.addEventListener('click', () => {
+            chatWindow.style.display = 'none';
+        });
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `mb-3 ${sender === 'user' ? 'text-right' : ''}`;
+            const bubble = document.createElement('div');
+            bubble.className = `inline-block rounded-lg px-4 py-2 max-w-[80%] ${
+                sender === 'user' 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-gray-100 text-gray-900'
+            }`;
+            bubble.textContent = text;
+            div.appendChild(bubble);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+            
+            addMessage(message, 'user');
+            chatInput.value = '';
+
+            fetch('/process_prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: message })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    addMessage(`Error: ${data.error}`, 'assistant');
+                } else {
+                    addMessage(data.message, 'assistant');
+                }
+            })
+            .catch(err => {
+                addMessage('Sorry, I encountered an error.', 'assistant');
+                console.error(err);
+            });
+        }
+
+        chatSendBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+</html> 
