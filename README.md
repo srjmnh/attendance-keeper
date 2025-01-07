@@ -4,6 +4,25 @@ A modern attendance management system that uses facial recognition and AI to aut
 
 ## Changelog
 
+### UI Modernization & Admin Fix (2024-02-14)
+- Complete UI overhaul:
+  - Switched from Font Awesome to Material Icons
+  - Added modern gradients and animations
+  - Improved form styling with floating labels
+  - Enhanced button and input interactions
+  - Added smooth transitions and hover effects
+  - Implemented responsive design improvements
+  - Added better form validation feedback
+  - Enhanced alert messages with icons
+  - Updated color scheme with CSS variables
+  - Added Inter font for better typography
+  - Improved chat widget UI/UX
+
+- Fixed admin user creation:
+  - Corrected password hashing in admin creation script
+  - Fixed user dictionary conversion before database save
+  - Added proper error handling and logging
+
 ### Blueprint Fixes (2024-02-14)
 - Fixed blueprint naming conflicts in route files:
   - Renamed `bp` to `chat` in `app/routes/chat.py` to match import
@@ -24,6 +43,10 @@ These changes resolved the following issues:
 - Use consistent naming for blueprints (match the route file name)
 - Avoid naming conflicts between blueprints and route functions
 - Follow Flask's blueprint naming conventions
+- Follow Material Design principles for UI components
+- Use CSS variables for consistent theming
+- Implement proper form validation
+- Always hash passwords before database storage
 
 ## Features
 
