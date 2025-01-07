@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import sys
+import logging
 import urllib.parse
 
 # Initialize extensions
@@ -21,61 +22,46 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"]
 )
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Initialize Firebase
 base64_cred_str = os.environ.get("FIREBASE_ADMIN_CREDENTIALS_BASE64")
 if not base64_cred_str:
-    print("ERROR: FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment", file=sys.stderr)
+    logger.error("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment")
     raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment.")
 
-print(f"Base64 string length: {len(base64_cred_str)}", file=sys.stderr)
-print(f"First 50 chars of base64: {base64_cred_str[:50]}", file=sys.stderr)
-
 try:
-    # Clean up the base64 string
-    base64_cred_str = base64_cred_str.strip()
-    # URL-decode in case it's URL-encoded
-    base64_cred_str = urllib.parse.unquote(base64_cred_str)
-    # Remove any '%' at the end if present
-    base64_cred_str = base64_cred_str.rstrip('%')
-    # Add padding if necessary
-    padding = len(base64_cred_str) % 4
-    if padding:
-        base64_cred_str += '=' * (4 - padding)
+    logger.info(f"Base64 string length: {len(base64_cred_str)}")
+    logger.info(f"First 50 chars of base64: {base64_cred_str[:50]}")
     
-    # Decode base64
-    decoded_cred_json = base64.b64decode(base64_cred_str)
-    print(f"Decoded JSON length: {len(decoded_cred_json)}", file=sys.stderr)
-    print(f"First 50 chars of decoded JSON: {decoded_cred_json[:50]}", file=sys.stderr)
+    # Decode base64 credentials
+    cred_json = base64.b64decode(base64_cred_str)
+    cred_dict = json.loads(cred_json)
     
-    # Try to decode as UTF-8 first to see the content
-    try:
-        json_str = decoded_cred_json.decode('utf-8')
-        print(f"Decoded as UTF-8 successfully, first 50 chars: {json_str[:50]}", file=sys.stderr)
-        # Parse the JSON string
-        cred_dict = json.loads(json_str)
-    except UnicodeDecodeError as e:
-        print(f"Failed to decode as UTF-8: {str(e)}", file=sys.stderr)
-        # Try parsing the raw bytes
-        cred_dict = json.loads(decoded_cred_json)
-    
+    # Initialize Firebase Admin
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
-    db = firestore.client()
-except base64.binascii.Error as e:
-    print(f"Base64 decoding error: {str(e)}", file=sys.stderr)
-    raise
-except json.JSONDecodeError as e:
-    print(f"JSON decoding error: {str(e)}", file=sys.stderr)
-    raise
+    logger.info("Firebase initialized successfully")
+    
 except Exception as e:
-    print(f"Unexpected error: {str(e)}", file=sys.stderr)
+    logger.error(f"Firebase initialization error: {str(e)}")
     raise
 
 @login_manager.user_loader
 def load_user(user_id):
+    from app.services.db_service import DatabaseService
     from app.models.user import User
-    user_data = db.collection('users').document(user_id).get()
-    return User.from_dict(user_data.to_dict()) if user_data.exists else None
+    try:
+        db = DatabaseService()
+        user_dict = db.get_user(user_id)
+        if user_dict:
+            return User(user_dict)
+        return None
+    except Exception as e:
+        logger.error(f"Error loading user {user_id}: {str(e)}")
+        return None
 
 def create_app():
     app = Flask(__name__)

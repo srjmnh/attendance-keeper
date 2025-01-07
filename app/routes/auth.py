@@ -4,10 +4,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app.services.db_service import DatabaseService
 from app.models.user import User
 from datetime import datetime
+import logging
 import re
 
 auth = Blueprint('auth', __name__)
 db = DatabaseService()
+logger = logging.getLogger(__name__)
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
@@ -18,22 +20,35 @@ def login():
         return redirect(url_for('main.index'))
     
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        remember = True if request.form.get('remember') else False
-        
-        user = db.get_user_by_email(email)
-        
-        if not user or not check_password_hash(user.password, password):
-            flash('Please check your login details and try again.', 'danger')
+        try:
+            email = request.form.get('email')
+            password = request.form.get('password')
+            remember = True if request.form.get('remember') else False
+            
+            user_dict = db.get_user_by_email(email)
+            if not user_dict:
+                flash('Please check your login details and try again.', 'danger')
+                return redirect(url_for('auth.login'))
+            
+            # Create User object from dictionary
+            user = User(user_dict)
+            
+            if not user or not user.check_password(password):
+                flash('Please check your login details and try again.', 'danger')
+                return redirect(url_for('auth.login'))
+            
+            if user.status != 'active':
+                flash('Your account is not active. Please contact the administrator.', 'warning')
+                return redirect(url_for('auth.login'))
+            
+            login_user(user, remember=remember)
+            logger.info(f"User {email} logged in successfully")
+            return redirect(url_for('main.index'))
+            
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}")
+            flash('An error occurred during login. Please try again.', 'danger')
             return redirect(url_for('auth.login'))
-        
-        if user.status != 'active':
-            flash('Your account is not active. Please contact the administrator.', 'warning')
-            return redirect(url_for('auth.login'))
-        
-        login_user(user, remember=remember)
-        return redirect(url_for('main.index'))
     
     return render_template('auth/login.html')
 

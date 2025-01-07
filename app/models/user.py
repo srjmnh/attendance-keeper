@@ -42,6 +42,7 @@ class User(UserMixin):
         return {
             'id': self.id,
             'email': self.email,
+            'password': self.password,
             'first_name': self.first_name,
             'last_name': self.last_name,
             'role': self.role,
@@ -55,4 +56,4 @@ class User(UserMixin):
 
     @staticmethod
     def from_dict(user_dict):
-        return User(user_dict) if user_dict else None 
+        return User(user_dict) 
