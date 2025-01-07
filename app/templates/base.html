@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Attendance System{% endblock %}</title>
+    <title>{% block title %}Attendance Keeper{% endblock %}</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -88,7 +88,7 @@
                     {% if current_user.is_authenticated %}
                     <div class="ml-3 relative">
                         <div class="flex items-center space-x-4">
-                            <span class="text-sm text-gray-700">{{ current_user.username }}</span>
+                            <span class="text-sm text-gray-700">{{ current_user.email }}</span>
                             <a href="{{ url_for('auth.logout') }}" 
                                class="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500">
                                 <span class="material-icons">logout</span>
@@ -105,17 +105,18 @@
     </nav>
 
     <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
                 {% for category, message in messages %}
-                    <div class="rounded-md p-4 mb-4 {% if category == 'success' %}bg-green-50 text-green-700{% elif category == 'danger' %}bg-red-50 text-red-700{% elif category == 'warning' %}bg-yellow-50 text-yellow-700{% else %}bg-blue-50 text-blue-700{% endif %}"
+                    <div class="rounded-md p-4 mb-4 fade-in {% if category == 'success' %}bg-green-50 text-green-700{% elif category == 'error' %}bg-red-50 text-red-700{% elif category == 'warning' %}bg-yellow-50 text-yellow-700{% else %}bg-blue-50 text-blue-700{% endif %}"
                          role="alert">
                         <div class="flex">
                             <div class="flex-shrink-0">
                                 <span class="material-icons">
                                     {% if category == 'success' %}check_circle
-                                    {% elif category == 'danger' %}error
+                                    {% elif category == 'error' %}error
                                     {% elif category == 'warning' %}warning
                                     {% else %}info{% endif %}
                                 </span>
@@ -127,11 +128,9 @@
                     </div>
                 {% endfor %}
             </div>
-        {% endif %}
-    {% endwith %}
+            {% endif %}
+        {% endwith %}
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {% block content %}{% endblock %}
     </main>
 
@@ -150,7 +149,7 @@
                 <span class="material-icons">close</span>
             </button>
         </div>
-        <div id="chatMessages" class="p-4 h-80 overflow-y-auto"></div>
+        <div id="chatMessages" class="p-4 h-80 overflow-y-auto bg-white"></div>
         <div class="border-t p-4 bg-white rounded-b-lg">
             <div class="flex space-x-2">
                 <input type="text" id="chatInput" 
