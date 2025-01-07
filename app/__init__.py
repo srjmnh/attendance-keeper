@@ -20,8 +20,11 @@ def create_app(config_name='default'):
     # Load config
     app.config.from_object(config[config_name])
     
-    # Initialize Firebase
-    initialize_firebase(app)
+    # Initialize Firebase with credentials from environment
+    credentials_base64 = app.config['FIREBASE_ADMIN_CREDENTIALS_BASE64']
+    if not credentials_base64:
+        raise ValueError("FIREBASE_ADMIN_CREDENTIALS_BASE64 not found in environment variables")
+    initialize_firebase(credentials_base64)
     
     # Initialize Flask-Login
     login_manager.init_app(app)

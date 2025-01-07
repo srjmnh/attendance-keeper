@@ -7,21 +7,26 @@ import os
 from flask import current_app
 from datetime import datetime
 
-def initialize_firebase(credentials_json):
-    """Initialize Firebase Admin SDK with credentials"""
+def initialize_firebase(credentials_base64):
+    """Initialize Firebase Admin SDK with credentials
+    
+    Args:
+        credentials_base64: Base64 encoded Firebase service account credentials
+    """
     try:
-        # Decode credentials if they're base64 encoded
-        if isinstance(credentials_json, str):
-            credentials_json = base64.b64decode(credentials_json)
-            credentials_json = json.loads(credentials_json)
+        # Decode base64 credentials
+        credentials_json = base64.b64decode(credentials_base64)
+        credentials_dict = json.loads(credentials_json)
         
-        cred = credentials.Certificate(credentials_json)
+        # Initialize Firebase Admin SDK
+        cred = credentials.Certificate(credentials_dict)
         firebase_admin.initialize_app(cred)
         
+        # Initialize and return Firestore client
         return firestore.client()
     except Exception as e:
         current_app.logger.error(f"Firebase initialization error: {str(e)}")
-        raise
+        raise ValueError(f"Failed to initialize Firebase: {str(e)}")
 
 def get_user_by_email(email):
     """Get user data from Firebase by email"""

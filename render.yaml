@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: attendance-keeper
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT --workers 2 --threads 8
+    autoDeploy: true
+    healthCheckPath: /
+    disk:
+      name: pip-cache
+      mountPath: /root/.cache/pip
+      sizeGB: 1 

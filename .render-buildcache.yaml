@@ -1,0 +1,7 @@
+buildCache:
+  - path: requirements.txt
+    hash: $(cat requirements.txt | sha256sum)
+  - path: app/
+    hash: $(find app -type f -exec sha256sum {} \;)
+  - path: run.py
+    hash: $(sha256sum run.py) 
