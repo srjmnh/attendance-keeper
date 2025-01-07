@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, g
 from flask_login import LoginManager
 from firebase_admin import credentials, initialize_app, firestore
 import base64
@@ -11,8 +11,9 @@ login_manager = LoginManager()
 def load_user(user_id):
     """Load user by ID."""
     from app.services.db_service import DatabaseService
-    db = DatabaseService()
-    return db.get_user_by_id(user_id)
+    if not hasattr(g, 'db_service'):
+        g.db_service = DatabaseService()
+    return g.db_service.get_user_by_id(user_id)
 
 class Config:
     """Base configuration."""
@@ -85,10 +86,17 @@ def create_app(config_name=None):
     login_manager.login_message_category = 'info'
     
     # Register blueprints
-    from app.routes import auth, main, admin, ai
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(main.bp)
-    app.register_blueprint(admin.bp)
-    app.register_blueprint(ai.bp)
+    with app.app_context():
+        from app.routes import auth, main, admin, ai
+        app.register_blueprint(auth.bp)
+        app.register_blueprint(main.bp)
+        app.register_blueprint(admin.bp)
+        app.register_blueprint(ai.bp)
+    
+    @app.before_request
+    def before_request():
+        """Set up request context"""
+        if not hasattr(g, 'db_service'):
+            g.db_service = DatabaseService()
     
     return app 

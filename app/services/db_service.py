@@ -1,24 +1,20 @@
-from flask import current_app
+from flask import current_app, g
 from datetime import datetime
 from app.models.user import User
 
 class DatabaseService:
     """Service class for database operations"""
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(DatabaseService, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
     def __init__(self):
         """Initialize database service with Firestore client"""
-        if self._initialized:
-            return
         self.db = current_app.db
-        self._initialized = True
+    
+    @classmethod
+    def get_instance(cls):
+        """Get or create database service instance"""
+        if not hasattr(g, 'db_service'):
+            g.db_service = cls()
+        return g.db_service
     
     def get_user_by_id(self, user_id):
         """Get user by ID and return User model instance"""

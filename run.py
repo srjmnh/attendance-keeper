@@ -2,10 +2,7 @@ import os
 from app import create_app
 from werkzeug.security import generate_password_hash
 
-# Create the Flask application instance
-app = create_app(os.getenv('FLASK_CONFIG', 'default'))
-
-def create_default_admin():
+def create_default_admin(app):
     """Creates a default admin user if no admin exists"""
     try:
         from app.services.firebase_service import get_user_by_email
@@ -34,10 +31,18 @@ def create_default_admin():
     except Exception as e:
         print(f"Error creating default admin: {str(e)}")
 
-# Initialize services that require app context
-with app.app_context():
-    # Create default admin if none exists
-    create_default_admin()
+def init_app():
+    """Initialize the application"""
+    app = create_app(os.getenv('FLASK_CONFIG', 'default'))
+    
+    # Initialize services that require app context
+    with app.app_context():
+        create_default_admin(app)
+    
+    return app
+
+# Create the application instance
+app = init_app()
 
 if __name__ == "__main__":
     # Run the application
