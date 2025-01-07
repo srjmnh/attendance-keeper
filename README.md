@@ -2,6 +2,29 @@
 
 A modern attendance management system that uses facial recognition and AI to automate student attendance tracking in educational institutions.
 
+## Changelog
+
+### Blueprint Fixes (2024-02-14)
+- Fixed blueprint naming conflicts in route files:
+  - Renamed `bp` to `chat` in `app/routes/chat.py` to match import
+  - Renamed `bp` to `admin` in `app/routes/admin.py` to match import
+  - Renamed `bp` to `main` in `app/routes/main.py` to match import
+  - Fixed route function naming conflict in `chat.py` (renamed `chat()` to `handle_chat()`)
+  - Updated blueprint imports in `app/__init__.py` to match new names
+
+These changes resolved the following issues:
+1. Blueprint registration errors in `app/__init__.py`
+2. Function/blueprint naming conflicts causing `AttributeError: 'function' object has no attribute 'route'`
+3. Import errors with blueprint names not matching their registration
+
+### Known Issues
+- None currently reported
+
+### Development Guidelines
+- Use consistent naming for blueprints (match the route file name)
+- Avoid naming conflicts between blueprints and route functions
+- Follow Flask's blueprint naming conventions
+
 ## Features
 
 ### Core Features
