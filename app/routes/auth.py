@@ -18,8 +18,16 @@ def login():
         db = DatabaseService()
         user = db.get_user_by_email(email)
         
+        # Debug logging
+        print(f"Login attempt - Email: {email}")
+        print(f"User found: {user is not None}")
+        if user:
+            print(f"Stored password hash: {user.password}")
+            print(f"Password match: {check_password_hash(user.password, password)}")
+        
         if user and check_password_hash(user.password, password):
             login_user(user)
+            flash('Logged in successfully.', 'success')
             return redirect(url_for('main.dashboard'))
         
         flash('Invalid email or password.', 'error')

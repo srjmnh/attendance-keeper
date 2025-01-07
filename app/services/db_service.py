@@ -33,12 +33,14 @@ class DatabaseService:
             query = self.db.collection('users').where('email', '==', email).limit(1).stream()
             for doc in query:
                 user_data = doc.to_dict()
+                # Debug logging
+                print(f"User data from DB: {user_data}")
                 return User(
                     id=doc.id,
                     email=user_data.get('email'),
                     name=user_data.get('name'),
                     role=user_data.get('role'),
-                    password=user_data.get('password')
+                    password=user_data.get('password_hash')
                 )
             return None
         except Exception as e:

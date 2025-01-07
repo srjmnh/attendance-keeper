@@ -21,13 +21,14 @@ def create_default_admin():
             admin_data = {
                 "email": "admin@example.com",
                 "name": "Admin User",
-                "password": password_hash,
+                "password_hash": password_hash,
                 "role": "admin"
             }
             
             from app.services.firebase_service import create_user
             create_user(admin_data)
             print(f"Default admin created with username: {default_username}")
+            print(f"Password hash: {password_hash}")
         else:
             print("Admin user already exists")
     except Exception as e:
