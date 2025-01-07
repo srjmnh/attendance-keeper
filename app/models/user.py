@@ -3,23 +3,24 @@ from flask_login import UserMixin
 class User(UserMixin):
     """User model for Flask-Login"""
     
-    def __init__(self, id, email, name, role):
+    def __init__(self, id=None, email=None, name=None, role=None, password=None):
         self.id = id
         self.email = email
         self.name = name
         self.role = role
+        self.password = password  # This is the hashed password
     
-    @property
+    def get_id(self):
+        return str(self.id)
+    
     def is_admin(self):
         """Check if user is an admin"""
         return self.role == 'admin'
     
-    @property
     def is_teacher(self):
         """Check if user is a teacher"""
         return self.role == 'teacher'
     
-    @property
     def is_student(self):
         """Check if user is a student"""
         return self.role == 'student'
@@ -36,19 +37,19 @@ class User(UserMixin):
     
     def can_manage_users(self):
         """Check if user can manage other users"""
-        return self.is_admin
+        return self.is_admin()
     
     def can_manage_subjects(self):
         """Check if user can manage subjects"""
-        return self.is_admin or self.is_teacher
+        return self.is_admin() or self.is_teacher()
     
     def can_take_attendance(self):
         """Check if user can take attendance"""
-        return self.is_admin or self.is_teacher
+        return self.is_admin() or self.is_teacher()
     
     def can_view_attendance(self, student_id=None):
         """Check if user can view attendance records"""
-        if self.is_admin or self.is_teacher:
+        if self.is_admin() or self.is_teacher():
             return True
         return student_id == self.id
     
@@ -68,5 +69,6 @@ class User(UserMixin):
             id=data.get('id'),
             email=data.get('email'),
             name=data.get('name'),
-            role=data.get('role')
+            role=data.get('role'),
+            password=data.get('password')
         ) 
