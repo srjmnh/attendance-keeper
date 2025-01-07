@@ -44,7 +44,7 @@ class DatabaseService:
             doc_ref = self.users_ref.document()
             user_data['id'] = doc_ref.id
             doc_ref.set(user_data)
-            return User.from_dict(user_data)
+            return user_data  # Return the dictionary instead of User object
         except Exception as e:
             current_app.logger.error(f"Error creating user: {str(e)}")
             raise
@@ -53,7 +53,11 @@ class DatabaseService:
         """Get user by ID"""
         try:
             doc = self.users_ref.document(user_id).get()
-            return User.from_dict(doc.to_dict()) if doc.exists else None
+            if doc.exists:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                return data  # Return the dictionary instead of User object
+            return None
         except Exception as e:
             current_app.logger.error(f"Error getting user {user_id}: {str(e)}")
             return None
@@ -66,7 +70,7 @@ class DatabaseService:
             for doc in docs:
                 data = doc.to_dict()
                 data['id'] = doc.id
-                return User.from_dict(data)
+                return data  # Return the dictionary instead of User object
             return None
         except Exception as e:
             current_app.logger.error(f"Error getting user by email {email}: {str(e)}")
