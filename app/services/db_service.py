@@ -12,32 +12,48 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def init_db(app):
+    """Initialize Firebase database"""
+    try:
+        # Initialize Firebase
+        if not firebase_admin._apps:
+            cred_base64 = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
+            if not cred_base64:
+                raise ValueError("Firebase credentials not found in environment variables")
+            
+            # Decode base64 credentials
+            cred_json = base64.b64decode(cred_base64).decode('utf-8')
+            cred_dict = json.loads(cred_json)
+            cred = credentials.Certificate(cred_dict)
+            
+            # Initialize Firebase
+            firebase_admin.initialize_app(cred)
+            logger.info("Firebase initialized successfully")
+            
+            # Initialize Firestore client
+            db = firestore.client()
+            logger.info("Firestore client initialized successfully")
+        else:
+            logger.info("Firebase already initialized")
+            
+    except Exception as e:
+        logger.error(f"Error initializing Firebase: {str(e)}")
+        raise
+
 class DatabaseService:
     """Service for interacting with Firebase Firestore database"""
 
     def __init__(self):
-        """Initialize Firebase with credentials"""
+        """Initialize Firestore client"""
         try:
-            if not firebase_admin._apps:
-                cred_base64 = os.environ.get('FIREBASE_CREDENTIALS_BASE64')
-                if not cred_base64:
-                    raise ValueError("Firebase credentials not found in environment variables")
-                
-                # Decode base64 credentials
-                cred_json = base64.b64decode(cred_base64).decode('utf-8')
-                cred_dict = json.loads(cred_json)
-                cred = credentials.Certificate(cred_dict)
-                
-                # Initialize Firebase
-                firebase_admin.initialize_app(cred)
-            
             self.db = firestore.client()
             self.users_ref = self.db.collection('users')
             self.subjects_ref = self.db.collection('subjects')
             self.attendance_ref = self.db.collection('attendance')
+            logger.info("DatabaseService initialized successfully")
             
         except Exception as e:
-            current_app.logger.error(f"Error initializing Firebase: {str(e)}")
+            current_app.logger.error(f"Error initializing DatabaseService: {str(e)}")
             raise
 
     # User operations
