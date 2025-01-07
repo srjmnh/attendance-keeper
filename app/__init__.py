@@ -90,7 +90,7 @@ def create_app():
     limiter.init_app(app)
     
     # Register blueprints
-    from app.routes.main import main
+    from app.routes.main import bp as main_bp
     from app.routes.auth import auth
     from app.routes.attendance import attendance
     from app.routes.recognition import recognition
@@ -98,7 +98,7 @@ def create_app():
     from app.routes.admin import admin
     from app.routes.chat import chat
     
-    app.register_blueprint(main)
+    app.register_blueprint(main_bp)
     app.register_blueprint(auth, url_prefix='/auth')
     app.register_blueprint(attendance, url_prefix='/attendance')
     app.register_blueprint(recognition, url_prefix='/recognition')
