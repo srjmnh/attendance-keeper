@@ -1,108 +1,161 @@
-# Student Attendance System
+# AI-Powered Student Attendance System
 
-A modern attendance management system using face recognition and AI assistance.
+A modern attendance management system that uses facial recognition and AI to automate student attendance tracking in educational institutions.
 
 ## Features
 
-- Face recognition-based attendance using AWS Rekognition
-- Role-based access control (Admin, Teacher, Student)
-- Real-time attendance tracking
-- Subject management
-- Attendance reports and analytics
-- AI-powered chatbot using Gemini 1.5
-- Modern and responsive UI
+### Core Features
+- **Facial Recognition Attendance**
+  - Register student faces
+  - Mark attendance using face detection
+  - Support for multiple faces in one frame
+  - Real-time face verification
 
-## Technologies Used
+### User Management
+- **Role-based Access Control**
+  - Admin: Full system access
+  - Teachers: Manage classes and attendance
+  - Students: View attendance and register face
 
-- Python 3.8+
-- Flask
-- AWS Rekognition
-- Firebase
-- Gemini AI
-- Bootstrap 5
-- jQuery
+### Attendance Management
+- **Smart Attendance Tracking**
+  - Automated attendance marking using facial recognition
+  - Manual attendance management
+  - Attendance reports and analytics
+  - Class-wise and subject-wise tracking
 
-## Prerequisites
+### AI Integration
+- **AWS Rekognition**
+  - Face detection and analysis
+  - Face comparison and matching
+  - Face collection management
 
-- Python 3.8 or higher
-- AWS Account with Rekognition access
-- Firebase project
-- Gemini API key
+- **Google Gemini AI**
+  - AI-powered chatbot for queries
+  - Natural language processing
+  - Context-aware responses
 
-## Installation
+## Technical Stack
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd attendance-keeper
+### Backend
+- **Framework**: Flask (Python)
+- **Database**: Firebase Firestore
+- **Authentication**: Flask-Login
+- **File Storage**: Local storage with AWS S3 support
+
+### AI Services
+- AWS Rekognition for facial recognition
+- Google Gemini AI for chatbot
+- OpenCV for image processing
+
+### Security
+- JWT-based authentication
+- Password hashing
+- Role-based access control
+- Secure file uploads
+
+## Environment Variables
+
+```env
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=your_aws_region
+
+# Firebase Configuration
+FIREBASE_ADMIN_CREDENTIALS_BASE64=your_base64_encoded_credentials
+
+# API Keys
+GEMINI_API_KEY=your_gemini_api_key
+
+# Flask Configuration
+SECRET_KEY=your_secret_key
+DEBUG=False
 ```
 
-2. Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+## Project Structure
+
+```
+attendance-keeper/
+├── app/
+│   ├── models/
+│   │   ├── user.py
+│   │   ├── subject.py
+│   │   └── attendance.py
+│   ├── routes/
+│   │   ├── auth.py
+│   │   ├── attendance.py
+│   │   ├── recognition.py
+│   │   └── ...
+│   ├── services/
+│   │   ├── db_service.py
+│   │   ├── face_service.py
+│   │   ├── ai_service.py
+│   │   └── image_service.py
+│   ├── templates/
+│   └── static/
+├── scripts/
+├── tests/
+└── requirements.txt
 ```
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+## Setup Instructions
 
-4. Set up environment variables:
-```bash
-cp .env.example .env
-```
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/yourusername/attendance-keeper.git
+   cd attendance-keeper
+   ```
 
-Edit `.env` file with your credentials:
-- AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
-- Firebase credentials (FIREBASE_ADMIN_CREDENTIALS_BASE64)
-- Gemini API key (GEMINI_API_KEY)
+2. **Create Virtual Environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # or
+   venv\Scripts\activate  # Windows
+   ```
 
-5. Initialize the database:
-```bash
-python create_admin.py
-```
+3. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Running the Application
+4. **Set Up Environment Variables**
+   - Create a `.env` file in the root directory
+   - Add all required environment variables
 
-1. Start the development server:
-```bash
-python run.py
-```
+5. **Initialize Firebase**
+   - Create a Firebase project
+   - Enable Firestore
+   - Download service account credentials
+   - Convert to base64 and add to environment variables
 
-2. Access the application at `http://localhost:5000`
+6. **Set Up AWS Services**
+   - Create an AWS account
+   - Set up IAM user with Rekognition access
+   - Add AWS credentials to environment variables
 
-## Deployment
+7. **Run the Application**
+   ```bash
+   python run.py
+   ```
 
-The application is configured for deployment on Render. Follow these steps:
+## API Documentation
 
-1. Create a new Web Service on Render
-2. Connect your repository
-3. Set the following:
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `gunicorn run:app`
-4. Add environment variables in Render dashboard
-5. Deploy
+### Authentication Endpoints
+- `POST /auth/register`: Register new user
+- `POST /auth/login`: User login
+- `GET /auth/logout`: User logout
 
-## Usage
+### Attendance Endpoints
+- `POST /attendance/mark`: Mark attendance
+- `GET /attendance/view`: View attendance records
+- `GET /attendance/reports`: Generate reports
 
-1. Admin:
-   - Manage users (create, edit, delete)
-   - Manage subjects
-   - View system-wide attendance statistics
-   - Configure system settings
-
-2. Teacher:
-   - Mark attendance using face recognition
-   - Manage attendance records
-   - View attendance reports
-   - Interact with AI assistant
-
-3. Student:
-   - Register face
-   - View attendance records
-   - Check attendance percentage
-   - Get AI assistance
+### Face Recognition Endpoints
+- `POST /recognition/register`: Register face
+- `POST /recognition/verify`: Verify face
+- `POST /recognition/recognize`: Recognize faces in image
 
 ## Contributing
 

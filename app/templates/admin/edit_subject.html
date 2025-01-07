@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Edit Subject</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.edit_subject', subject_id=subject.id) }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Subject Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ subject.name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3">{{ subject.description }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="teacher_id" class="form-label">Teacher <span class="text-danger">*</span></label>
+                            <select class="form-select" id="teacher_id" name="teacher_id" required>
+                                <option value="">Select Teacher</option>
+                                {% for teacher in teachers %}
+                                <option value="{{ teacher.id }}" {% if teacher.id == subject.teacher_id %}selected{% endif %}>
+                                    {{ teacher.first_name }} {{ teacher.last_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="class_name" class="form-label">Class <span class="text-danger">*</span></label>
+                                <select class="form-select" id="class_name" name="class_name" required>
+                                    <option value="">Select Class</option>
+                                    {% for class_num in range(1, 13) %}
+                                    <option value="{{ class_num }}" {% if subject.class_name == class_num|string %}selected{% endif %}>
+                                        Class {{ class_num }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="division" class="form-label">Division <span class="text-danger">*</span></label>
+                                <select class="form-select" id="division" name="division" required>
+                                    <option value="">Select Division</option>
+                                    {% for div in ['A', 'B', 'C', 'D'] %}
+                                    <option value="{{ div }}" {% if subject.division == div %}selected{% endif %}>
+                                        {{ div }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Update Subject</button>
+                            <a href="{{ url_for('admin.manage_subjects') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

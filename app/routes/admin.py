@@ -1,245 +1,210 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
 from flask_login import login_required, current_user
-from werkzeug.security import generate_password_hash
 from app.services.db_service import DatabaseService
-from app.services.face_service import FaceService
-import re
+from app.utils.decorators import admin_required
 
-admin = Blueprint('admin', __name__)
-db = DatabaseService()
-face_service = FaceService()
+bp = Blueprint('admin', __name__)
 
-def admin_required(f):
-    """Decorator to require admin role for routes"""
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin():
-            flash('Access denied. Administrators only.', 'danger')
-            return redirect(url_for('main.index'))
-        return f(*args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
-
-@admin.route('/users')
+@bp.route('/admin/users')
 @login_required
 @admin_required
-def users():
-    """
-    Manage users.
-    """
-    role = request.args.get('role')
-    status = request.args.get('status')
-    search = request.args.get('search')
-    
-    users = db.get_users(role=role, status=status, search=search)
-    return render_template('admin/users.html', users=users)
+def manage_users():
+    """Manage users page"""
+    try:
+        db = DatabaseService()
+        users = db.get_all_users()
+        return render_template('admin/users.html', users=users)
+    except Exception as e:
+        current_app.logger.error(f"Error in manage users route: {str(e)}")
+        flash('An error occurred while loading users.', 'danger')
+        return redirect(url_for('main.index'))
 
-@admin.route('/users/create', methods=['GET', 'POST'])
+@bp.route('/admin/users/create', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def create_user():
-    """
-    Create a new user.
-    """
+    """Create new user"""
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        role = request.form.get('role')
-        class_name = request.form.get('class_name')
-        division = request.form.get('division')
-        
-        # Validate email format
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            flash('Please enter a valid email address.', 'danger')
-            return redirect(url_for('admin.create_user'))
-        
-        # Check if email already exists
-        if db.get_user_by_email(email):
-            flash('Email address already exists.', 'danger')
-            return redirect(url_for('admin.create_user'))
-        
-        # Validate password strength
-        if not re.match(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$", password):
-            flash('Password must be at least 8 characters long and contain letters and numbers.', 'danger')
-            return redirect(url_for('admin.create_user'))
-        
-        # Create user object
-        user = {
-            'email': email,
-            'password': generate_password_hash(password),
-            'first_name': first_name,
-            'last_name': last_name,
-            'role': role,
-            'status': 'active'
-        }
-        
-        # Add class and division for students
-        if role == 'student':
-            if not class_name or not division:
-                flash('Please select class and division for student.', 'danger')
-                return redirect(url_for('admin.create_user'))
-            user['class_name'] = class_name
-            user['division'] = division
-        
         try:
-            user_id = db.create_user(user)
-            if user_id:
-                flash('User created successfully.', 'success')
-                return redirect(url_for('admin.users'))
+            db = DatabaseService()
+            user_data = {
+                'email': request.form.get('email'),
+                'password': request.form.get('password'),
+                'first_name': request.form.get('first_name'),
+                'last_name': request.form.get('last_name'),
+                'role': request.form.get('role'),
+                'class_name': request.form.get('class_name'),
+                'division': request.form.get('division')
+            }
+            
+            # Validate required fields
+            if not all([user_data['email'], user_data['password'], 
+                       user_data['first_name'], user_data['role']]):
+                flash('Please fill in all required fields.', 'danger')
+                return render_template('admin/create_user.html')
+            
+            # Create user
+            db.create_user(user_data)
+            flash('User created successfully.', 'success')
+            return redirect(url_for('admin.manage_users'))
+            
         except Exception as e:
+            current_app.logger.error(f"Error creating user: {str(e)}")
             flash('An error occurred while creating the user.', 'danger')
-            return redirect(url_for('admin.create_user'))
+            return render_template('admin/create_user.html')
     
     return render_template('admin/create_user.html')
 
-@admin.route('/users/edit/<user_id>', methods=['GET', 'POST'])
+@bp.route('/admin/users/<user_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def edit_user(user_id):
-    """
-    Edit an existing user.
-    """
-    user = db.get_user_by_id(user_id)
-    if not user:
-        flash('User not found.', 'danger')
-        return redirect(url_for('admin.users'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email')
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        role = request.form.get('role')
-        status = request.form.get('status')
-        class_name = request.form.get('class_name')
-        division = request.form.get('division')
-        new_password = request.form.get('new_password')
-        
-        # Validate email format
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            flash('Please enter a valid email address.', 'danger')
-            return redirect(url_for('admin.edit_user', user_id=user_id))
-        
-        # Check if email already exists (excluding current user)
-        existing_user = db.get_user_by_email(email)
-        if existing_user and existing_user['id'] != user_id:
-            flash('Email address already exists.', 'danger')
-            return redirect(url_for('admin.edit_user', user_id=user_id))
-        
-        # Create updates object
-        updates = {
-            'email': email,
-            'first_name': first_name,
-            'last_name': last_name,
-            'role': role,
-            'status': status
-        }
-        
-        # Add class and division for students
-        if role == 'student':
-            if not class_name or not division:
-                flash('Please select class and division for student.', 'danger')
-                return redirect(url_for('admin.edit_user', user_id=user_id))
-            updates['class_name'] = class_name
-            updates['division'] = division
-        
-        # Update password if provided
-        if new_password:
-            if not re.match(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$", new_password):
-                flash('Password must be at least 8 characters long and contain letters and numbers.', 'danger')
-                return redirect(url_for('admin.edit_user', user_id=user_id))
-            updates['password'] = generate_password_hash(new_password)
-        
-        try:
-            db.update_user(user_id, updates)
+    """Edit user"""
+    try:
+        db = DatabaseService()
+        if request.method == 'POST':
+            user_data = {
+                'email': request.form.get('email'),
+                'first_name': request.form.get('first_name'),
+                'last_name': request.form.get('last_name'),
+                'role': request.form.get('role'),
+                'class_name': request.form.get('class_name'),
+                'division': request.form.get('division')
+            }
+            
+            # Update password only if provided
+            password = request.form.get('password')
+            if password:
+                user_data['password'] = password
+            
+            # Update user
+            db.update_user(user_id, user_data)
             flash('User updated successfully.', 'success')
-            return redirect(url_for('admin.users'))
-        except Exception as e:
-            flash('An error occurred while updating the user.', 'danger')
-            return redirect(url_for('admin.edit_user', user_id=user_id))
-    
-    return render_template('admin/edit_user.html', user=user)
+            return redirect(url_for('admin.manage_users'))
+        
+        # Get user data for form
+        user = db.get_user_by_id(user_id)
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('admin.manage_users'))
+            
+        return render_template('admin/edit_user.html', user=user)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error editing user: {str(e)}")
+        flash('An error occurred while editing the user.', 'danger')
+        return redirect(url_for('admin.manage_users'))
 
-@admin.route('/users/delete/<user_id>', methods=['DELETE'])
+@bp.route('/admin/users/<user_id>/delete', methods=['POST'])
 @login_required
 @admin_required
 def delete_user(user_id):
-    """
-    Delete a user.
-    """
+    """Delete user"""
     try:
-        # Check if user exists
-        user = db.get_user_by_id(user_id)
-        if not user:
-            return jsonify({'success': False, 'message': 'User not found'})
-        
-        # Check if user has attendance records
-        if db.user_has_attendance(user_id):
-            return jsonify({
-                'success': False,
-                'message': 'Cannot delete user with attendance records'
-            })
-        
-        # Delete user's face data if exists
-        if user['role'] == 'student':
-            face_service.delete_face(user_id)
-        
-        # Delete user
+        db = DatabaseService()
         db.delete_user(user_id)
-        return jsonify({
-            'success': True,
-            'message': 'User deleted successfully'
-        })
+        flash('User deleted successfully.', 'success')
+    except Exception as e:
+        current_app.logger.error(f"Error deleting user: {str(e)}")
+        flash('An error occurred while deleting the user.', 'danger')
+    return redirect(url_for('admin.manage_users'))
+
+@bp.route('/admin/subjects')
+@login_required
+@admin_required
+def manage_subjects():
+    """Manage subjects page"""
+    try:
+        db = DatabaseService()
+        subjects = db.get_all_subjects()
+        teachers = db.get_all_teachers()
+        return render_template('admin/subjects.html', subjects=subjects, teachers=teachers)
+    except Exception as e:
+        current_app.logger.error(f"Error in manage subjects route: {str(e)}")
+        flash('An error occurred while loading subjects.', 'danger')
+        return redirect(url_for('main.index'))
+
+@bp.route('/admin/subjects/create', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def create_subject():
+    """Create new subject"""
+    try:
+        db = DatabaseService()
+        if request.method == 'POST':
+            subject_data = {
+                'name': request.form.get('name'),
+                'description': request.form.get('description'),
+                'teacher_id': request.form.get('teacher_id'),
+                'class_name': request.form.get('class_name'),
+                'division': request.form.get('division')
+            }
+            
+            # Validate required fields
+            if not all([subject_data['name'], subject_data['teacher_id'], 
+                       subject_data['class_name'], subject_data['division']]):
+                flash('Please fill in all required fields.', 'danger')
+                teachers = db.get_all_teachers()
+                return render_template('admin/create_subject.html', teachers=teachers)
+            
+            # Create subject
+            db.create_subject(subject_data)
+            flash('Subject created successfully.', 'success')
+            return redirect(url_for('admin.manage_subjects'))
+        
+        teachers = db.get_all_teachers()
+        return render_template('admin/create_subject.html', teachers=teachers)
         
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        current_app.logger.error(f"Error creating subject: {str(e)}")
+        flash('An error occurred while creating the subject.', 'danger')
+        return redirect(url_for('admin.manage_subjects'))
 
-@admin.route('/settings', methods=['GET', 'POST'])
+@bp.route('/admin/subjects/<subject_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
-def settings():
-    """
-    Manage system settings.
-    """
-    if request.method == 'POST':
-        settings = {
-            'site_name': request.form.get('site_name'),
-            'face_recognition_threshold': float(request.form.get('face_recognition_threshold', 80)),
-            'attendance_edit_window': int(request.form.get('attendance_edit_window', 24)),
-            'enable_email_notifications': request.form.get('enable_email_notifications') == 'on',
-            'enable_face_recognition': request.form.get('enable_face_recognition') == 'on'
-        }
+def edit_subject(subject_id):
+    """Edit subject"""
+    try:
+        db = DatabaseService()
+        if request.method == 'POST':
+            subject_data = {
+                'name': request.form.get('name'),
+                'description': request.form.get('description'),
+                'teacher_id': request.form.get('teacher_id'),
+                'class_name': request.form.get('class_name'),
+                'division': request.form.get('division')
+            }
+            
+            # Update subject
+            db.update_subject(subject_id, subject_data)
+            flash('Subject updated successfully.', 'success')
+            return redirect(url_for('admin.manage_subjects'))
         
-        try:
-            db.update_settings(settings)
-            flash('Settings updated successfully.', 'success')
-            return redirect(url_for('admin.settings'))
-        except Exception as e:
-            flash('An error occurred while updating settings.', 'danger')
-            return redirect(url_for('admin.settings'))
-    
-    current_settings = db.get_settings()
-    return render_template('admin/settings.html', settings=current_settings)
+        # Get subject and teachers data for form
+        subject = db.get_subject_by_id(subject_id)
+        if not subject:
+            flash('Subject not found.', 'danger')
+            return redirect(url_for('admin.manage_subjects'))
+            
+        teachers = db.get_all_teachers()
+        return render_template('admin/edit_subject.html', subject=subject, teachers=teachers)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error editing subject: {str(e)}")
+        flash('An error occurred while editing the subject.', 'danger')
+        return redirect(url_for('admin.manage_subjects'))
 
-@admin.route('/logs')
+@bp.route('/admin/subjects/<subject_id>/delete', methods=['POST'])
 @login_required
 @admin_required
-def logs():
-    """
-    View system logs.
-    """
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 50, type=int)
-    level = request.args.get('level')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    
-    logs = db.get_logs(
-        page=page,
-        per_page=per_page,
-        level=level,
-        start_date=start_date,
-        end_date=end_date
-    )
-    
-    return render_template('admin/logs.html', logs=logs) 
+def delete_subject(subject_id):
+    """Delete subject"""
+    try:
+        db = DatabaseService()
+        db.delete_subject(subject_id)
+        flash('Subject deleted successfully.', 'success')
+    except Exception as e:
+        current_app.logger.error(f"Error deleting subject: {str(e)}")
+        flash('An error occurred while deleting the subject.', 'danger')
+    return redirect(url_for('admin.manage_subjects')) 

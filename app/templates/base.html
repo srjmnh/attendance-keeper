@@ -4,271 +4,219 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Attendance System{% endblock %}</title>
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
-    
-    <!-- CSS Dependencies -->
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.2.96/css/materialdesignicons.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.12/dist/sweetalert2.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
-    {% block extra_css %}{% endblock %}
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        .chat-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .chat-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .chat-window {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: none;
+        }
+        .chat-header {
+            padding: 15px;
+            background: #007bff;
+            color: white;
+            border-radius: 10px 10px 0 0;
+        }
+        .chat-body {
+            height: 380px;
+            padding: 15px;
+            overflow-y: auto;
+        }
+        .chat-input {
+            padding: 15px;
+            border-top: 1px solid #eee;
+        }
+        .message {
+            margin-bottom: 10px;
+            max-width: 80%;
+        }
+        .user-message {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+        .bot-message {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
-    {% if current_user.is_authenticated %}
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.index') }}">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" width="32" height="32" class="me-2">
-                <span class="fw-bold text-primary">Attendance System</span>
-            </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">Attendance System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
-            <div class="collapse navbar-collapse" id="navbarContent">
+            <div class="collapse navbar-collapse" id="navbarNav">
+                {% if current_user.is_authenticated %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.index') }}">
-                            <i class="mdi mdi-home"></i> Home
-                        </a>
+                        <a class="nav-link" href="{{ url_for('main.index') }}">Dashboard</a>
                     </li>
-                    
                     {% if current_user.is_student() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('attendance.view') }}">
-                            <i class="mdi mdi-calendar-check"></i> My Attendance
-                        </a>
+                        <a class="nav-link" href="{{ url_for('attendance.view') }}">My Attendance</a>
                     </li>
-                    {% endif %}
-                    
-                    {% if current_user.is_teacher() %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="mdi mdi-calendar-multiple"></i> Attendance
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('attendance.mark') }}">
-                                    <i class="mdi mdi-camera"></i> Mark Attendance
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('attendance.manage') }}">
-                                    <i class="mdi mdi-calendar-edit"></i> Manage Attendance
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('attendance.reports') }}">
-                                    <i class="mdi mdi-chart-box"></i> Reports
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    
+                    {% elif current_user.is_teacher() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('subject.index') }}">
-                            <i class="mdi mdi-book"></i> Subjects
-                        </a>
+                        <a class="nav-link" href="{{ url_for('attendance.mark') }}">Mark Attendance</a>
                     </li>
-                    {% endif %}
-                    
-                    {% if current_user.is_admin() %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="mdi mdi-cog"></i> Admin
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('admin.users') }}">
-                                    <i class="mdi mdi-account-group"></i> Manage Users
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('admin.subjects') }}">
-                                    <i class="mdi mdi-book-multiple"></i> Manage Subjects
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('admin.settings') }}">
-                                    <i class="mdi mdi-cog"></i> Settings
-                                </a>
-                            </li>
-                        </ul>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('subject.list') }}">Subjects</a>
+                    </li>
+                    {% elif current_user.is_admin() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.manage_users') }}">Users</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.manage_subjects') }}">Subjects</a>
                     </li>
                     {% endif %}
                 </ul>
-                
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#chatModal">
-                            <i class="mdi mdi-robot"></i> AI Assistant
-                        </a>
+                        <a class="nav-link" href="{{ url_for('main.profile') }}">Profile</a>
                     </li>
-                    
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-bs-toggle="dropdown">
-                            <div class="rounded-circle bg-light p-2 me-2">
-                                <i class="mdi mdi-account text-primary"></i>
-                            </div>
-                            <span>{{ current_user.first_name }}</span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.profile') }}">
-                                    <i class="mdi mdi-account-circle"></i> Profile
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
-                                    <i class="mdi mdi-logout"></i> Sign Out
-                                </a>
-                            </li>
-                        </ul>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
                     </li>
                 </ul>
+                {% else %}
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
+                    </li>
+                </ul>
+                {% endif %}
             </div>
         </div>
     </nav>
-    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <!-- Main Content -->
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    {% block content %}{% endblock %}
 
+    <!-- Chatbot Widget -->
     {% if current_user.is_authenticated %}
-    <!-- Chat Modal -->
-    <div class="modal fade" id="chatModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="mdi mdi-robot text-primary"></i> AI Assistant
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="chat-widget">
+        <div class="chat-button" onclick="toggleChat()">
+            <i class="fas fa-comment"></i>
+        </div>
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <h5 class="mb-0">AI Assistant</h5>
+            </div>
+            <div class="chat-body" id="chatBody">
+                <div class="message bot-message">
+                    Hello! How can I help you today?
                 </div>
-                <div class="modal-body">
-                    <div class="chat-messages p-3" id="chatMessages">
-                        <div class="chat-message assistant">
-                            <div class="message-content">
-                                <p>Hello! I'm your AI assistant. How can I help you today?</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <form id="chatForm" class="w-100">
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
-                            <button class="btn btn-primary" type="submit">
-                                <i class="mdi mdi-send"></i>
-                            </button>
-                        </div>
-                    </form>
+            </div>
+            <div class="chat-input">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
+                    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                 </div>
             </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- JavaScript Dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
+    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.12/dist/sweetalert2.all.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    {% block extra_js %}{% endblock %}
-
+    <!-- Chatbot JS -->
     <script>
-    $(document).ready(function() {
-        // Initialize tooltips and popovers
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function(tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
+        function toggleChat() {
+            const chatWindow = document.getElementById('chatWindow');
+            chatWindow.style.display = chatWindow.style.display === 'none' ? 'block' : 'none';
+        }
 
-        const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-        popoverTriggerList.map(function(popoverTriggerEl) {
-            return new bootstrap.Popover(popoverTriggerEl);
-        });
+        function appendMessage(message, isUser) {
+            const chatBody = document.getElementById('chatBody');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = message;
+            chatBody.appendChild(messageDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
 
-        // Handle chat form submission
-        $('#chatForm').on('submit', function(e) {
-            e.preventDefault();
-            const input = $('#messageInput');
-            const message = input.val().trim();
-            
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
             if (!message) return;
-            
-            // Add user message
-            $('#chatMessages').append(`
-                <div class="chat-message user">
-                    <div class="message-content">
-                        <p>${message}</p>
-                    </div>
-                </div>
-            `);
-            
-            // Clear input
-            input.val('');
-            
-            // Show typing indicator
-            $('#chatMessages').append(`
-                <div class="chat-message assistant typing">
-                    <div class="message-content">
-                        <div class="typing-indicator">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                    </div>
-                </div>
-            `);
-            
-            // Scroll to bottom
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            // Send message to server
-            $.post('/chat/message', { message: message })
-                .done(function(response) {
-                    // Remove typing indicator
-                    $('.typing').remove();
-                    
-                    // Add assistant response
-                    $('#chatMessages').append(`
-                        <div class="chat-message assistant">
-                            <div class="message-content">
-                                <p>${response.message}</p>
-                            </div>
-                        </div>
-                    `);
-                    
-                    // Scroll to bottom
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                })
-                .fail(function(xhr) {
-                    // Remove typing indicator
-                    $('.typing').remove();
-                    
-                    // Show error message
-                    $('#chatMessages').append(`
-                        <div class="chat-message assistant error">
-                            <div class="message-content">
-                                <p>Sorry, I encountered an error. Please try again.</p>
-                            </div>
-                        </div>
-                    `);
-                    
-                    // Scroll to bottom
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            appendMessage(message, true);
+            input.value = '';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
                 });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    appendMessage(data.response, false);
+                } else {
+                    appendMessage('Sorry, I encountered an error. Please try again.', false);
+                }
+            } catch (error) {
+                appendMessage('Sorry, I encountered an error. Please try again.', false);
+            }
+        }
+
+        // Handle Enter key in message input
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
         });
-    });
     </script>
 </body>
 </html> 

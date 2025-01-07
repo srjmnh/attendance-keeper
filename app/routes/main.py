@@ -1,56 +1,51 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, current_app
 from flask_login import login_required, current_user
 from app.services.db_service import DatabaseService
 
-main = Blueprint('main', __name__)
-db = DatabaseService()
+bp = Blueprint('main', __name__)
 
-@main.route('/')
+@bp.route('/')
 @login_required
 def index():
-    """
-    Main dashboard route that displays different content based on user role.
-    """
-    if current_user.is_admin():
-        # Get statistics for admin dashboard
-        total_users = db.get_total_users()
-        total_students = db.get_total_students()
-        total_teachers = db.get_total_teachers()
-        total_subjects = db.get_total_subjects()
-        recent_activities = db.get_recent_activities(limit=5)
-        
-        return render_template('admin/dashboard.html',
-                             total_users=total_users,
-                             total_students=total_students,
-                             total_teachers=total_teachers,
-                             total_subjects=total_subjects,
-                             recent_activities=recent_activities)
-    
-    elif current_user.is_teacher():
-        # Get statistics for teacher dashboard
-        teacher_subjects = db.get_teacher_subjects(current_user.id)
-        recent_attendance = db.get_recent_attendance_by_teacher(current_user.id, limit=5)
-        attendance_stats = db.get_attendance_stats_by_teacher(current_user.id)
-        
-        return render_template('teacher/dashboard.html',
-                             subjects=teacher_subjects,
-                             recent_attendance=recent_attendance,
-                             attendance_stats=attendance_stats)
-    
-    else:  # Student
-        # Get statistics for student dashboard
-        student_subjects = db.get_student_subjects(current_user.class_name, current_user.division)
-        attendance_records = db.get_student_attendance(current_user.id)
-        attendance_percentage = db.get_student_attendance_percentage(current_user.id)
-        recent_attendance = db.get_recent_attendance_by_student(current_user.id, limit=5)
-        
-        return render_template('student/dashboard.html',
-                             subjects=student_subjects,
-                             attendance_records=attendance_records,
-                             attendance_percentage=attendance_percentage,
-                             recent_attendance=recent_attendance)
+    """Main dashboard route"""
+    try:
+        db = DatabaseService()
+        error = None
+        attendance_stats = None
+        subjects = []
 
-@main.route('/profile')
+        # Get subjects based on user role
+        if current_user.is_student():
+            subjects = db.get_student_subjects(current_user.id)
+            attendance_stats = db.get_student_attendance_percentage(current_user.id)
+        elif current_user.is_teacher():
+            subjects = db.get_teacher_subjects(current_user.id)
+            attendance_stats = db.get_teacher_attendance_stats(current_user.id)
+        else:  # Admin
+            subjects = db.get_all_subjects()
+            attendance_stats = db.get_system_attendance_stats()
+
+        # Get recent activities
+        recent_activities = []
+        if current_user.is_student():
+            recent_activities = db.get_recent_attendance_by_student(current_user.id)
+        elif current_user.is_teacher():
+            recent_activities = db.get_recent_attendance_by_teacher(current_user.id)
+        else:
+            recent_activities = db.get_recent_activities()
+
+        return render_template('main/index.html',
+                             subjects=subjects,
+                             attendance_stats=attendance_stats,
+                             recent_activities=recent_activities,
+                             error=error)
+
+    except Exception as e:
+        current_app.logger.error(f"Error in main route: {str(e)}")
+        error = "An error occurred while loading the dashboard. Please try again later."
+        return render_template('main/index.html', error=error)
+
+@bp.route('/profile')
 @login_required
 def profile():
     """

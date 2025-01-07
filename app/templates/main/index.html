@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Dashboard Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Dashboard</h2>
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.manage_users') }}" class="btn btn-primary">Manage Users</a>
+        {% endif %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        {% if attendance_stats %}
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Attendance Overview</h5>
+                    {% if current_user.is_student() %}
+                    <p class="card-text">Your attendance: {{ "%.1f"|format(attendance_stats) }}%</p>
+                    {% elif current_user.is_teacher() %}
+                    <p class="card-text">Average attendance: {{ "%.1f"|format(attendance_stats.average_attendance) }}%</p>
+                    <p class="card-text">Total students: {{ attendance_stats.total_students }}</p>
+                    {% else %}
+                    <p class="card-text">System average: {{ "%.1f"|format(attendance_stats.average_attendance) }}%</p>
+                    <p class="card-text">Total students: {{ attendance_stats.total_students }}</p>
+                    <p class="card-text">Total subjects: {{ attendance_stats.total_subjects }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Subjects Card -->
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">Your Subjects</h5>
+                        {% if current_user.is_teacher() %}
+                        <a href="{{ url_for('subject.create') }}" class="btn btn-sm btn-primary">Add Subject</a>
+                        {% endif %}
+                    </div>
+                    {% if subjects %}
+                    <div class="list-group">
+                        {% for subject in subjects %}
+                        <a href="{{ url_for('subject.view', subject_id=subject.id) }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ subject.name }}</h6>
+                                <small>{{ subject.class_name }} - {{ subject.division }}</small>
+                            </div>
+                            <p class="mb-1">{{ subject.description }}</p>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No subjects found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-4">
+        {% if current_user.is_student() %}
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Quick Actions</h5>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('recognition.register') }}" class="btn btn-primary">Register Face</a>
+                        <a href="{{ url_for('attendance.view') }}" class="btn btn-secondary">View Attendance</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% elif current_user.is_teacher() %}
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Quick Actions</h5>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('attendance.mark') }}" class="btn btn-primary">Mark Attendance</a>
+                        <a href="{{ url_for('attendance.manage') }}" class="btn btn-secondary">Manage Attendance</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

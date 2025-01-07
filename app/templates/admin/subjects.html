@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Manage Subjects</h2>
+        <a href="{{ url_for('admin.create_subject') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add Subject
+        </a>
+    </div>
+
+    {% if subjects %}
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Subject Name</th>
+                            <th>Teacher</th>
+                            <th>Class</th>
+                            <th>Division</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subject in subjects %}
+                        <tr>
+                            <td>{{ subject.name }}</td>
+                            <td>
+                                {% for teacher in teachers %}
+                                    {% if teacher.id == subject.teacher_id %}
+                                        {{ teacher.first_name }} {{ teacher.last_name }}
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>{{ subject.class_name }}</td>
+                            <td>{{ subject.division }}</td>
+                            <td>{{ subject.description }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('admin.edit_subject', subject_id=subject.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            onclick="confirmDelete('{{ subject.id }}', '{{ subject.name }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        No subjects found. Click the "Add Subject" button to create one.
+    </div>
+    {% endif %}
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete the subject <span id="subjectName"></span>?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form id="deleteForm" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete(subjectId, subjectName) {
+    document.getElementById('subjectName').textContent = subjectName;
+    document.getElementById('deleteForm').action = "{{ url_for('admin.delete_subject', subject_id='') }}" + subjectId;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %} 

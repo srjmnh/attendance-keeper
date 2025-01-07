@@ -1,43 +1,50 @@
 from datetime import datetime
 
 class Subject:
-    def __init__(self, id=None, name=None, code=None, teacher_id=None, 
-                 class_name=None, division=None, description=None):
-        self.id = id
-        self.name = name
-        self.code = code
-        self.teacher_id = teacher_id
-        self.class_name = class_name
-        self.division = division
-        self.description = description
-        self.created_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+    """Subject model for managing course subjects"""
+
+    def __init__(self, subject_data):
+        """Initialize subject with data from database"""
+        self.id = subject_data.get('id')
+        self.name = subject_data.get('name')
+        self.description = subject_data.get('description')
+        self.teacher_id = subject_data.get('teacher_id')
+        self.class_name = subject_data.get('class_name')
+        self.division = subject_data.get('division')
 
     def to_dict(self):
+        """Convert subject object to dictionary"""
         return {
             'id': self.id,
             'name': self.name,
-            'code': self.code,
+            'description': self.description,
             'teacher_id': self.teacher_id,
             'class_name': self.class_name,
-            'division': self.division,
-            'description': self.description,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'division': self.division
         }
 
     @staticmethod
-    def from_dict(data):
-        subject = Subject()
-        for field in ['id', 'name', 'code', 'teacher_id', 'class_name', 
-                     'division', 'description']:
-            if field in data:
-                setattr(subject, field, data[field])
-        if 'created_at' in data:
-            subject.created_at = datetime.fromisoformat(data['created_at'])
-        if 'updated_at' in data:
-            subject.updated_at = datetime.fromisoformat(data['updated_at'])
-        return subject
+    def from_dict(subject_dict):
+        """Create subject object from dictionary"""
+        return Subject(subject_dict)
 
-    def __repr__(self):
-        return f'<Subject {self.code}: {self.name}>' 
+    def update(self, data):
+        """Update subject attributes"""
+        if 'name' in data:
+            self.name = data['name']
+        if 'description' in data:
+            self.description = data['description']
+        if 'teacher_id' in data:
+            self.teacher_id = data['teacher_id']
+        if 'class_name' in data:
+            self.class_name = data['class_name']
+        if 'division' in data:
+            self.division = data['division']
+
+    def get_class_info(self):
+        """Get formatted class information"""
+        return f"Class {self.class_name} - {self.division}"
+
+    def __str__(self):
+        """String representation of subject"""
+        return f"{self.name} ({self.get_class_info()})" 
