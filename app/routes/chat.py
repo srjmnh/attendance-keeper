@@ -1,37 +1,84 @@
-from flask import Blueprint, request, jsonify, current_app, render_template
-from flask_login import login_required, current_user
-from app.services.ai_service import GeminiAIService
-from app.services.db_service import DatabaseService
-from datetime import datetime
+from flask import Blueprint, request, jsonify
+from flask_login import login_required
+import google.generativeai as genai
+import os
+import logging
 
 chat = Blueprint('chat', __name__)
+logger = logging.getLogger(__name__)
 
-@chat.route('/chat', methods=['GET', 'POST'])
+# Configure Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    logger.warning("GEMINI_API_KEY environment variable not set.")
+
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("models/gemini-1.5-flash")
+
+# Chat memory
+MAX_MEMORY = 20
+conversation_memory = []
+
+# System context
+system_context = """You are Gemini, a somewhat witty (but polite) AI assistant.
+Facial Recognition Attendance system features:
+
+1) AWS Rekognition:
+   - We keep a 'students' collection on startup.
+   - /register indexes a face by (name + student_id).
+   - /recognize detects faces in an uploaded image, logs attendance in Firestore if matched.
+
+2) Attendance:
+   - Firestore 'attendance' collection: { student_id, name, timestamp, subject_id, subject_name, status='PRESENT' }.
+   - UI has tabs: Register, Recognize, Subjects, Attendance (Bootstrap + DataTables).
+   - Attendance can filter, inline-edit, download/upload Excel.
+
+3) Subjects:
+   - We can add subjects to 'subjects' collection, referenced in recognition.
+
+4) Multi-Face:
+   - If multiple recognized faces, each is logged to attendance.
+
+5) Chat:
+   - You are the assistant, a bit humorous, guiding usage or code features.
+"""
+
+# Start the conversation with a system message
+conversation_memory.append({"role": "system", "content": system_context})
+
+@chat.route('/process_prompt', methods=['POST'])
 @login_required
-def handle_chat():
-    """Handle chat messages with AI assistant"""
-    if request.method == 'GET':
-        return render_template('chat/chat.html')
-        
+def process_prompt():
+    """Process chat prompts using Gemini"""
     try:
         data = request.get_json()
-        if not data or 'message' not in data:
-            return jsonify({'error': 'No message provided'}), 400
+        if not data or 'prompt' not in data:
+            return jsonify({"error": "No prompt provided"}), 400
 
-        message = data['message']
-        ai_service = GeminiAIService()
+        user_prompt = data['prompt']
         
-        # Get user context
-        context = {
-            'user_role': current_user.role,
-            'user_name': current_user.first_name
-        }
+        # Add user message to memory
+        conversation_memory.append({"role": "user", "content": user_prompt})
         
-        # Get AI response
-        response = ai_service.get_response(message, context)
+        # Keep only last MAX_MEMORY messages
+        if len(conversation_memory) > MAX_MEMORY:
+            conversation_memory.pop(1)  # Remove oldest message after system context
         
-        return jsonify({'response': response})
-
+        # Create chat and get response
+        chat = model.start_chat(history=[
+            (msg["content"], None) if msg["role"] == "system" else 
+            (msg["content"], None) if msg["role"] == "user" else 
+            (None, msg["content"]) 
+            for msg in conversation_memory
+        ])
+        
+        response = chat.send_message(user_prompt)
+        
+        # Add assistant response to memory
+        conversation_memory.append({"role": "assistant", "content": response.text})
+        
+        return jsonify({"message": response.text})
+        
     except Exception as e:
-        current_app.logger.error(f"Error in chat route: {str(e)}")
-        return jsonify({'error': 'An error occurred processing your message'}), 500 
+        logger.error(f"Error processing chat prompt: {str(e)}")
+        return jsonify({"error": str(e)}), 500 

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Create New Subject</h2>
+    
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('subject.create') }}">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Subject Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                </div>
+                
+                {% if current_user.is_admin() %}
+                <div class="mb-3">
+                    <label for="teacher_id" class="form-label">Teacher</label>
+                    <select class="form-select" id="teacher_id" name="teacher_id">
+                        <option value="">Select Teacher</option>
+                        {% for teacher in teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.full_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <label for="class_name" class="form-label">Class</label>
+                    <input type="text" class="form-control" id="class_name" name="class_name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="division" class="form-label">Division</label>
+                    <input type="text" class="form-control" id="division" name="division" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Create Subject</button>
+                <a href="{{ url_for('subject.list') }}" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 
