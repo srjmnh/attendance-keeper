@@ -3,14 +3,23 @@ from flask_login import LoginManager
 from flask_cors import CORS
 from config import Config
 from app.models.user import User
-from app.services.db_service import init_db
+from app.services.db_service import init_db, DatabaseService
 
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    """Load user by ID for Flask-Login"""
+    try:
+        db = DatabaseService()
+        user_data = db.get_user_by_id(user_id)
+        if user_data:
+            return User.from_dict(user_data)
+        return None
+    except Exception as e:
+        current_app.logger.error(f"Error loading user {user_id}: {str(e)}")
+        return None
 
 def create_app(config_class=Config):
     app = Flask(__name__)

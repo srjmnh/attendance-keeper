@@ -3,9 +3,7 @@ from flask_login import login_required, current_user
 from app.utils.decorators import teacher_required
 from app.services.face_service import FaceService
 from app.services.image_service import ImageService
-from app.models.attendance import Attendance
-from app.models.subject import Subject
-from app.services.db_service import db
+from app.services.db_service import DatabaseService
 from datetime import datetime
 
 bp = Blueprint('teacher', __name__)
