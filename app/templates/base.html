@@ -174,7 +174,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+            <a class="navbar-brand" href="{{ url_for('auth.login') }}">
                 <span class="material-icons me-2">school</span>
                 Attendance System
             </a>
@@ -185,24 +185,24 @@
                 {% if current_user.is_authenticated %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.index') }}">
+                        <a class="nav-link" href="{{ url_for('admin.dashboard' if current_user.is_admin() else 'teacher.dashboard' if current_user.is_teacher() else 'student.dashboard') }}">
                             <span class="material-icons me-1">dashboard</span> Dashboard
                         </a>
                     </li>
                     {% if current_user.is_student() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('attendance.view') }}">
+                        <a class="nav-link" href="{{ url_for('student.view_attendance') }}">
                             <span class="material-icons me-1">history</span> My Attendance
                         </a>
                     </li>
                     {% elif current_user.is_teacher() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('attendance.mark') }}">
+                        <a class="nav-link" href="{{ url_for('teacher.mark_attendance') }}">
                             <span class="material-icons me-1">how_to_reg</span> Mark Attendance
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('subject.list') }}">
+                        <a class="nav-link" href="{{ url_for('teacher.view_subjects') }}">
                             <span class="material-icons me-1">book</span> Subjects
                         </a>
                     </li>
@@ -221,7 +221,7 @@
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.profile') }}">
+                        <a class="nav-link" href="{{ url_for('auth.profile') }}">
                             <span class="material-icons me-1">account_circle</span> Profile
                         </a>
                     </li>
