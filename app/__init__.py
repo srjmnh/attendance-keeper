@@ -32,11 +32,11 @@ def create_app(config_class=Config):
     
     # Register blueprints
     from app.routes import auth, admin, teacher, student, chat
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(admin.bp)
+    app.register_blueprint(auth.auth)
+    app.register_blueprint(admin.admin)
     app.register_blueprint(teacher.bp)
     app.register_blueprint(student.bp)
-    app.register_blueprint(chat.bp)
+    app.register_blueprint(chat.chat)
     
     # Register error handlers
     @app.errorhandler(404)
