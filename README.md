@@ -2,6 +2,12 @@
 
 A modern attendance management system that uses facial recognition and AI to automate student attendance tracking in educational institutions.
 
+## Default Admin Credentials
+- Email: admin@attendance.com
+- Password: Admin@123
+
+To create the admin account, visit: `https://your-app-url/auth/create-admin`
+
 ## Changelog
 
 ### UI Modernization & Admin Fix (2024-02-14)

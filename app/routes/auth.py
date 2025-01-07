@@ -259,3 +259,45 @@ def send_reset_email(email, token):
     """
     # TODO: Implement email sending functionality
     pass 
+
+@auth.route('/create-admin')
+def create_admin():
+    """Create default admin account if it doesn't exist"""
+    try:
+        email = "admin@attendance.com"
+        password = "Admin@123"
+        
+        # Check if admin already exists
+        existing_admin = db.get_user_by_email(email)
+        if existing_admin:
+            flash('Admin account already exists', 'info')
+            return redirect(url_for('auth.login'))
+        
+        # Create admin user data
+        admin_data = {
+            'email': email,
+            'first_name': 'System',
+            'last_name': 'Admin',
+            'role': 'admin',
+            'status': 'active',
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Create User object and set password
+        admin = User(admin_data)
+        admin.set_password(password)
+        
+        # Convert to dictionary for database storage
+        admin_dict = admin.to_dict()
+        
+        # Save to database
+        db.create_user(admin_dict)
+        
+        flash('Admin account created successfully! Email: admin@attendance.com, Password: Admin@123', 'success')
+        return redirect(url_for('auth.login'))
+        
+    except Exception as e:
+        logger.error(f"Error creating admin user: {str(e)}")
+        flash('Error creating admin account', 'danger')
+        return redirect(url_for('auth.login')) 
