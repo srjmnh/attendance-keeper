@@ -44,8 +44,11 @@ def create_admin():
         admin = User(admin_data)
         admin.set_password(password)
         
+        # Convert to dictionary with hashed password
+        admin_dict = admin.to_dict()
+        
         # Save to database
-        db.create_user(admin)
+        db.create_user(admin_dict)
         
         logger.info("Admin user created successfully")
         logger.info(f"Email: {email}")

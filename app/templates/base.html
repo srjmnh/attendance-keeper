@@ -4,79 +4,180 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Attendance System{% endblock %}</title>
-    <!-- Bootstrap CSS -->
+    <!-- Bootstrap 5.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <style>
+        :root {
+            --primary-color: #4F46E5;
+            --secondary-color: #7C3AED;
+            --success-color: #059669;
+            --danger-color: #DC2626;
+            --warning-color: #D97706;
+            --info-color: #2563EB;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F3F4F6;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1rem 0;
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+
+        .nav-link {
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 6px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            transform: translateY(-1px);
+        }
+
+        .alert {
+            border: none;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
         .chat-widget {
             position: fixed;
             bottom: 20px;
             right: 20px;
             z-index: 1000;
         }
+
         .chat-button {
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            background-color: #007bff;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
         }
+
+        .chat-button:hover {
+            transform: scale(1.05);
+        }
+
         .chat-window {
             position: fixed;
             bottom: 90px;
             right: 20px;
-            width: 350px;
+            width: 380px;
             height: 500px;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
             display: none;
+            overflow: hidden;
         }
+
         .chat-header {
-            padding: 15px;
-            background: #007bff;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
-            border-radius: 10px 10px 0 0;
         }
+
         .chat-body {
-            height: 380px;
-            padding: 15px;
+            height: calc(100% - 130px);
+            padding: 1rem;
             overflow-y: auto;
         }
+
         .chat-input {
-            padding: 15px;
-            border-top: 1px solid #eee;
+            padding: 1rem;
+            border-top: 1px solid #E5E7EB;
+            background: white;
         }
+
         .message {
-            margin-bottom: 10px;
+            margin-bottom: 1rem;
             max-width: 80%;
         }
+
         .user-message {
-            background: #e9ecef;
-            padding: 10px;
-            border-radius: 10px;
+            background: #F3F4F6;
+            padding: 0.8rem 1rem;
+            border-radius: 12px 12px 2px 12px;
             margin-left: auto;
         }
+
         .bot-message {
-            background: #007bff;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
-            padding: 10px;
-            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            border-radius: 12px 12px 12px 2px;
+        }
+
+        .form-control {
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+            padding: 0.6rem 1rem;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
         }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('main.index') }}">Attendance System</a>
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <span class="material-icons me-2">school</span>
+                Attendance System
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -84,40 +185,58 @@
                 {% if current_user.is_authenticated %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.index') }}">Dashboard</a>
+                        <a class="nav-link" href="{{ url_for('main.index') }}">
+                            <span class="material-icons me-1">dashboard</span> Dashboard
+                        </a>
                     </li>
                     {% if current_user.is_student() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('attendance.view') }}">My Attendance</a>
+                        <a class="nav-link" href="{{ url_for('attendance.view') }}">
+                            <span class="material-icons me-1">history</span> My Attendance
+                        </a>
                     </li>
                     {% elif current_user.is_teacher() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('attendance.mark') }}">Mark Attendance</a>
+                        <a class="nav-link" href="{{ url_for('attendance.mark') }}">
+                            <span class="material-icons me-1">how_to_reg</span> Mark Attendance
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('subject.list') }}">Subjects</a>
+                        <a class="nav-link" href="{{ url_for('subject.list') }}">
+                            <span class="material-icons me-1">book</span> Subjects
+                        </a>
                     </li>
                     {% elif current_user.is_admin() %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.manage_users') }}">Users</a>
+                        <a class="nav-link" href="{{ url_for('admin.manage_users') }}">
+                            <span class="material-icons me-1">people</span> Users
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.manage_subjects') }}">Subjects</a>
+                        <a class="nav-link" href="{{ url_for('admin.manage_subjects') }}">
+                            <span class="material-icons me-1">library_books</span> Subjects
+                        </a>
                     </li>
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.profile') }}">Profile</a>
+                        <a class="nav-link" href="{{ url_for('main.profile') }}">
+                            <span class="material-icons me-1">account_circle</span> Profile
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <span class="material-icons me-1">logout</span> Logout
+                        </a>
                     </li>
                 </ul>
                 {% else %}
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">
+                            <span class="material-icons me-1">login</span> Login
+                        </a>
                     </li>
                 </ul>
                 {% endif %}
@@ -126,16 +245,26 @@
     </nav>
 
     <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        <div class="d-flex align-items-center">
+                            <span class="material-icons me-2">
+                                {% if category == 'success' %}check_circle
+                                {% elif category == 'danger' %}error
+                                {% elif category == 'warning' %}warning
+                                {% else %}info{% endif %}
+                            </span>
+                            {{ message }}
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
 
     <!-- Main Content -->
     {% block content %}{% endblock %}
@@ -144,10 +273,11 @@
     {% if current_user.is_authenticated %}
     <div class="chat-widget">
         <div class="chat-button" onclick="toggleChat()">
-            <i class="fas fa-comment"></i>
+            <span class="material-icons">chat</span>
         </div>
         <div class="chat-window" id="chatWindow">
-            <div class="chat-header">
+            <div class="chat-header d-flex align-items-center">
+                <span class="material-icons me-2">smart_toy</span>
                 <h5 class="mb-0">AI Assistant</h5>
             </div>
             <div class="chat-body" id="chatBody">
@@ -158,7 +288,9 @@
             <div class="chat-input">
                 <div class="input-group">
                     <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
-                    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                    <button class="btn btn-primary d-flex align-items-center" onclick="sendMessage()">
+                        <span class="material-icons">send</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -172,6 +304,9 @@
         function toggleChat() {
             const chatWindow = document.getElementById('chatWindow');
             chatWindow.style.display = chatWindow.style.display === 'none' ? 'block' : 'none';
+            if (chatWindow.style.display === 'block') {
+                document.getElementById('messageInput').focus();
+            }
         }
 
         function appendMessage(message, isUser) {
@@ -218,5 +353,6 @@
             }
         });
     </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html> 
