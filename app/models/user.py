@@ -1,5 +1,6 @@
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 class User(UserMixin):
     """User model for authentication and authorization"""
@@ -14,7 +15,10 @@ class User(UserMixin):
         self.class_name = user_data.get('class_name')
         self.division = user_data.get('division')
         self.password_hash = user_data.get('password')
+        self.status = user_data.get('status', 'active')
         self.face_id = user_data.get('face_id')
+        self.created_at = user_data.get('created_at')
+        self.updated_at = user_data.get('updated_at')
 
     @property
     def full_name(self):
@@ -22,14 +26,19 @@ class User(UserMixin):
         return f"{self.first_name} {self.last_name}" if self.last_name else self.first_name
 
     def set_password(self, password):
-        """Set user password"""
+        """Set user password - this will hash the password"""
+        if not password:
+            raise ValueError("Password cannot be empty")
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         """Check if password is correct"""
-        if not self.password_hash:
+        if not self.password_hash or not password:
             return False
-        return check_password_hash(self.password_hash, password)
+        try:
+            return check_password_hash(self.password_hash, password)
+        except Exception:
+            return False
 
     def is_admin(self):
         """Check if user is admin"""
@@ -54,7 +63,10 @@ class User(UserMixin):
             'class_name': self.class_name,
             'division': self.division,
             'password': self.password_hash,
-            'face_id': self.face_id
+            'status': self.status,
+            'face_id': self.face_id,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
         }
 
     @staticmethod
@@ -78,5 +90,8 @@ class User(UserMixin):
             self.division = data['division']
         if 'password' in data:
             self.set_password(data['password'])
+        if 'status' in data:
+            self.status = data['status']
         if 'face_id' in data:
-            self.face_id = data['face_id'] 
+            self.face_id = data['face_id']
+        self.updated_at = datetime.utcnow().isoformat() 

@@ -11,6 +11,21 @@ auth = Blueprint('auth', __name__)
 db = DatabaseService()
 logger = logging.getLogger(__name__)
 
+def validate_password(password):
+    """
+    Validate password strength
+    - At least 8 characters long
+    - Contains at least one letter and one number
+    - Can contain special characters
+    """
+    if len(password) < 8:
+        return False
+    if not re.search(r"[A-Za-z]", password):  # At least one letter
+        return False
+    if not re.search(r"\d", password):  # At least one number
+        return False
+    return True
+
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     """
@@ -25,6 +40,11 @@ def login():
             password = request.form.get('password')
             remember = True if request.form.get('remember') else False
             
+            if not email or not password:
+                flash('Please enter both email and password.', 'danger')
+                return redirect(url_for('auth.login'))
+            
+            # Get user from database
             user_dict = db.get_user_by_email(email)
             if not user_dict:
                 flash('Please check your login details and try again.', 'danger')
@@ -33,17 +53,22 @@ def login():
             # Create User object from dictionary
             user = User(user_dict)
             
-            if not user or not user.check_password(password):
+            # Check password using the password_hash from user object
+            if not user.check_password(password):
                 flash('Please check your login details and try again.', 'danger')
                 return redirect(url_for('auth.login'))
             
-            if user.status != 'active':
+            # Check if user is active
+            if user_dict.get('status') != 'active':
                 flash('Your account is not active. Please contact the administrator.', 'warning')
                 return redirect(url_for('auth.login'))
             
             login_user(user, remember=remember)
             logger.info(f"User {email} logged in successfully")
-            return redirect(url_for('main.index'))
+            
+            # Redirect to next page if specified, otherwise go to index
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('main.index'))
             
         except Exception as e:
             logger.error(f"Login error: {str(e)}")
@@ -70,6 +95,11 @@ def register():
             class_name = request.form.get('class_name')
             division = request.form.get('division')
             
+            # Validate required fields
+            if not all([email, password, first_name, last_name, role]):
+                flash('Please fill in all required fields.', 'danger')
+                return redirect(url_for('auth.register'))
+            
             # Validate email format
             if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
                 flash('Please enter a valid email address.', 'danger')
@@ -81,8 +111,8 @@ def register():
                 return redirect(url_for('auth.register'))
             
             # Validate password strength
-            if not re.match(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$", password):
-                flash('Password must be at least 8 characters long and contain letters and numbers.', 'danger')
+            if not validate_password(password):
+                flash('Password must be at least 8 characters long and contain both letters and numbers.', 'danger')
                 return redirect(url_for('auth.register'))
             
             # Create user data
@@ -109,7 +139,7 @@ def register():
             user.set_password(password)
             
             # Save user to database
-            user_dict = db.create_user(user)
+            db.create_user(user.to_dict())
             logger.info(f"User registered successfully: {email}")
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('auth.login'))
@@ -266,6 +296,11 @@ def create_admin():
     try:
         email = "admin@attendance.com"
         password = "Admin@123"
+        
+        # Validate password strength
+        if not validate_password(password):
+            flash('Admin password must be at least 8 characters long and contain both letters and numbers.', 'danger')
+            return redirect(url_for('auth.login'))
         
         # Check if admin already exists
         existing_admin = db.get_user_by_email(email)
