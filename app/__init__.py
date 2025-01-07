@@ -65,9 +65,10 @@ def create_app(config_name=None):
     app.config.from_object(config[config_name])
     
     # Initialize Firebase Admin SDK
-    if app.config['FIREBASE_CREDENTIALS']:
+    firebase_creds = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
+    if firebase_creds:
         try:
-            cred_json = base64.b64decode(app.config['FIREBASE_CREDENTIALS']).decode('utf-8')
+            cred_json = base64.b64decode(firebase_creds).decode('utf-8')
             cred = credentials.Certificate(cred_json)
             firebase_app = initialize_app(cred)
             db = firestore.client()
