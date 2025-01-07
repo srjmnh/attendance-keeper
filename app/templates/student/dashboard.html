@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard - Attendance System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4 fade-in">
+                <span class="material-icons me-2" style="font-size: 2.5rem;">dashboard</span>
+                Welcome, {{ current_user.name }}!
+            </h1>
+        </div>
+    </div>
+
+    <!-- Student Info -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card glass-effect fade-in">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="avatar-container mb-3">
+                                <img src="{{ current_user.profile_image or url_for('static', filename='images/default-avatar.png') }}" 
+                                     alt="Profile" class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover;">
+                            </div>
+                            <h5 class="mb-1">{{ current_user.name }}</h5>
+                            <p class="text-muted mb-0">Student ID: {{ current_user.student_id }}</p>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <p class="mb-1"><strong>Class:</strong> {{ current_user.class }}</p>
+                                    <p class="mb-1"><strong>Division:</strong> {{ current_user.division }}</p>
+                                    <p class="mb-1"><strong>Roll No:</strong> {{ current_user.roll_no }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1"><strong>Email:</strong> {{ current_user.email }}</p>
+                                    <p class="mb-1"><strong>Phone:</strong> {{ current_user.phone or 'Not provided' }}</p>
+                                    <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1"><strong>Joined:</strong> {{ current_user.created_at.strftime('%B %d, %Y') }}</p>
+                                    <p class="mb-1"><strong>Last Login:</strong> {{ current_user.last_login.strftime('%B %d, %Y %H:%M') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card glass-effect fade-in">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="material-icons text-primary me-3" style="font-size: 2.5rem;">menu_book</span>
+                        <div>
+                            <h6 class="card-subtitle mb-1 text-muted">Total Subjects</h6>
+                            <h3 class="card-title mb-0">{{ stats.total_subjects }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card glass-effect fade-in">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="material-icons text-success me-3" style="font-size: 2.5rem;">check_circle</span>
+                        <div>
+                            <h6 class="card-subtitle mb-1 text-muted">Present Days</h6>
+                            <h3 class="card-title mb-0">{{ stats.present_days }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card glass-effect fade-in">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="material-icons text-danger me-3" style="font-size: 2.5rem;">cancel</span>
+                        <div>
+                            <h6 class="card-subtitle mb-1 text-muted">Absent Days</h6>
+                            <h3 class="card-title mb-0">{{ stats.absent_days }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card glass-effect fade-in">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="material-icons text-info me-3" style="font-size: 2.5rem;">percent</span>
+                        <div>
+                            <h6 class="card-subtitle mb-1 text-muted">Attendance Rate</h6>
+                            <h3 class="card-title mb-0">{{ stats.attendance_rate }}%</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Subject-wise Attendance -->
+        <div class="col-md-8 mb-4">
+            <div class="card glass-effect fade-in h-100">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Subject-wise Attendance</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Present</th>
+                                    <th>Absent</th>
+                                    <th>Percentage</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subject in subject_attendance %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="material-icons me-2">menu_book</span>
+                                            {{ subject.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ subject.present }}</td>
+                                    <td>{{ subject.absent }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-{{ 'success' if subject.percentage >= 75 else 'warning' if subject.percentage >= 60 else 'danger' }}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ subject.percentage }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ subject.percentage }}%</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if subject.percentage >= 75 else 'warning' if subject.percentage >= 60 else 'danger' }}">
+                                            {{ 'Good' if subject.percentage >= 75 else 'Average' if subject.percentage >= 60 else 'Poor' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Attendance -->
+        <div class="col-md-4 mb-4">
+            <div class="card glass-effect fade-in h-100">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Recent Attendance</h5>
+                    <div class="timeline">
+                        {% for record in recent_attendance %}
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <span class="material-icons">{{ 'check_circle' if record.status == 'present' else 'cancel' }}</span>
+                            </div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">{{ record.subject.name }}</h6>
+                                <p class="mb-0 text-muted">{{ record.date.strftime('%B %d, %Y') }}</p>
+                                <small class="text-{{ 'success' if record.status == 'present' else 'danger' }}">
+                                    {{ record.status|title }}
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

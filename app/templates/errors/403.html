@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}403 Forbidden - Attendance System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card glass-effect fade-in text-center">
+                <div class="card-body p-5">
+                    <span class="material-icons text-danger mb-3" style="font-size: 4rem;">gpp_bad</span>
+                    <h1 class="display-4 mb-3">403</h1>
+                    <h2 class="h4 mb-4">Access Denied</h2>
+                    <p class="text-muted mb-4">You don't have permission to access this page. Please contact your administrator if you believe this is a mistake.</p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                            <span class="material-icons me-2">home</span>Go Home
+                        </a>
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary">
+                            <span class="material-icons me-2">login</span>Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
