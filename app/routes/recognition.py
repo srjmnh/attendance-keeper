@@ -11,6 +11,8 @@ import logging
 
 bp = Blueprint('recognition', __name__)
 
+COLLECTION_ID = "students"  # Hardcode the collection ID to match the example code
+
 def enhance_image(pil_image):
     """
     Enhance image quality to improve face detection in distant group photos.
@@ -57,7 +59,7 @@ def register_face():
         
         # Index face in AWS Rekognition
         response = current_app.rekognition.index_faces(
-            CollectionId=current_app.config['AWS_COLLECTION_ID'],
+            CollectionId=COLLECTION_ID,  # Use the hardcoded collection ID
             Image={'Bytes': enhanced_image_bytes},
             ExternalImageId=external_image_id,
             DetectionAttributes=['ALL'],
@@ -145,7 +147,7 @@ def recognize_face():
             try:
                 # Search for face match
                 search_response = current_app.rekognition.search_faces_by_image(
-                    CollectionId=current_app.config['AWS_COLLECTION_ID'],
+                    CollectionId=COLLECTION_ID,  # Use the hardcoded collection ID
                     Image={'Bytes': cropped_face_bytes},
                     MaxFaces=1,
                     FaceMatchThreshold=60
