@@ -14,32 +14,47 @@ A modern attendance management system using facial recognition, built with Flask
   - Face registration for students
   - Real-time face detection and recognition
   - Multi-face recognition support
+  - Enhanced recognition accuracy
+  - Progress indicators during processing
 
 - 📊 **Attendance Management**
   - Automated attendance tracking
   - Subject-wise attendance records
   - Excel import/export functionality
+  - Advanced filtering options
+  - Bulk upload templates
+  - Real-time attendance updates
 
 - 📚 **Subject Management**
   - Create and manage subjects
   - Assign teachers to subjects
   - Track subject-wise attendance
+  - Performance analytics
 
 ### Additional Features
 - 📧 **Email Notifications**
   - Attendance confirmations
   - Low attendance alerts
   - System notifications
+  - Customizable templates
 
 - 💬 **AI Chat Assistant**
   - Powered by Google's Gemini
   - Context-aware responses
   - Usage guidance and support
+  - Natural language processing
+  - Attendance insights
+  - Performance recommendations
 
 - 🎨 **Modern UI/UX**
   - Responsive design
-  - Tailwind CSS styling
+  - Tailwind CSS & DaisyUI components
   - Interactive dashboard
+  - Dark mode support
+  - Modern animations
+  - Loading states
+  - Toast notifications
+  - Enhanced mobile experience
 
 ## Tech Stack
 
@@ -48,8 +63,45 @@ A modern attendance management system using facial recognition, built with Flask
 - **Authentication**: Firebase Auth
 - **Storage**: Firebase Storage
 - **Face Recognition**: AWS Rekognition
-- **Frontend**: HTML, Tailwind CSS, JavaScript
-- **AI Chat**: Google Gemini API
+- **Frontend**: 
+  - HTML
+  - Tailwind CSS
+  - DaisyUI
+  - JavaScript
+  - Modern animations
+  - Custom CSS components
+- **AI Chat**: Google Gemini API v1.5-flash
+
+## Recent Updates
+
+### UI Modernization (January 2025)
+- Added modern CSS with animations and transitions
+- Implemented dark mode with theme persistence
+- Enhanced component styling (cards, buttons, forms)
+- Added loading states and progress indicators
+- Improved mobile responsiveness
+- Custom scrollbar design
+- Toast notifications system
+- Image preview enhancements
+- Dropdown animations
+- Menu item improvements
+
+### Feature Enhancements
+- Upgraded Gemini chatbot integration
+- Improved attendance management interface
+- Enhanced dashboard analytics
+- Added bulk upload functionality
+- Implemented advanced filtering
+- Real-time attendance updates
+- Performance optimization
+
+### Technical Improvements
+- Code organization and cleanup
+- Enhanced error handling
+- Improved API response formats
+- Better state management
+- Optimized database queries
+- Enhanced security measures
 
 ## Setup Instructions
 
@@ -116,17 +168,60 @@ A modern attendance management system using facial recognition, built with Flask
 - Add/remove subjects
 - View all attendance records
 - Generate reports
+- Access AI insights
+- Configure system settings
 
 ### Teacher
 - Register student faces
 - Take attendance using facial recognition
 - Manage subject attendance
 - Export attendance reports
+- View analytics
+- Generate performance reports
 
 ### Student
 - View personal attendance records
 - Receive attendance notifications
 - Update profile information
+- Track performance
+- Access attendance history
+
+## Development
+
+### File Structure
+```
+attendance-keeper/
+├── app/
+│   ├── routes/
+│   │   ├── ai.py          # AI and chatbot routes
+│   │   ├── attendance.py  # Attendance management
+│   │   └── recognition.py # Face recognition
+│   ├── services/
+│   │   ├── chatbot_service.py  # AI chat handling
+│   │   └── gemini_service.py   # Gemini integration
+│   ├── static/
+│   │   └── css/
+│   │       └── main.css   # Custom styling
+│   └── templates/
+│       ├── attendance/    # Attendance views
+│       ├── base.html      # Base template
+│       └── dashboard.html # Main dashboard
+└── requirements.txt
+```
+
+### Styling
+- Uses Tailwind CSS for utility classes
+- DaisyUI for component library
+- Custom CSS for animations and enhancements
+- Responsive design patterns
+- Dark mode support
+
+### JavaScript Features
+- Dynamic content loading
+- Real-time updates
+- Form handling
+- API integrations
+- Animation controls
 
 ## Contributing
 
