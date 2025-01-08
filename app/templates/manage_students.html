@@ -12,7 +12,7 @@
             Add New Student
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('add_student') }}">
+            <form method="POST" action="{{ url_for('admin.add_student') }}">
                 <div class="mb-3">
                     <label for="username" class="form-label">Username</label>
                     <input type="text" class="form-control" id="username" name="username" required>
@@ -101,7 +101,7 @@
 {% block scripts %}
 <script>
 function editStudent(studentId) {
-    fetch(`/api/students/${studentId}`)
+    fetch(`/admin/api/students/${studentId}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('edit_student_id').value = studentId;
@@ -123,7 +123,7 @@ function saveStudentChanges() {
         password: document.getElementById('edit_password').value
     };
 
-    fetch(`/api/students/${studentId}`, {
+    fetch(`/admin/api/students/${studentId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ function deleteStudent(studentId) {
         return;
     }
 
-    fetch(`/api/students/${studentId}`, {
+    fetch(`/admin/api/students/${studentId}`, {
         method: 'DELETE'
     })
     .then(response => response.json())

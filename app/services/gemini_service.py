@@ -48,7 +48,6 @@ Always be helpful, clear, and maintain a friendly tone."""
         
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-pro')
-        self.chat = self.model.start_chat(history=[])
         
         # Start with system context
         self._conversation_memory = [
@@ -89,7 +88,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
-            if not response.text:
+            if not response or not hasattr(response, 'text'):
                 return "Sorry, I could not analyze the attendance data at this moment."
             return response.text
         except Exception as e:
@@ -113,7 +112,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
-            if not response.text:
+            if not response or not hasattr(response, 'text'):
                 return "Sorry, I could not generate the report summary at this moment."
             return response.text
         except Exception as e:
@@ -137,7 +136,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
-            if not response.text:
+            if not response or not hasattr(response, 'text'):
                 return "Sorry, I could not generate recommendations at this moment."
             return response.text
         except Exception as e:
@@ -155,10 +154,10 @@ Always be helpful, clear, and maintain a friendly tone."""
             if context:
                 conversation = f"Additional Context: {context}\n\n{conversation}"
             
-            # Get AI response using chat
-            response = self.chat.send_message(conversation)
+            # Get AI response
+            response = self.model.generate_content(conversation)
             
-            if not response.text:
+            if not response or not hasattr(response, 'text'):
                 return "I'm having trouble generating a response. Please try again."
             
             # Add AI response to memory

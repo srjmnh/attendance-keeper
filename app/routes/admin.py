@@ -8,13 +8,13 @@ from datetime import datetime
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-@bp.route('/admin')
+@bp.route('/')
 @login_required
 @role_required(['admin'])
 def admin_dashboard():
     return render_template('admin/dashboard.html')
 
-@bp.route('/admin/users')
+@bp.route('/users')
 @login_required
 @role_required(['admin'])
 def manage_users():
@@ -22,7 +22,7 @@ def manage_users():
     users = db.get_all_users()
     return render_template('admin/users.html', users=users)
 
-@bp.route('/admin/subjects', methods=['GET', 'POST'])
+@bp.route('/subjects', methods=['GET', 'POST'])
 @login_required
 @role_required(['admin'])
 def manage_subjects():
@@ -73,7 +73,7 @@ def manage_subjects():
         flash(f"Error loading subjects: {str(e)}", "error")
         return render_template("admin/subjects.html", subjects=[])
 
-@bp.route('/admin/subjects/<subject_id>', methods=['DELETE'])
+@bp.route('/subjects/<subject_id>', methods=['DELETE'])
 @login_required
 @role_required(['admin'])
 def delete_subject(subject_id):
