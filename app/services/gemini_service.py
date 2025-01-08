@@ -47,7 +47,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.model = genai.GenerativeModel('gemini-pro')
         
         # Start with system context
         self._conversation_memory = [
@@ -146,6 +146,9 @@ Always be helpful, clear, and maintain a friendly tone."""
             
             # Get AI response
             response = self.model.generate_content(conversation)
+            
+            if not response.text:
+                return "I'm having trouble generating a response. Please try again."
             
             # Add AI response to memory
             self._conversation_memory.append({"role": "assistant", "content": response.text})

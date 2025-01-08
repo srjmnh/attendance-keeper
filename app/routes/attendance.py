@@ -26,50 +26,62 @@ def index():
 @login_required
 def get_attendance():
     """Get attendance records with filters"""
-    student_id = request.args.get('student_id')
-    subject_id = request.args.get('subject_id')
-    date_range = request.args.get('date_range')
-    date_from = request.args.get('date_from')
-    date_to = request.args.get('date_to')
-    status = request.args.get('status')
-    search = request.args.get('search')
-
-    # Build query
-    query = current_app.db.collection('attendance')
-    
-    # Apply role-based restrictions
-    if current_user.role == 'teacher':
-        query = query.where('subject_id', 'in', current_user.classes)
-    elif current_user.role == 'student':
-        query = query.where('student_id', '==', current_user.id)
-
-    # Apply filters
-    if student_id:
-        query = query.where('student_id', '==', student_id)
-    if subject_id:
-        query = query.where('subject_id', '==', subject_id)
-    if status:
-        query = query.where('status', '==', status)
-
-    # Date range filter
-    if date_range == 'today':
-        today = datetime.now().date()
-        query = query.where('timestamp', '>=', today.isoformat())
-    elif date_range == 'week':
-        # Get start of week
-        today = datetime.now()
-        start_of_week = today - timedelta(days=today.weekday())
-        query = query.where('timestamp', '>=', start_of_week.date().isoformat())
-    elif date_range == 'month':
-        # Get start of month
-        today = datetime.now()
-        start_of_month = today.replace(day=1)
-        query = query.where('timestamp', '>=', start_of_month.date().isoformat())
-    elif date_range == 'custom' and date_from and date_to:
-        query = query.where('timestamp', '>=', date_from)
-        query = query.where('timestamp', '<=', date_to)
-
     try:
+        student_id = request.args.get('student_id')
+        subject_id = request.args.get('subject_id')
+        date_range = request.args.get('date_range')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        status = request.args.get('status')
+        search = request.args.get('search')
+
+        # Build query
+        query = current_app.db.collection('attendance')
+        
+        # Apply role-based restrictions
+        if current_user.role == 'teacher':
+            query = query.where('subject_id', 'in', current_user.classes)
+        elif current_user.role == 'student':
+            query = query.where('student_id', '==', current_user.id)
+
+        # Apply filters
+        if student_id:
+            query = query.where('student_id', '==', student_id)
+        if subject_id:
+            query = query.where('subject_id', '==', subject_id)
+        if status:
+            query = query.where('status', '==', status)
+
+        # Date range filter
+        today = datetime.now().date()
+        if date_range == 'today':
+            query = query.where('timestamp', '>=', today.isoformat())
+            query = query.where('timestamp', '<', (today + timedelta(days=1)).isoformat())
+        elif date_range == 'week':
+            start_of_week = today - timedelta(days=today.weekday())
+            query = query.where('timestamp', '>=', start_of_week.isoformat())
+            query = query.where('timestamp', '<', (start_of_week + timedelta(days=7)).isoformat())
+        elif date_range == 'month':
+            start_of_month = today.replace(day=1)
+            if today.month == 12:
+                end_of_month = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                end_of_month = today.replace(month=today.month + 1, day=1)
+            query = query.where('timestamp', '>=', start_of_month.isoformat())
+            query = query.where('timestamp', '<', end_of_month.isoformat())
+        elif date_range == 'custom' and date_from and date_to:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+                to_date = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
+                query = query.where('timestamp', '>=', from_date.isoformat())
+                query = query.where('timestamp', '<', to_date.isoformat())
+            except ValueError:
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+        # Order by timestamp descending
+        query = query.order_by('timestamp', direction='DESCENDING')
+
+        # Execute query and format results
         records = []
         for doc in query.stream():
             record = doc.to_dict()
@@ -80,6 +92,15 @@ def get_attendance():
                 search = search.lower()
                 if search not in record.get('name', '').lower() and search not in record.get('student_id', '').lower():
                     continue
+            
+            # Format timestamp
+            timestamp = record.get('timestamp')
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    record['timestamp'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    record['timestamp'] = timestamp
             
             records.append(record)
         
@@ -114,7 +135,9 @@ def update_attendance():
             # Update record
             update_data = {
                 'name': record.get('name'),
-                'status': record.get('status')
+                'status': record.get('status'),
+                'updated_at': datetime.now().isoformat(),
+                'updated_by': current_user.id
             }
             doc_ref.update(update_data)
         
@@ -167,7 +190,7 @@ def export_attendance():
     """Export attendance records to Excel"""
     # Reuse get_attendance logic to get filtered records
     response = get_attendance()
-    if response.status_code != 200:
+    if isinstance(response, tuple):
         return response
     
     records = response.get_json()
