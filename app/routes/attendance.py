@@ -35,14 +35,18 @@ def get_attendance():
         status = request.args.get('status')
         search = request.args.get('search')
 
+        current_app.logger.info(f"Fetching attendance with filters: date_range={date_range}, subject_id={subject_id}, status={status}, search={search}")
+
         # Build query
         query = current_app.db.collection('attendance')
         
         # Apply role-based restrictions
         if current_user.role == 'teacher':
             query = query.where('subject_id', 'in', current_user.classes)
+            current_app.logger.debug(f"Applied teacher filter: classes={current_user.classes}")
         elif current_user.role == 'student':
             query = query.where('student_id', '==', current_user.id)
+            current_app.logger.debug(f"Applied student filter: student_id={current_user.id}")
 
         # Apply filters
         if student_id:
@@ -57,10 +61,12 @@ def get_attendance():
         if date_range == 'today':
             query = query.where('timestamp', '>=', today.isoformat())
             query = query.where('timestamp', '<', (today + timedelta(days=1)).isoformat())
+            current_app.logger.debug(f"Applied today filter: {today.isoformat()} to {(today + timedelta(days=1)).isoformat()}")
         elif date_range == 'week':
             start_of_week = today - timedelta(days=today.weekday())
             query = query.where('timestamp', '>=', start_of_week.isoformat())
             query = query.where('timestamp', '<', (start_of_week + timedelta(days=7)).isoformat())
+            current_app.logger.debug(f"Applied week filter: {start_of_week.isoformat()} to {(start_of_week + timedelta(days=7)).isoformat()}")
         elif date_range == 'month':
             start_of_month = today.replace(day=1)
             if today.month == 12:
@@ -69,12 +75,14 @@ def get_attendance():
                 end_of_month = today.replace(month=today.month + 1, day=1)
             query = query.where('timestamp', '>=', start_of_month.isoformat())
             query = query.where('timestamp', '<', end_of_month.isoformat())
+            current_app.logger.debug(f"Applied month filter: {start_of_month.isoformat()} to {end_of_month.isoformat()}")
         elif date_range == 'custom' and date_from and date_to:
             try:
                 from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
                 to_date = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
                 query = query.where('timestamp', '>=', from_date.isoformat())
                 query = query.where('timestamp', '<', to_date.isoformat())
+                current_app.logger.debug(f"Applied custom date filter: {from_date.isoformat()} to {to_date.isoformat()}")
             except ValueError:
                 return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
@@ -83,7 +91,10 @@ def get_attendance():
 
         # Execute query and format results
         records = []
-        for doc in query.stream():
+        docs = list(query.stream())  # Convert to list to get count
+        current_app.logger.info(f"Found {len(docs)} records before search filter")
+
+        for doc in docs:
             record = doc.to_dict()
             record['doc_id'] = doc.id
             
@@ -104,6 +115,7 @@ def get_attendance():
             
             records.append(record)
         
+        current_app.logger.info(f"Returning {len(records)} records after all filters")
         return jsonify(records)
     except Exception as e:
         current_app.logger.error(f"Error getting attendance: {str(e)}")
@@ -259,4 +271,6 @@ def view_attendance():
             'name': doc.to_dict().get('name', '')
         } for doc in subjects_ref]
     
-    return render_template('attendance/view.html', subjects=subjects)
+    return render_template('attendance/view.html', 
+                         subjects=subjects,
+                         user_role=current_user.role)

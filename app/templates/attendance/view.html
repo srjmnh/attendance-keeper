@@ -102,6 +102,7 @@
 
 {% block extra_js %}
 <script>
+const user_role = "{{ user_role }}";
 let debounceTimer;
 
 // Initialize filters and load data
@@ -154,6 +155,8 @@ async function loadAttendance() {
             params.append('search', searchInput.value);
         }
 
+        console.log('Fetching attendance with params:', params.toString());
+
         // Fetch attendance data
         const response = await fetch(`/attendance/api/attendance?${params.toString()}`);
         if (!response.ok) {
@@ -161,6 +164,7 @@ async function loadAttendance() {
         }
 
         const records = await response.json();
+        console.log('Received records:', records);
         displayAttendance(records);
     } catch (error) {
         console.error('Error loading attendance:', error);
@@ -169,11 +173,13 @@ async function loadAttendance() {
 }
 
 function displayAttendance(records) {
+    console.log('Displaying records:', records);
     const tbody = document.getElementById('attendanceTableBody');
     const recordCount = document.getElementById('recordCount');
     
     // Update record count
     recordCount.textContent = `${records.length} Records Found`;
+    console.log('Updated record count');
     
     // Clear existing rows
     tbody.innerHTML = '';
@@ -189,11 +195,13 @@ function displayAttendance(records) {
                 </td>
             </tr>
         `;
+        console.log('Displayed no records message');
         return;
     }
     
     // Add new rows
-    records.forEach(record => {
+    records.forEach((record, index) => {
+        console.log(`Processing record ${index}:`, record);
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${formatDateTime(record.timestamp)}</td>
@@ -205,7 +213,7 @@ function displayAttendance(records) {
                     ${record.status}
                 </span>
             </td>
-            ${current_user.role === 'admin' ? `
+            ${user_role === 'admin' ? `
             <td class="text-center">
                 <button onclick="deleteAttendance('${record.doc_id}')" 
                         class="btn btn-ghost btn-sm text-error">
@@ -216,6 +224,7 @@ function displayAttendance(records) {
         `;
         tbody.appendChild(row);
     });
+    console.log('Finished displaying records');
 }
 
 function formatDateTime(timestamp) {
