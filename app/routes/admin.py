@@ -91,17 +91,32 @@ def delete_subject(subject_id):
 @role_required(['admin'])
 def manage_students():
     """Display student management page"""
-    # Get all students from Firestore
-    students_ref = current_app.db.collection('users').where('role', '==', 'student').stream()
-    students = []
-    for doc in students_ref:
-        data = doc.to_dict()
-        students.append({
-            'id': doc.id,
-            'username': data.get('username', ''),
-            'student_id': data.get('student_id', '')
-        })
-    return render_template('admin/students.html', students=students)
+    try:
+        current_app.logger.info("Fetching students for management page")
+        students = []
+        
+        # Get students collection with role filter
+        students_ref = current_app.db.collection('users').where('role', '==', 'student')
+        docs = students_ref.get()
+        
+        for doc in docs:
+            data = doc.to_dict()
+            student_data = {
+                'id': doc.id,
+                'name': str(data.get('name', '')),
+                'student_id': str(data.get('student_id', '')),
+                'class': int(data.get('class', 0)) or '',
+                'division': str(data.get('division', '')).upper()
+            }
+            students.append(student_data)
+            
+        current_app.logger.info(f"Found {len(students)} students")
+        return render_template('admin/students.html', students=students)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading students page: {str(e)}")
+        flash('Failed to load students. Please try again.', 'error')
+        return render_template('admin/students.html', students=[])
 
 @bp.route('/api/students/<student_id>', methods=['GET'])
 @login_required
@@ -192,26 +207,48 @@ def get_students():
     try:
         current_app.logger.info("Fetching students from database")
         students = []
-        students_ref = current_app.db.collection('users').where('role', '==', 'student').stream()
         
-        for doc in students_ref:
-            data = doc.to_dict()
-            current_app.logger.debug(f"Processing student document: {doc.id}")
-            student_data = {
-                'id': doc.id,
-                'name': data.get('name', ''),
-                'student_id': data.get('student_id', ''),
-                'class': data.get('class', ''),
-                'division': data.get('division', '')
-            }
-            current_app.logger.debug(f"Student data: {student_data}")
-            students.append(student_data)
+        # Get students collection with role filter
+        students_ref = current_app.db.collection('users').where('role', '==', 'student')
+        docs = students_ref.get()  # Use get() instead of stream() for better error handling
         
-        current_app.logger.info(f"Found {len(students)} students")
+        if not docs:
+            current_app.logger.warning("No students found in database")
+            return jsonify([])
+            
+        for doc in docs:
+            try:
+                data = doc.to_dict()
+                current_app.logger.debug(f"Processing student document: {doc.id}")
+                
+                # Extract student data with proper type checking
+                student_data = {
+                    'id': doc.id,
+                    'name': str(data.get('name', '')),
+                    'student_id': str(data.get('student_id', '')),
+                    'class': int(data.get('class', 0)) or '',  # Convert to int, fallback to empty if 0
+                    'division': str(data.get('division', '')).upper()
+                }
+                
+                # Validate required fields
+                if not student_data['student_id']:
+                    current_app.logger.warning(f"Skipping student {doc.id} - missing student_id")
+                    continue
+                    
+                current_app.logger.debug(f"Student data: {student_data}")
+                students.append(student_data)
+                
+            except (ValueError, TypeError) as e:
+                # Log the error but continue processing other students
+                current_app.logger.error(f"Error processing student {doc.id}: {str(e)}")
+                continue
+        
+        current_app.logger.info(f"Successfully retrieved {len(students)} students")
         return jsonify(students)
+        
     except Exception as e:
-        current_app.logger.error(f"Error getting students: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Failed to fetch students: {str(e)}")
+        return jsonify({'error': f"Failed to fetch students: {str(e)}"}), 500
 
 @bp.route('/api/students/template')
 @login_required
