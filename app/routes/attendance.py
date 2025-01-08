@@ -130,14 +130,13 @@ def get_attendance():
 @bp.route('/api/attendance/update', methods=['POST'])
 @role_required(['admin', 'teacher'])
 def update_attendance():
-    """Update attendance status"""
+    """Update attendance record"""
     try:
         data = request.get_json()
-        doc_id = data.get('doc_id')
-        new_status = data.get('status')
+        doc_id = data.pop('doc_id', None)  # Remove doc_id and get its value
         
-        if not doc_id or not new_status:
-            return jsonify({'error': 'Missing required fields'}), 400
+        if not doc_id:
+            return jsonify({'error': 'Missing doc_id'}), 400
                 
         # Verify permissions
         doc_ref = current_app.db.collection('attendance').document(doc_id)
@@ -146,20 +145,24 @@ def update_attendance():
             return jsonify({'error': 'Record not found'}), 404
                 
         doc_data = doc.to_dict()
-        if current_user.role == 'teacher' and doc_data.get('subject_id') not in current_user.classes:
-            return jsonify({'error': 'Unauthorized to update this record'}), 403
+        if current_user.role == 'teacher':
+            # Teachers can only update status
+            if set(data.keys()) - {'status'}:
+                return jsonify({'error': 'Teachers can only update attendance status'}), 403
+            if doc_data.get('subject_id') not in current_user.classes:
+                return jsonify({'error': 'Unauthorized to update this record'}), 403
             
-        # Update status
-        update_data = {
-            'status': new_status,
+        # Add metadata
+        data.update({
             'updated_at': datetime.now().isoformat(),
             'updated_by': current_user.id
-        }
+        })
         
-        doc_ref.update(update_data)
-        return jsonify({'message': 'Status updated successfully'})
+        # Update record
+        doc_ref.update(data)
+        return jsonify({'message': 'Record updated successfully'})
     except Exception as e:
-        current_app.logger.error(f"Error updating attendance status: {str(e)}")
+        current_app.logger.error(f"Error updating attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/attendance/<doc_id>', methods=['DELETE'])

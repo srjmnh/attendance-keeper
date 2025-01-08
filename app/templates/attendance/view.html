@@ -207,76 +207,103 @@ function displayAttendance(records) {
         row.dataset.docId = record.doc_id;
         row.innerHTML = `
             <td>${formatDateTime(record.timestamp)}</td>
-            <td>${record.student_id}</td>
-            <td>${record.name}</td>
-            <td>${record.subject_name || ''}</td>
             <td>
-                <select class="select select-bordered select-sm w-28" 
-                        onchange="handleStatusChange('${record.doc_id}', this.value)">
-                    <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>Present</option>
-                    <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>Absent</option>
-                </select>
+                ${user_role === 'admin' ? 
+                    `<input type="text" class="input input-bordered input-sm w-full" 
+                            value="${record.student_id}" 
+                            onchange="handleFieldChange('${record.doc_id}', 'student_id', this.value)">` 
+                    : record.student_id}
+            </td>
+            <td>
+                ${user_role === 'admin' ? 
+                    `<input type="text" class="input input-bordered input-sm w-full" 
+                            value="${record.name}" 
+                            onchange="handleFieldChange('${record.doc_id}', 'name', this.value)">` 
+                    : record.name}
+            </td>
+            <td>
+                ${user_role === 'admin' ? 
+                    `<input type="text" class="input input-bordered input-sm w-full" 
+                            value="${record.subject_name || ''}" 
+                            onchange="handleFieldChange('${record.doc_id}', 'subject_name', this.value)">` 
+                    : record.subject_name || ''}
+            </td>
+            <td>
+                ${user_role === 'admin' || user_role === 'teacher' ? 
+                    `<select class="select select-bordered select-sm w-28" 
+                            onchange="handleFieldChange('${record.doc_id}', 'status', this.value)">
+                        <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>Present</option>
+                        <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>Absent</option>
+                    </select>` 
+                    : record.status}
             </td>
             <td class="text-center">
                 <div class="flex justify-center gap-2">
-                    <button onclick="saveStatus('${record.doc_id}')" 
-                            class="btn btn-ghost btn-sm text-success save-btn" 
-                            id="save-${record.doc_id}" disabled>
-                        <i class="ri-save-line"></i>
-                    </button>
-                    ${user_role === 'admin' ? `
-                    <button onclick="deleteAttendance('${record.doc_id}')" 
-                            class="btn btn-ghost btn-sm text-error">
-                        <i class="ri-delete-bin-line"></i>
-                    </button>
-                    ` : ''}
+                    ${(user_role === 'admin' || user_role === 'teacher') ? 
+                        `<button onclick="saveChanges('${record.doc_id}')" 
+                                class="btn btn-ghost btn-sm text-success save-btn" 
+                                id="save-${record.doc_id}" disabled>
+                            <i class="ri-save-line"></i>
+                        </button>` : ''}
+                    ${user_role === 'admin' ? 
+                        `<button onclick="deleteAttendance('${record.doc_id}')" 
+                                class="btn btn-ghost btn-sm text-error">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>` : ''}
                 </div>
             </td>
         `;
         tbody.appendChild(row);
     });
-    console.log('Finished displaying records');
-}
 
-function handleStatusChange(docId, newStatus) {
-    changedRecords.set(docId, newStatus);
-    const saveBtn = document.getElementById(`save-${docId}`);
-    if (saveBtn) {
-        saveBtn.disabled = false;
-    }
-}
-
-async function saveStatus(docId) {
-    try {
-        const newStatus = changedRecords.get(docId);
-        if (!newStatus) return;
-
-        const response = await fetch('/attendance/api/attendance/update', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                doc_id: docId,
-                status: newStatus
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to update status');
+    // Add the handleFieldChange function
+    function handleFieldChange(docId, field, value) {
+        if (!changedRecords.has(docId)) {
+            changedRecords.set(docId, {});
         }
-
-        changedRecords.delete(docId);
+        changedRecords.get(docId)[field] = value;
         const saveBtn = document.getElementById(`save-${docId}`);
         if (saveBtn) {
-            saveBtn.disabled = true;
+            saveBtn.disabled = false;
         }
-
-        showToast('Status updated successfully', 'success');
-    } catch (error) {
-        console.error('Error updating status:', error);
-        showToast(error.message, 'error');
     }
+
+    // Update the saveChanges function
+    async function saveChanges(docId) {
+        try {
+            const changes = changedRecords.get(docId);
+            if (!changes) return;
+
+            const response = await fetch('/attendance/api/attendance/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    doc_id: docId,
+                    ...changes
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save changes');
+            }
+
+            changedRecords.delete(docId);
+            const saveBtn = document.getElementById(`save-${docId}`);
+            if (saveBtn) {
+                saveBtn.disabled = true;
+            }
+
+            showToast('Changes saved successfully', 'success');
+            loadAttendance();  // Reload to show updated data
+        } catch (error) {
+            console.error('Error saving changes:', error);
+            showToast(error.message, 'error');
+        }
+    }
+
+    console.log('Finished displaying records');
 }
 
 async function deleteAttendance(docId) {
