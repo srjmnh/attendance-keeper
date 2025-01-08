@@ -38,7 +38,7 @@
         </div>
         {% endif %}
     </div>
-    
+
     <!-- Filters -->
     <div class="card bg-base-100 shadow-lg hover-scale">
         <div class="card-body">
@@ -94,7 +94,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Custom Date Range -->
             <div id="custom_date_range" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 hidden">
                 <div class="form-control w-full">
@@ -122,7 +122,7 @@
         </button>
     </div>
     {% endif %}
-    
+
     <!-- Attendance Table -->
     <div class="card bg-base-100 shadow-lg hover-scale">
         <div class="card-body">
@@ -183,8 +183,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
 
@@ -193,55 +194,76 @@ let attendanceTable;
 let editedRows = new Set();
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize DataTable with modern styling
+    // Initialize DataTable with modern styling and error handling
     attendanceTable = new DataTable('#attendanceTable', {
         ajax: {
             url: '/api/attendance',
-            dataSrc: ''
+            dataSrc: function(json) {
+                if (!json || !Array.isArray(json)) {
+                    showToast('No attendance records found', 'info');
+                    return [];
+                }
+                return json;
+            },
+            error: function(xhr, error, thrown) {
+                console.error('DataTables error:', error);
+                showToast('Error loading attendance data. Please try again.', 'error');
+            }
         },
+        processing: true,
+        serverSide: false,
         columns: [
             { 
                 data: 'timestamp',
                 render: function(data) {
-                    return new Date(data).toLocaleString();
+                    return data || 'N/A';
                 }
             },
             { 
                 data: 'name',
                 render: function(data, type, row) {
                     if (type === 'display' && '{{ current_user.role }}' === 'admin') {
-                        return `<input type="text" class="input input-bordered input-sm w-full max-w-xs" value="${data}" onchange="markRowAsEdited('${row.doc_id}')">`;
+                        return '<input type="text" class="input input-bordered input-sm w-full max-w-xs" value="' + 
+                               (data || '') + '" onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
                     }
-                    return data;
+                    return data || 'N/A';
                 }
             },
-            { data: 'student_id' },
-            { data: 'subject_name' },
+            { 
+                data: 'student_id',
+                defaultContent: 'N/A'
+            },
+            { 
+                data: 'subject_name',
+                defaultContent: 'N/A'
+            },
             {
                 data: 'status',
                 render: function(data, type, row) {
                     if (type === 'display' && '{{ current_user.role }}' === 'admin') {
-                        return `
-                            <select class="select select-bordered select-sm w-full max-w-xs" onchange="markRowAsEdited('${row.doc_id}')">
-                                <option value="PRESENT" ${data === 'PRESENT' ? 'selected' : ''}>Present</option>
-                                <option value="ABSENT" ${data === 'ABSENT' ? 'selected' : ''}>Absent</option>
-                                <option value="LATE" ${data === 'LATE' ? 'selected' : ''}>Late</option>
-                            </select>`;
+                        var selectHtml = '<select class="select select-bordered select-sm w-full max-w-xs" ' +
+                                       'onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
+                        selectHtml += '<option value="PRESENT"' + (data === 'PRESENT' ? ' selected' : '') + '>Present</option>';
+                        selectHtml += '<option value="ABSENT"' + (data === 'ABSENT' ? ' selected' : '') + '>Absent</option>';
+                        selectHtml += '<option value="LATE"' + (data === 'LATE' ? ' selected' : '') + '>Late</option>';
+                        selectHtml += '</select>';
+                        return selectHtml;
                     }
-                    return `<div class="badge badge-lg ${
-                        data === 'PRESENT' ? 'badge-success' : 
-                        data === 'ABSENT' ? 'badge-error' : 
-                        'badge-warning'}">${data}</div>`;
+                    var badgeClass = data === 'PRESENT' ? 'badge-success' : 
+                                   data === 'ABSENT' ? 'badge-error' : 
+                                   'badge-warning';
+                    return '<div class="badge badge-lg ' + badgeClass + '">' + (data || 'N/A') + '</div>';
                 }
-            },
-            {% if current_user.role == 'admin' %}
+            }
+            {% if current_user.role == 'admin' %},
             {
                 data: null,
                 render: function(data, type, row) {
-                    return `
-                        <button onclick="deleteRecord('${row.doc_id}')" class="btn btn-ghost btn-sm text-error">
-                            <span class="material-icons-round">delete</span>
-                        </button>`;
+                    var buttonHtml = '<button onclick="deleteRecord(\'' + row.doc_id + '\')" ' +
+                                   'class="btn btn-ghost btn-sm text-error">';
+                    buttonHtml += '<span class="material-icons-round">delete</span>';
+                    buttonHtml += '</button>';
+                    return buttonHtml;
                 }
             }
             {% endif %}
@@ -254,122 +276,111 @@ document.addEventListener('DOMContentLoaded', function() {
              '<"flex flex-col md:flex-row justify-between mt-6"<"flex-1"i><"flex-shrink-0"p>>',
         language: {
             search: "",
-            searchPlaceholder: "Search records..."
+            searchPlaceholder: "Search records...",
+            processing: "Loading...",
+            emptyTable: "No attendance records found",
+            zeroRecords: "No matching records found"
         }
     });
 
-    // Style DataTables elements
-    document.querySelector('.dataTables_filter input').classList.add(
-        'input', 'input-bordered', 'input-sm', 'w-full', 'max-w-xs'
-    );
-    document.querySelector('.dataTables_length select').classList.add(
-        'select', 'select-bordered', 'select-sm'
-    );
-
-    // Event listeners for filters
+    // Handle filter changes
     document.getElementById('date_filter').addEventListener('change', function() {
-        const customRange = document.getElementById('custom_date_range');
+        var customRange = document.getElementById('custom_date_range');
         customRange.classList.toggle('hidden', this.value !== 'custom');
         applyFilters();
     });
 
-    ['subject_filter', 'status_filter', 'date_from', 'date_to'].forEach(id => {
-        document.getElementById(id).addEventListener('change', applyFilters);
-    });
-
-    document.getElementById('search_filter').addEventListener('input', debounce(applyFilters, 300));
+    document.getElementById('subject_filter').addEventListener('change', applyFilters);
+    document.getElementById('status_filter').addEventListener('change', applyFilters);
+    document.getElementById('search_filter').addEventListener('input', applyFilters);
+    document.getElementById('date_from').addEventListener('change', applyFilters);
+    document.getElementById('date_to').addEventListener('change', applyFilters);
 });
 
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-function markRowAsEdited(docId) {
-    editedRows.add(docId);
-}
-
 function applyFilters() {
-    const filters = {
+    var filters = {
         date_range: document.getElementById('date_filter').value,
-        subject: document.getElementById('subject_filter').value,
+        subject_id: document.getElementById('subject_filter').value,
         status: document.getElementById('status_filter').value,
         search: document.getElementById('search_filter').value,
         date_from: document.getElementById('date_from').value,
         date_to: document.getElementById('date_to').value
     };
     
-    const queryString = new URLSearchParams(filters).toString();
-    attendanceTable.ajax.url(`/api/attendance?${queryString}`).load();
+    var queryString = new URLSearchParams(filters).toString();
+    attendanceTable.ajax.url('/api/attendance?' + queryString).load();
 }
 
-async function saveAllChanges() {
-    if (editedRows.size === 0) {
+function saveAllChanges() {
+    var editedRows = document.querySelectorAll('[data-edited="true"]');
+    if (!editedRows.length) {
         showToast('No changes to save', 'info');
         return;
     }
 
-    const changes = [];
-    editedRows.forEach(docId => {
-        const row = attendanceTable.row(`[data-doc-id="${docId}"]`);
-        const data = row.data();
-        const cells = row.nodes().to$().find('input, select');
-        
-        changes.push({
-            doc_id: docId,
-            name: cells.eq(0).val(),
-            status: cells.eq(1).val(),
-            ...data
+    var changes = [];
+    editedRows.forEach(function(row) {
+        var docId = row.getAttribute('data-doc-id');
+        var inputs = row.querySelectorAll('input, select');
+        var data = {};
+        inputs.forEach(function(input) {
+            data[input.getAttribute('data-field')] = input.value;
         });
+        changes.push(Object.assign({ doc_id: docId }, data));
     });
 
-    try {
-        const response = await fetch('/api/attendance/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records: changes })
-        });
-        
-        const result = await response.json();
+    fetch('/api/attendance/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ records: changes })
+    })
+    .then(function(response) {
         if (response.ok) {
             showToast('Changes saved successfully', 'success');
-            editedRows.clear();
             applyFilters();
         } else {
-            showToast(result.error || 'Failed to save changes', 'error');
+            response.json().then(function(data) {
+                showToast(data.error || 'Failed to save changes', 'error');
+            });
         }
-    } catch (error) {
+    })
+    .catch(function(error) {
         console.error('Error:', error);
         showToast('Error saving changes', 'error');
+    });
+}
+
+function markRowAsEdited(docId) {
+    var row = document.querySelector('[data-doc-id="' + docId + '"]');
+    if (row) {
+        row.setAttribute('data-edited', 'true');
     }
 }
 
-async function deleteRecord(docId) {
-    if (!confirm('Are you sure you want to delete this record?')) return;
-    
-    try {
-        const response = await fetch(`/api/attendance/${docId}`, {
-            method: 'DELETE'
-        });
-        
+function deleteRecord(docId) {
+    if (!confirm('Are you sure you want to delete this record?')) {
+        return;
+    }
+
+    fetch('/api/attendance/' + docId, {
+        method: 'DELETE'
+    })
+    .then(function(response) {
         if (response.ok) {
             showToast('Record deleted successfully', 'success');
             applyFilters();
         } else {
-            const data = await response.json();
-            showToast(data.error || 'Failed to delete record', 'error');
+            response.json().then(function(data) {
+                showToast(data.error || 'Failed to delete record', 'error');
+            });
         }
-    } catch (error) {
+    })
+    .catch(function(error) {
         console.error('Error:', error);
         showToast('Error deleting record', 'error');
-    }
+    });
 }
 
 function downloadTemplate() {
@@ -481,5 +492,4 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 </script>
-{% endblock %}
 {% endblock %} 
