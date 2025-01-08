@@ -142,10 +142,11 @@
                         </div>
                         
                         <!-- User Profile -->
+                        {% if current_user.email %}
                         <div class="flex items-center gap-3 mb-3">
                             <div class="avatar placeholder">
                                 <div class="w-10 h-10 rounded-lg bg-primary text-primary-content">
-                                    <span>{{ current_user.email[0].upper() if current_user.email else 'U' }}</span>
+                                    <span>{{ current_user.email[0].upper() }}</span>
                                 </div>
                             </div>
                             <div class="flex-1 min-w-0">
@@ -153,6 +154,7 @@
                                 <div class="text-xs opacity-60">{{ current_user.role.capitalize() }}</div>
                             </div>
                         </div>
+                        {% endif %}
                         
                         <a href="{{ url_for('auth.logout') }}" 
                            class="btn btn-outline btn-error btn-sm w-full gap-2">
@@ -172,7 +174,7 @@
     </div>
 
     <!-- AI Assistant -->
-    {% if current_user.is_authenticated %}
+    {% if current_user.is_authenticated and current_user.email %}
     <div class="fixed bottom-6 right-6 z-50">
         <div class="dropdown dropdown-top dropdown-end">
             <button class="btn btn-circle btn-primary btn-lg shadow-lg hover:scale-105 transition-transform">
