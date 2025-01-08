@@ -137,21 +137,60 @@ def get_student(student_id):
 @role_required(['admin'])
 def update_student(student_id):
     """Update student details"""
-    data = request.json
-    update_data = {
-        'username': data.get('username'),
-        'student_id': data.get('student_id'),
-        'updated_at': datetime.utcnow().isoformat()
-    }
-    
-    # Update password if provided
-    if data.get('password'):
-        update_data['password_hash'] = generate_password_hash(data['password'])
-    
     try:
-        current_app.db.collection('users').document(student_id).update(update_data)
+        data = request.json
+        current_app.logger.info(f"Updating student {student_id} with data: {data}")
+        
+        # Validate required fields
+        required_fields = ['name', 'student_id', 'class', 'division']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Validate student ID format
+        student_id_new = str(data['student_id']).strip()
+        if not student_id_new.isalnum():
+            return jsonify({'error': 'Student ID must be alphanumeric without spaces'}), 400
+            
+        # Validate class
+        try:
+            class_num = int(data['class'])
+            if not 1 <= class_num <= 12:
+                return jsonify({'error': 'Class must be between 1 and 12'}), 400
+        except ValueError:
+            return jsonify({'error': 'Invalid class number'}), 400
+            
+        # Validate division
+        division = str(data['division']).strip().upper()
+        if division not in ['A', 'B', 'C', 'D']:
+            return jsonify({'error': 'Division must be A, B, C, or D'}), 400
+            
+        # Check if student exists
+        student_ref = current_app.db.collection('users').document(student_id)
+        if not student_ref.get().exists:
+            return jsonify({'error': 'Student not found'}), 404
+            
+        # Check if new student ID conflicts with existing one (excluding current student)
+        if student_id_new != data.get('student_id'):
+            existing = current_app.db.collection('users').where('student_id', '==', student_id_new).get()
+            if len(list(existing)) > 0:
+                return jsonify({'error': 'Student ID already exists'}), 400
+        
+        # Update student data
+        update_data = {
+            'name': str(data['name']).strip(),
+            'student_id': student_id_new,
+            'class': class_num,
+            'division': division,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        student_ref.update(update_data)
+        current_app.logger.info(f"Updated student {student_id}")
+        
         return jsonify({'message': 'Student updated successfully'})
+        
     except Exception as e:
+        current_app.logger.error(f"Error updating student: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/students/<student_id>', methods=['DELETE'])
@@ -380,4 +419,61 @@ def upload_students():
         })
     except Exception as e:
         current_app.logger.error(f"Error uploading students: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/students', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def create_student():
+    """Create a new student"""
+    try:
+        data = request.json
+        current_app.logger.info(f"Creating new student with data: {data}")
+        
+        # Validate required fields
+        required_fields = ['name', 'student_id', 'class', 'division']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Validate student ID format
+        student_id = str(data['student_id']).strip()
+        if not student_id.isalnum():
+            return jsonify({'error': 'Student ID must be alphanumeric without spaces'}), 400
+            
+        # Validate class
+        try:
+            class_num = int(data['class'])
+            if not 1 <= class_num <= 12:
+                return jsonify({'error': 'Class must be between 1 and 12'}), 400
+        except ValueError:
+            return jsonify({'error': 'Invalid class number'}), 400
+            
+        # Validate division
+        division = str(data['division']).strip().upper()
+        if division not in ['A', 'B', 'C', 'D']:
+            return jsonify({'error': 'Division must be A, B, C, or D'}), 400
+            
+        # Check if student ID already exists
+        existing = current_app.db.collection('users').where('student_id', '==', student_id).get()
+        if len(list(existing)) > 0:
+            return jsonify({'error': 'Student ID already exists'}), 400
+            
+        # Create student document
+        student_data = {
+            'name': str(data['name']).strip(),
+            'student_id': student_id,
+            'class': class_num,
+            'division': division,
+            'role': 'student',
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        # Add to database
+        doc_ref = current_app.db.collection('users').add(student_data)
+        current_app.logger.info(f"Created student with ID: {doc_ref[1].id}")
+        
+        return jsonify({'message': 'Student created successfully', 'id': doc_ref[1].id}), 201
+        
+    except Exception as e:
+        current_app.logger.error(f"Error creating student: {str(e)}")
         return jsonify({'error': str(e)}), 500 

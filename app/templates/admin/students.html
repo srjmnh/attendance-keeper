@@ -70,7 +70,7 @@
                     <td>{{ student.division }}</td>
                     <td>
                         <div class="flex justify-center gap-2">
-                            <button onclick='editStudent({{ student|tojson }})' 
+                            <button onclick="editStudent(JSON.parse('{{ student|tojson|safe }}'))" 
                                     class="btn btn-ghost btn-sm">
                                 <i class="ri-edit-line"></i>
                             </button>
