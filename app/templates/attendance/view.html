@@ -104,6 +104,7 @@
 <script>
 const user_role = "{{ user_role }}";
 let debounceTimer;
+let changedRecords = new Map();
 
 // Initialize filters and load data
 document.addEventListener('DOMContentLoaded', () => {
@@ -206,32 +207,21 @@ function displayAttendance(records) {
         row.dataset.docId = record.doc_id;
         row.innerHTML = `
             <td>${formatDateTime(record.timestamp)}</td>
-            <td>
-                <input type="text" class="input input-bordered input-sm w-full" 
-                       value="${record.student_id}" 
-                       onchange="handleFieldChange('${record.doc_id}', 'student_id', this.value)">
-            </td>
-            <td>
-                <input type="text" class="input input-bordered input-sm w-full" 
-                       value="${record.name}" 
-                       onchange="handleFieldChange('${record.doc_id}', 'name', this.value)">
-            </td>
-            <td>
-                <input type="text" class="input input-bordered input-sm w-full" 
-                       value="${record.subject_name || ''}" 
-                       onchange="handleFieldChange('${record.doc_id}', 'subject_name', this.value)">
-            </td>
+            <td>${record.student_id}</td>
+            <td>${record.name}</td>
+            <td>${record.subject_name || ''}</td>
             <td>
                 <select class="select select-bordered select-sm w-28" 
-                        onchange="handleFieldChange('${record.doc_id}', 'status', this.value)">
+                        onchange="handleStatusChange('${record.doc_id}', this.value)">
                     <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>Present</option>
                     <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>Absent</option>
                 </select>
             </td>
             <td class="text-center">
                 <div class="flex justify-center gap-2">
-                    <button onclick="saveChanges('${record.doc_id}')" 
-                            class="btn btn-ghost btn-sm text-success save-btn" disabled>
+                    <button onclick="saveStatus('${record.doc_id}')" 
+                            class="btn btn-ghost btn-sm text-success save-btn" 
+                            id="save-${record.doc_id}" disabled>
                         <i class="ri-save-line"></i>
                     </button>
                     ${user_role === 'admin' ? `
@@ -248,105 +238,71 @@ function displayAttendance(records) {
     console.log('Finished displaying records');
 }
 
-// Store changes before saving
-const pendingChanges = {};
-
-function handleFieldChange(docId, field, value) {
-    // Initialize changes object for this document if it doesn't exist
-    if (!pendingChanges[docId]) {
-        pendingChanges[docId] = {};
-    }
-    
-    // Store the change
-    pendingChanges[docId][field] = value;
-    
-    // Enable the save button for this row
-    const row = document.querySelector(`tr[data-doc-id="${docId}"]`);
-    if (row) {
-        const saveBtn = row.querySelector('.save-btn');
-        if (saveBtn) {
-            saveBtn.disabled = false;
-        }
+function handleStatusChange(docId, newStatus) {
+    changedRecords.set(docId, newStatus);
+    const saveBtn = document.getElementById(`save-${docId}`);
+    if (saveBtn) {
+        saveBtn.disabled = false;
     }
 }
 
-async function saveChanges(docId) {
-    if (!pendingChanges[docId]) {
-        return;
-    }
-    
+async function saveStatus(docId) {
     try {
-        const response = await fetch(`/attendance/api/attendance/update`, {
+        const newStatus = changedRecords.get(docId);
+        if (!newStatus) return;
+
+        const response = await fetch('/attendance/api/attendance/update', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                records: [{
-                    doc_id: docId,
-                    ...pendingChanges[docId]
-                }]
+                doc_id: docId,
+                status: newStatus
             })
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update record');
+            throw new Error('Failed to update status');
         }
 
-        // Clear pending changes for this record
-        delete pendingChanges[docId];
-        
-        // Disable save button
-        const row = document.querySelector(`tr[data-doc-id="${docId}"]`);
-        if (row) {
-            const saveBtn = row.querySelector('.save-btn');
-            if (saveBtn) {
-                saveBtn.disabled = true;
-            }
+        changedRecords.delete(docId);
+        const saveBtn = document.getElementById(`save-${docId}`);
+        if (saveBtn) {
+            saveBtn.disabled = true;
         }
 
-        showToast('Record updated successfully', 'success');
+        showToast('Status updated successfully', 'success');
     } catch (error) {
-        console.error('Error updating record:', error);
+        console.error('Error updating status:', error);
         showToast(error.message, 'error');
-        // Reload to reset the fields
-        loadAttendance();
     }
-}
-
-function formatDateTime(timestamp) {
-    if (!timestamp) return 'N/A';
-    const date = new Date(timestamp);
-    return date.toLocaleString();
 }
 
 async function deleteAttendance(docId) {
     if (!confirm('Are you sure you want to delete this attendance record?')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/attendance/api/attendance/${docId}`, {
             method: 'DELETE'
         });
-        
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to delete record');
+            throw new Error('Failed to delete attendance record');
         }
-        
-        showToast('Record deleted successfully', 'success');
+
+        showToast('Attendance record deleted successfully', 'success');
         loadAttendance();
     } catch (error) {
-        console.error('Error deleting record:', error);
+        console.error('Error deleting attendance:', error);
         showToast(error.message, 'error');
     }
 }
 
 async function exportAttendance() {
     try {
-        // Use the same filters as the current view
         const params = new URLSearchParams();
         params.append('date_range', document.getElementById('dateRange').value);
         
@@ -375,6 +331,18 @@ async function exportAttendance() {
         console.error('Error exporting attendance:', error);
         showToast(error.message, 'error');
     }
+}
+
+function formatDateTime(timestamp) {
+    if (!timestamp) return 'N/A';
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 </script>
 {% endblock %} 

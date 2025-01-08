@@ -4,20 +4,110 @@ A modern web-based attendance management system using facial recognition technol
 
 ## Features
 
+### Core Features
 - 🎯 Face Recognition-based Attendance
-- 👥 Student & Teacher Management
-- 📊 Real-time Attendance Dashboard
-- 📅 Attendance History & Reports
-- 📱 Responsive Design
-- 🔒 Role-based Access Control
+  - Real-time face detection and recognition
+  - Support for multiple faces in one image
+  - Enhanced image processing for better accuracy
+  - Confidence score for each recognition
+
+### Attendance Management
+- 📊 Comprehensive Attendance Dashboard
+  - Real-time attendance tracking
+  - Detailed attendance records with timestamps
+  - Inline editing of attendance records
+  - Bulk attendance updates
+  - Export to Excel functionality
+
+### Filtering & Search
+- 🔍 Advanced Filtering Options
+  - Date range filters (Today, Week, Month, Custom)
+  - Subject-wise filtering
+  - Status-based filtering (Present/Absent)
+  - Search by student name or ID
+  - Combined filters support
+
+### User Management
+- 👥 Role-based Access Control
+  - Admin: Full system access
+  - Teacher: Class-specific access
+  - Student: Personal attendance view
+- 📱 Responsive Design for all devices
 
 ## Tech Stack
 
 - **Backend**: Python Flask
 - **Database**: Firebase Firestore
 - **Face Recognition**: AWS Rekognition
-- **Frontend**: HTML, JavaScript, TailwindCSS, DaisyUI
+- **Frontend**: 
+  - HTML, JavaScript
+  - TailwindCSS
+  - DaisyUI for components
 - **Authentication**: Firebase Auth
+- **File Storage**: AWS S3
+
+## File Structure
+
+```
+attendance-keeper/
+├── app/
+│   ├── routes/
+│   │   ├── admin.py        # Admin panel routes
+│   │   ├── attendance.py   # Attendance management
+│   │   ├── auth.py        # Authentication routes
+│   │   ├── main.py        # Dashboard routes
+│   │   └── recognition.py # Face recognition endpoints
+│   ├── services/
+│   │   ├── db_service.py      # Database operations
+│   │   ├── rekognition_service.py # AWS Rekognition
+│   │   └── gemini_service.py  # AI Assistant
+│   ├── templates/
+│   │   ├── admin/
+│   │   │   ├── dashboard.html # Admin dashboard
+│   │   │   ├── students.html  # Student management
+│   │   │   └── subjects.html  # Subject management
+│   │   ├── attendance/
+│   │   │   ├── manage.html    # Take attendance
+│   │   │   └── view.html      # View/edit attendance
+│   │   ├── auth/
+│   │   │   ├── login.html     # Login page
+│   │   │   └── register.html  # Registration
+│   │   ├── base.html          # Base template
+│   │   └── dashboard.html     # Main dashboard
+│   ├── static/
+│   │   ├── css/
+│   │   │   └── main.css       # Custom styles
+│   │   └── js/
+│   │       └── main.js        # Common JavaScript
+│   └── __init__.py           # App initialization
+├── requirements.txt          # Python dependencies
+└── run.py                   # Application entry point
+```
+
+## API Endpoints
+
+### Authentication
+- `POST /auth/login` - User login
+- `POST /auth/register` - User registration
+- `GET /auth/logout` - User logout
+
+### Face Recognition
+- `POST /recognition/register` - Register a new face
+- `POST /recognize` - Recognize faces in image
+
+### Attendance Management
+- `GET /attendance/view` - View attendance records
+- `GET /api/attendance` - Get filtered attendance records
+- `POST /api/attendance/update` - Update attendance records
+- `DELETE /api/attendance/<id>` - Delete attendance record
+- `GET /api/attendance/export` - Export attendance to Excel
+- `POST /api/attendance/upload` - Upload attendance from Excel
+
+### Student Management
+- `GET /admin/students` - View all students
+- `POST /admin/students` - Add new student
+- `PUT /admin/students/<id>` - Update student
+- `DELETE /admin/students/<id>` - Delete student
 
 ## Prerequisites
 
@@ -47,10 +137,11 @@ FIREBASE_CREDENTIALS=path_to_firebase_credentials.json
    cd attendance-keeper
    ```
 
-2. Create and activate virtual environment:
+2. Create virtual environment:
    ```bash
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
    ```
 
 3. Install dependencies:
@@ -58,84 +149,30 @@ FIREBASE_CREDENTIALS=path_to_firebase_credentials.json
    pip install -r requirements.txt
    ```
 
-4. Set up Firebase:
-   - Create a new Firebase project
-   - Enable Authentication and Firestore
-   - Download service account key and save as `firebase_credentials.json`
-
-5. Set up AWS:
-   - Create an AWS account
-   - Set up IAM user with Rekognition access
-   - Configure AWS credentials
-
-## Running the Application
-
-1. Start the Flask server:
+4. Run the application:
    ```bash
    flask run
    ```
-
-2. Access the application at `http://localhost:5000`
-
-## Project Structure
-
-```
-attendance-keeper/
-├── app/
-│   ├── routes/
-│   │   ├── admin.py      # Admin routes
-│   │   ├── auth.py       # Authentication routes
-│   │   ├── main.py       # Main routes
-│   │   └── recognition.py # Face recognition routes
-│   ├── templates/
-│   │   ├── admin/        # Admin templates
-│   │   ├── auth/         # Auth templates
-│   │   └── dashboard.html # Main dashboard
-│   ├── static/
-│   │   ├── css/          # Stylesheets
-│   │   └── js/           # JavaScript files
-│   └── __init__.py       # App initialization
-├── requirements.txt
-└── README.md
-```
-
-## API Endpoints
-
-### Authentication
-- `POST /auth/login` - User login
-- `POST /auth/register` - User registration
-- `GET /auth/logout` - User logout
-
-### Face Recognition
-- `POST /recognition/register` - Register a new face
-- `POST /recognize` - Recognize faces in image
-
-### Student Management
-- `GET /api/students` - Get all students
-- `GET /api/students/template` - Download student template
-- `POST /api/students/upload` - Upload student data
-
-### Attendance
-- `GET /api/attendance` - Get attendance records
-- `GET /api/attendance/download` - Download attendance report
 
 ## User Roles
 
 1. **Admin**
    - Manage students and teachers
-   - View all attendance records
+   - View and edit all attendance records
    - Generate reports
    - Register faces
+   - Delete records
 
 2. **Teacher**
    - Take attendance using face recognition
-   - View class attendance
+   - View and edit class attendance
    - Register student faces
    - Download reports
 
 3. **Student**
    - View personal attendance
    - Check attendance history
+   - Download personal reports
 
 ## Contributing
 

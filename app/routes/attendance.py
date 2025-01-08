@@ -124,45 +124,36 @@ def get_attendance():
 @bp.route('/api/attendance/update', methods=['POST'])
 @role_required(['admin', 'teacher'])
 def update_attendance():
-    """Update attendance records"""
+    """Update attendance status"""
     try:
         data = request.get_json()
-        records = data.get('records', [])
+        doc_id = data.get('doc_id')
+        new_status = data.get('status')
         
-        for record in records:
-            doc_id = record.get('doc_id')
-            if not doc_id:
-                continue
+        if not doc_id or not new_status:
+            return jsonify({'error': 'Missing required fields'}), 400
                 
-            # Verify permissions
-            doc_ref = current_app.db.collection('attendance').document(doc_id)
-            doc = doc_ref.get()
-            if not doc.exists:
-                continue
+        # Verify permissions
+        doc_ref = current_app.db.collection('attendance').document(doc_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return jsonify({'error': 'Record not found'}), 404
                 
-            doc_data = doc.to_dict()
-            if current_user.role == 'teacher' and doc_data.get('subject_id') not in current_user.classes:
-                continue
+        doc_data = doc.to_dict()
+        if current_user.role == 'teacher' and doc_data.get('subject_id') not in current_user.classes:
+            return jsonify({'error': 'Unauthorized to update this record'}), 403
             
-            # Update record
-            update_data = {
-                'name': record.get('name'),
-                'student_id': record.get('student_id'),
-                'subject_name': record.get('subject_name'),
-                'status': record.get('status'),
-                'updated_at': datetime.now().isoformat(),
-                'updated_by': current_user.id
-            }
-            
-            # Only include fields that are provided
-            update_data = {k: v for k, v in update_data.items() if v is not None}
-            
-            if update_data:
-                doc_ref.update(update_data)
+        # Update status
+        update_data = {
+            'status': new_status,
+            'updated_at': datetime.now().isoformat(),
+            'updated_by': current_user.id
+        }
         
-        return jsonify({'message': 'Records updated successfully'})
+        doc_ref.update(update_data)
+        return jsonify({'message': 'Status updated successfully'})
     except Exception as e:
-        current_app.logger.error(f"Error updating attendance: {str(e)}")
+        current_app.logger.error(f"Error updating attendance status: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/attendance/<doc_id>', methods=['DELETE'])

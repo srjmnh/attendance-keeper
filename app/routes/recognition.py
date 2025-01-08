@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 from app.utils.decorators import role_required
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64
 import io
 from PIL import Image, ImageEnhance
@@ -150,21 +150,11 @@ def recognize_face():
     """Recognize faces in an image"""
     data = request.get_json()
     image_str = data.get('image')
-    subject_id = data.get('subject_id', '')
     
     if not image_str:
         return jsonify({"error": "No image provided"}), 400
 
     try:
-        # Get subject name if provided
-        subject_name = ""
-        if subject_id:
-            subject_doc = current_app.db.collection("subjects").document(subject_id).get()
-            if subject_doc.exists:
-                subject_name = subject_doc.to_dict().get("name", "")
-            else:
-                subject_name = "Unknown Subject"
-
         # Process image
         image_data = image_str.split(",")[1]
         image_bytes = base64.b64decode(image_data)
@@ -260,18 +250,27 @@ def recognize_face():
                     "division": student_division
                 })
 
-                # Log attendance
-                attendance_doc = {
-                    "student_id": student_id,
-                    "name": student_name,
-                    "class": student_class,
-                    "division": student_division,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "subject_id": subject_id,
-                    "subject_name": subject_name,
-                    "status": "PRESENT"
-                }
-                current_app.db.collection("attendance").add(attendance_doc)
+                # Check if attendance already exists for today
+                today = datetime.utcnow().date()
+                attendance_query = current_app.db.collection("attendance").where(
+                    'student_id', '==', student_id
+                ).where(
+                    'timestamp', '>=', today.isoformat()
+                ).where(
+                    'timestamp', '<', (today + timedelta(days=1)).isoformat()
+                ).get()
+
+                if not list(attendance_query):
+                    # Log attendance only if not already marked today
+                    attendance_doc = {
+                        "student_id": student_id,
+                        "name": student_name,
+                        "class": student_class,
+                        "division": student_division,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "status": "PRESENT"
+                    }
+                    current_app.db.collection("attendance").add(attendance_doc)
 
             except Exception as e:
                 identified_people.append({
