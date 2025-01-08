@@ -1,169 +1,439 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Students{% endblock %}
+{% block title %}Manage Students - AttendanceAI{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Manage Students</h2>
-    
-    <!-- Add Student Form -->
-    <div class="card mt-3">
-        <div class="card-header">
-            Add New Student
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Manage Students & Teachers</h1>
+            <p class="text-base-content/60">Add, edit, or remove students and teachers</p>
         </div>
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('admin.add_student') }}">
-                <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" class="form-control" id="username" name="username" required>
-                </div>
-                <div class="mb-3">
-                    <label for="student_id" class="form-label">Student ID</label>
-                    <input type="text" class="form-control" id="student_id" name="student_id" required>
-                </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="password" name="password" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Student</button>
-            </form>
+        
+        <div class="flex gap-2">
+            <div class="join">
+                <button onclick="downloadTemplate('student')" class="btn btn-outline join-item gap-2">
+                    <i class="ri-download-line"></i>
+                    Student Template
+                </button>
+                <button onclick="downloadTemplate('teacher')" class="btn btn-outline join-item gap-2">
+                    <i class="ri-download-line"></i>
+                    Teacher Template
+                </button>
+            </div>
+            <button onclick="document.getElementById('uploadModal').showModal()" class="btn btn-primary gap-2">
+                <i class="ri-upload-line"></i>
+                Upload
+            </button>
         </div>
     </div>
 
-    <!-- Students List -->
-    <div class="card mt-4">
-        <div class="card-header">
-            Existing Students
+    <!-- Tabs -->
+    <div class="tabs tabs-boxed">
+        <a class="tab tab-active" onclick="switchTab('students')">Students</a>
+        <a class="tab" onclick="switchTab('teachers')">Teachers</a>
+    </div>
+
+    <!-- Students Table -->
+    <div id="studentsSection" class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
+        <table class="table table-zebra">
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Division</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="studentsTableBody">
+                <!-- Student rows will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Teachers Table -->
+    <div id="teachersSection" class="overflow-x-auto bg-base-100 rounded-box shadow-sm hidden">
+        <table class="table table-zebra">
+            <thead>
+                <tr>
+                    <th>Teacher ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Assigned Classes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="teachersTableBody">
+                <!-- Teacher rows will be populated here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<dialog id="uploadModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Upload Data</h3>
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <div class="space-y-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Select Type</span>
+                </label>
+                <select id="uploadType" class="select select-bordered w-full">
+                    <option value="student">Student Data</option>
+                    <option value="teacher">Teacher Data</option>
+                </select>
+            </div>
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Excel File</span>
+                </label>
+                <input type="file" id="uploadFile" accept=".xlsx,.xls" class="file-input file-input-bordered w-full" />
+            </div>
+            <button onclick="uploadFile()" class="btn btn-primary w-full gap-2">
+                <i class="ri-upload-line"></i>
+                Upload
+            </button>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Student ID</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for student in students %}
-                        <tr>
-                            <td>{{ student.username }}</td>
-                            <td>{{ student.student_id }}</td>
-                            <td>
-                                <button class="btn btn-sm btn-warning" onclick="editStudent('{{ student.id }}')">Edit</button>
-                                <button class="btn btn-sm btn-danger" onclick="deleteStudent('{{ student.id }}')">Delete</button>
-                            </td>
-                        </tr>
+    </div>
+</dialog>
+
+<!-- Edit Modal -->
+<dialog id="editModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Edit Details</h3>
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <form id="editForm" class="space-y-4">
+            <input type="hidden" id="editId">
+            <input type="hidden" id="editType">
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Name</span>
+                </label>
+                <input type="text" id="editName" class="input input-bordered" required>
+            </div>
+            
+            <div id="studentFields">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Student ID</span>
+                    </label>
+                    <input type="text" id="editStudentId" class="input input-bordered" required>
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Class</span>
+                    </label>
+                    <select id="editClass" class="select select-bordered">
+                        {% for class in range(1, 13) %}
+                            <option value="{{ class }}">Class {{ class }}</option>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Division</span>
+                    </label>
+                    <select id="editDivision" class="select select-bordered">
+                        {% for div in ['A', 'B', 'C', 'D'] %}
+                            <option value="{{ div }}">Division {{ div }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
-        </div>
+            
+            <div id="teacherFields" style="display: none;">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Teacher ID</span>
+                    </label>
+                    <input type="text" id="editTeacherId" class="input input-bordered">
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Email</span>
+                    </label>
+                    <input type="email" id="editEmail" class="input input-bordered">
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Assigned Classes</span>
+                    </label>
+                    <select id="editAssignedClasses" class="select select-bordered" multiple>
+                        {% for class in range(1, 13) %}
+                            <option value="{{ class }}">Class {{ class }}</option>
+                        {% endfor %}
+                    </select>
+                    <label class="label">
+                        <span class="label-text-alt">Hold Ctrl/Cmd to select multiple classes</span>
+                    </label>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full gap-2">
+                <i class="ri-save-line"></i>
+                Save Changes
+            </button>
+        </form>
     </div>
-</div>
-
-<!-- Edit Student Modal -->
-<div class="modal fade" id="editStudentModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Student</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editStudentForm">
-                    <input type="hidden" id="edit_student_id">
-                    <div class="mb-3">
-                        <label for="edit_username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="edit_username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_student_number" class="form-label">Student ID</label>
-                        <input type="text" class="form-control" id="edit_student_number" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_password" class="form-label">New Password (leave blank to keep current)</label>
-                        <input type="password" class="form-control" id="edit_password">
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="saveStudentChanges()">Save Changes</button>
-            </div>
-        </div>
-    </div>
-</div>
-
+</dialog>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
-function editStudent(studentId) {
-    fetch(`/admin/api/students/${studentId}`)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('edit_student_id').value = studentId;
-            document.getElementById('edit_username').value = data.username;
-            document.getElementById('edit_student_number').value = data.student_id;
-            new bootstrap.Modal(document.getElementById('editStudentModal')).show();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error loading student data');
-        });
+let currentTab = 'students';
+
+// Switch between students and teachers tabs
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
+    event.target.classList.add('tab-active');
+    
+    document.getElementById('studentsSection').classList.toggle('hidden', tab !== 'students');
+    document.getElementById('teachersSection').classList.toggle('hidden', tab !== 'teachers');
+    
+    if (tab === 'students') {
+        loadStudents();
+    } else {
+        loadTeachers();
+    }
 }
 
-function saveStudentChanges() {
-    const studentId = document.getElementById('edit_student_id').value;
-    const data = {
-        username: document.getElementById('edit_username').value,
-        student_id: document.getElementById('edit_student_number').value,
-        password: document.getElementById('edit_password').value
-    };
-
-    fetch(`/admin/api/students/${studentId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert(data.error);
-        } else {
-            location.reload();
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error saving changes');
-    });
+// Load students data
+async function loadStudents() {
+    try {
+        const response = await fetch('/api/students');
+        const students = await response.json();
+        
+        const tbody = document.getElementById('studentsTableBody');
+        tbody.innerHTML = students.map(student => `
+            <tr>
+                <td>${student.student_id}</td>
+                <td>${student.name}</td>
+                <td>Class ${student.class}</td>
+                <td>${student.division}</td>
+                <td>
+                    <div class="flex gap-2">
+                        <button onclick="editRecord('student', ${JSON.stringify(student).replace(/"/g, '&quot;')})" 
+                                class="btn btn-ghost btn-sm">
+                            <i class="ri-edit-line"></i>
+                        </button>
+                        <button onclick="deleteRecord('student', '${student.id}')" 
+                                class="btn btn-ghost btn-sm text-error">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading students:', error);
+        showToast('Failed to load students', 'error');
+    }
 }
 
-function deleteStudent(studentId) {
-    if (!confirm('Are you sure you want to delete this student?')) {
+// Load teachers data
+async function loadTeachers() {
+    try {
+        const response = await fetch('/api/teachers');
+        const teachers = await response.json();
+        
+        const tbody = document.getElementById('teachersTableBody');
+        tbody.innerHTML = teachers.map(teacher => `
+            <tr>
+                <td>${teacher.teacher_id}</td>
+                <td>${teacher.name}</td>
+                <td>${teacher.email}</td>
+                <td>${teacher.assigned_classes.join(', ')}</td>
+                <td>
+                    <div class="flex gap-2">
+                        <button onclick="editRecord('teacher', ${JSON.stringify(teacher).replace(/"/g, '&quot;')})" 
+                                class="btn btn-ghost btn-sm">
+                            <i class="ri-edit-line"></i>
+                        </button>
+                        <button onclick="deleteRecord('teacher', '${teacher.id}')" 
+                                class="btn btn-ghost btn-sm text-error">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading teachers:', error);
+        showToast('Failed to load teachers', 'error');
+    }
+}
+
+// Download template
+function downloadTemplate(type) {
+    window.location.href = `/api/${type}s/template`;
+}
+
+// Upload file
+async function uploadFile() {
+    const file = document.getElementById('uploadFile').files[0];
+    const type = document.getElementById('uploadType').value;
+    
+    if (!file) {
+        showToast('Please select a file', 'warning');
         return;
     }
-
-    fetch(`/admin/api/students/${studentId}`, {
-        method: 'DELETE'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert(data.error);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch(`/api/${type}s/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showToast('Upload successful', 'success');
+            document.getElementById('uploadModal').close();
+            if (type === currentTab) {
+                loadStudents();
+            }
         } else {
-            location.reload();
+            showToast(result.error || 'Upload failed', 'error');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error deleting student');
-    });
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        showToast('Upload failed', 'error');
+    }
 }
+
+// Edit record
+function editRecord(type, record) {
+    document.getElementById('editType').value = type;
+    document.getElementById('editId').value = record.id;
+    document.getElementById('editName').value = record.name;
+    
+    // Show/hide appropriate fields
+    document.getElementById('studentFields').style.display = type === 'student' ? 'block' : 'none';
+    document.getElementById('teacherFields').style.display = type === 'teacher' ? 'block' : 'none';
+    
+    if (type === 'student') {
+        document.getElementById('editStudentId').value = record.student_id;
+        document.getElementById('editClass').value = record.class;
+        document.getElementById('editDivision').value = record.division;
+    } else {
+        document.getElementById('editTeacherId').value = record.teacher_id;
+        document.getElementById('editEmail').value = record.email;
+        // Set selected classes
+        const select = document.getElementById('editAssignedClasses');
+        Array.from(select.options).forEach(option => {
+            option.selected = record.assigned_classes.includes(parseInt(option.value));
+        });
+    }
+    
+    document.getElementById('editModal').showModal();
+}
+
+// Handle form submission
+document.getElementById('editForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const type = document.getElementById('editType').value;
+    const id = document.getElementById('editId').value;
+    
+    const data = {
+        name: document.getElementById('editName').value
+    };
+    
+    if (type === 'student') {
+        Object.assign(data, {
+            student_id: document.getElementById('editStudentId').value,
+            class: document.getElementById('editClass').value,
+            division: document.getElementById('editDivision').value
+        });
+    } else {
+        const assignedClasses = Array.from(document.getElementById('editAssignedClasses').selectedOptions)
+            .map(option => parseInt(option.value));
+        
+        Object.assign(data, {
+            teacher_id: document.getElementById('editTeacherId').value,
+            email: document.getElementById('editEmail').value,
+            assigned_classes: assignedClasses
+        });
+    }
+    
+    try {
+        const response = await fetch(`/api/${type}s/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            showToast('Changes saved successfully', 'success');
+            document.getElementById('editModal').close();
+            if (type === currentTab) {
+                type === 'student' ? loadStudents() : loadTeachers();
+            }
+        } else {
+            const result = await response.json();
+            showToast(result.error || 'Failed to save changes', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving changes:', error);
+        showToast('Failed to save changes', 'error');
+    }
+});
+
+// Delete record
+async function deleteRecord(type, id) {
+    if (!confirm(`Are you sure you want to delete this ${type}?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/${type}s/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully`, 'success');
+            if (type === currentTab) {
+                type === 'student' ? loadStudents() : loadTeachers();
+            }
+        } else {
+            const result = await response.json();
+            showToast(result.error || 'Failed to delete record', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting record:', error);
+        showToast('Failed to delete record', 'error');
+    }
+}
+
+// Show toast message
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Initial load
+loadStudents();
 </script>
 {% endblock %} 
