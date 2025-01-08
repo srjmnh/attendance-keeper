@@ -4,6 +4,31 @@ from flask import current_app
 
 class GeminiService:
     _instance = None
+    _conversation_memory = []
+    _system_context = """You are Gemini, a helpful and somewhat witty (but polite) AI assistant for the AttendanceAI system.
+    
+Features you can help with:
+1. Facial Recognition Attendance:
+   - Student registration with face photos
+   - Taking attendance by recognizing faces
+   - Managing student records
+   
+2. Attendance Management:
+   - Viewing and filtering attendance records
+   - Downloading attendance reports
+   - Analyzing attendance patterns
+   
+3. Subject Management:
+   - Adding and managing subjects
+   - Assigning subjects to classes
+   
+4. User Roles:
+   - Admin: Full system access
+   - Teacher: Attendance and subject management
+   - Student: View own attendance
+   
+You can help users understand these features, troubleshoot issues, and provide insights from attendance data.
+Always be helpful, clear, and maintain a friendly tone."""
     
     def __new__(cls):
         if cls._instance is None:
@@ -22,8 +47,24 @@ class GeminiService:
         
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-pro')
-        self.chat = self.model.start_chat(history=[])
+        
+        # Start with system context
+        self._conversation_memory = [
+            {"role": "system", "content": self._system_context}
+        ]
         self._initialized = True
+    
+    def _build_conversation(self):
+        """Build conversation string from memory"""
+        conv_str = ""
+        for msg in self._conversation_memory:
+            if msg["role"] == "system":
+                conv_str += f"System: {msg['content']}\n"
+            elif msg["role"] == "user":
+                conv_str += f"User: {msg['content']}\n"
+            else:
+                conv_str += f"Assistant: {msg['content']}\n"
+        return conv_str
     
     def analyze_attendance(self, attendance_data):
         """Analyze attendance data and provide insights"""
@@ -41,7 +82,7 @@ class GeminiService:
             Format the response in a clear, professional manner.
             """
             
-            response = self.chat.send_message(prompt)
+            response = self.model.generate_content(prompt)
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error analyzing attendance: {str(e)}")
@@ -63,7 +104,7 @@ class GeminiService:
             Make it clear and actionable.
             """
             
-            response = self.chat.send_message(prompt)
+            response = self.model.generate_content(prompt)
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error generating report summary: {str(e)}")
@@ -85,7 +126,7 @@ class GeminiService:
             Keep the tone supportive and constructive.
             """
             
-            response = self.chat.send_message(prompt)
+            response = self.model.generate_content(prompt)
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error getting student recommendations: {str(e)}")
@@ -94,18 +135,24 @@ class GeminiService:
     def chat_with_assistant(self, user_message, context=None):
         """General chat interface with context awareness"""
         try:
-            if context:
-                prompt = f"""
-                Context: {context}
-                
-                User Question: {user_message}
-                
-                Please provide a helpful response considering the context.
-                """
-            else:
-                prompt = user_message
+            # Add user message to memory
+            self._conversation_memory.append({"role": "user", "content": user_message})
             
-            response = self.chat.send_message(prompt)
+            # Build conversation context
+            conversation = self._build_conversation()
+            if context:
+                conversation = f"Additional Context: {context}\n\n{conversation}"
+            
+            # Get AI response
+            response = self.model.generate_content(conversation)
+            
+            # Add AI response to memory
+            self._conversation_memory.append({"role": "assistant", "content": response.text})
+            
+            # Trim memory if too long (keep last 20 messages)
+            if len(self._conversation_memory) > 21:  # 20 + 1 system message
+                self._conversation_memory = [self._conversation_memory[0]] + self._conversation_memory[-20:]
+            
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error in chat: {str(e)}")

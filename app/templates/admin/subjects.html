@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Subjects{% endblock %}
+
+{% block breadcrumbs %}
+<li><a href="{{ url_for('admin.admin_dashboard') }}">Admin</a></li>
+<li>Subjects</li>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h1 class="text-2xl font-bold">Manage Subjects</h1>
+        <button onclick="openAddModal()" class="btn btn-primary gap-2">
+            <span class="material-icons-round">add</span>
+            Add Subject
+        </button>
+    </div>
+
+    <!-- Subjects Table -->
+    <div class="card bg-base-100 shadow-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Details</th>
+                        <th class="w-24">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subject in subjects %}
+                    <tr>
+                        <td>{{ subject.name }}</td>
+                        <td>{{ subject.details or 'No details provided' }}</td>
+                        <td>
+                            <div class="flex gap-2">
+                                <button onclick="openEditModal('{{ subject.id }}', '{{ subject.name }}', '{{ subject.details }}')" 
+                                        class="btn btn-ghost btn-sm">
+                                    <span class="material-icons-round text-warning">edit</span>
+                                </button>
+                                <button onclick="deleteSubject('{{ subject.id }}')" 
+                                        class="btn btn-ghost btn-sm">
+                                    <span class="material-icons-round text-error">delete</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center py-4 text-base-content/70">
+                            No subjects found. Click "Add Subject" to create one.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Subject Modal -->
+<dialog id="subjectModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4" id="modalTitle">Add Subject</h3>
+        <form method="POST" id="subjectForm">
+            <input type="hidden" name="subject_id" id="subject_id">
+            
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">Subject Name</span>
+                </label>
+                <input type="text" name="subject_name" id="subject_name" 
+                       class="input input-bordered w-full" required>
+            </div>
+            
+            <div class="form-control w-full mb-6">
+                <label class="label">
+                    <span class="label-text">Details</span>
+                </label>
+                <textarea name="subject_details" id="subject_details" 
+                          class="textarea textarea-bordered h-24"></textarea>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Delete Confirmation Modal -->
+<dialog id="deleteModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Delete Subject</h3>
+        <p>Are you sure you want to delete this subject? This action cannot be undone.</p>
+        <div class="modal-action">
+            <button class="btn" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn btn-error" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+{% block extra_js %}
+<script>
+const subjectModal = document.getElementById('subjectModal');
+const deleteModal = document.getElementById('deleteModal');
+let subjectToDelete = null;
+
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Add Subject';
+    document.getElementById('subject_id').value = '';
+    document.getElementById('subject_name').value = '';
+    document.getElementById('subject_details').value = '';
+    subjectModal.showModal();
+}
+
+function openEditModal(id, name, details) {
+    document.getElementById('modalTitle').textContent = 'Edit Subject';
+    document.getElementById('subject_id').value = id;
+    document.getElementById('subject_name').value = name;
+    document.getElementById('subject_details').value = details;
+    subjectModal.showModal();
+}
+
+function closeModal() {
+    subjectModal.close();
+}
+
+function deleteSubject(id) {
+    subjectToDelete = id;
+    deleteModal.showModal();
+}
+
+function closeDeleteModal() {
+    deleteModal.close();
+    subjectToDelete = null;
+}
+
+async function confirmDelete() {
+    if (!subjectToDelete) return;
+    
+    try {
+        const response = await fetch(`/admin/subjects/${subjectToDelete}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            showToast('Subject deleted successfully', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to delete subject', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Error deleting subject', 'error');
+    }
+    
+    closeDeleteModal();
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} shadow-lg max-w-sm animate-fade-in fixed bottom-4 right-4 z-50`;
+    
+    const icon = document.createElement('span');
+    icon.className = 'material-icons-round';
+    icon.textContent = type === 'success' ? 'check_circle' :
+                      type === 'error' ? 'error' :
+                      type === 'warning' ? 'warning' :
+                      'info';
+    
+    const text = document.createElement('span');
+    text.textContent = message;
+    
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+</script>
+{% endblock %}
+{% endblock %} 
