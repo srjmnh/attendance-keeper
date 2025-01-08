@@ -245,3 +245,18 @@ def upload_attendance():
     except Exception as e:
         current_app.logger.error(f"Error uploading attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500 
+
+@bp.route('/view')
+@login_required
+def view_attendance():
+    """View attendance records"""
+    # Get subjects for teachers and admins
+    subjects = []
+    if current_user.role in ['admin', 'teacher']:
+        subjects_ref = current_app.db.collection('subjects').stream()
+        subjects = [{
+            'id': doc.id,
+            'name': doc.to_dict().get('name', '')
+        } for doc in subjects_ref]
+    
+    return render_template('attendance/view.html', subjects=subjects)

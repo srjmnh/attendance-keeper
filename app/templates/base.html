@@ -115,7 +115,13 @@
                             <a href="{{ url_for('attendance.index') }}"
                                class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.index' %}bg-primary text-primary-content{% endif %}">
                                 <i class="ri-calendar-check-line text-lg"></i>
-                                <span>Attendance</span>
+                                <span>Take Attendance</span>
+                            </a>
+                            
+                            <a href="{{ url_for('attendance.view_attendance') }}"
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-file-list-line text-lg"></i>
+                                <span>View Attendance</span>
                             </a>
                             
                             <a href="{{ url_for('admin.manage_subjects') }}"
