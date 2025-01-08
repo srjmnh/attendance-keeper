@@ -214,18 +214,25 @@ def get_students():
 def get_student_template():
     """Get student data template"""
     try:
-        # Create Excel template
-        df = pd.DataFrame(columns=[
-            'name',
-            'student_id',
-            'class',
-            'division'
-        ])
+        # Create Excel template with example data
+        data = {
+            'name': ['John Doe', 'Jane Smith'],
+            'student_id': ['STU001', 'STU002'],
+            'class': [10, 11],
+            'division': ['A', 'B']
+        }
+        df = pd.DataFrame(data)
         
         # Create Excel file in memory
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
+            # Adjust column widths
+            worksheet = writer.sheets['Sheet1']
+            for idx, col in enumerate(df.columns):
+                max_length = max(df[col].astype(str).apply(len).max(), len(col))
+                worksheet.column_dimensions[chr(65 + idx)].width = max_length + 2
+        
         output.seek(0)
         
         return send_file(
@@ -259,25 +266,44 @@ def upload_students():
             return jsonify({'error': 'Invalid template format. Please use the provided template'}), 400
             
         # Process each row
+        success_count = 0
+        error_count = 0
         for _, row in df.iterrows():
-            student_data = {
-                'name': row['name'],
-                'student_id': str(row['student_id']),
-                'class': int(row['class']),
-                'division': str(row['division']),
-                'role': 'student',
-                'created_at': datetime.utcnow().isoformat()
-            }
-            
-            # Check if student already exists
-            existing = current_app.db.collection('users').where('student_id', '==', str(row['student_id'])).get()
-            if len(list(existing)) > 0:
-                continue  # Skip existing students
+            try:
+                # Validate data
+                if not all(str(row[col]).strip() for col in required_columns):
+                    error_count += 1
+                    continue
+
+                student_data = {
+                    'name': str(row['name']).strip(),
+                    'student_id': str(row['student_id']).strip(),
+                    'class': int(row['class']),
+                    'division': str(row['division']).strip().upper(),
+                    'role': 'student',
+                    'created_at': datetime.utcnow().isoformat()
+                }
                 
-            # Add new student
-            current_app.db.collection('users').add(student_data)
+                # Check if student already exists
+                existing = current_app.db.collection('users').where('student_id', '==', student_data['student_id']).get()
+                if len(list(existing)) > 0:
+                    error_count += 1
+                    continue
+                    
+                # Add new student
+                current_app.db.collection('users').add(student_data)
+                success_count += 1
+                
+            except Exception as e:
+                current_app.logger.error(f"Error processing row: {str(e)}")
+                error_count += 1
+                continue
             
-        return jsonify({'message': 'Students uploaded successfully'})
+        return jsonify({
+            'message': f'Upload completed. {success_count} students added successfully, {error_count} errors.',
+            'success_count': success_count,
+            'error_count': error_count
+        })
     except Exception as e:
         current_app.logger.error(f"Error uploading students: {str(e)}")
         return jsonify({'error': str(e)}), 500 

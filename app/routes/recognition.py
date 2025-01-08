@@ -177,7 +177,7 @@ def recognize_face():
             try:
                 # Search for face match
                 search_response = current_app.rekognition.search_faces_by_image(
-                    CollectionId=COLLECTION_ID,  # Use the hardcoded collection ID
+                    CollectionId=COLLECTION_ID,
                     Image={'Bytes': cropped_face_bytes},
                     MaxFaces=1,
                     FaceMatchThreshold=60
@@ -196,30 +196,42 @@ def recognize_face():
                 ext_id = match['Face']['ExternalImageId']
                 confidence = match['Face']['Confidence']
 
-                # Extract name and ID
-                parts = ext_id.split("_", 1)
-                if len(parts) == 2:
-                    rec_name, rec_id = parts
-                else:
-                    rec_name, rec_id = ext_id, "Unknown"
+                # Get student details from Firestore
+                student_query = current_app.db.collection('users').where('face_id', '==', ext_id).limit(1).get()
+                if not student_query:
+                    identified_people.append({
+                        "message": "Student data not found",
+                        "confidence": confidence
+                    })
+                    continue
+
+                student_doc = list(student_query)[0]
+                student_data = student_doc.to_dict()
+                student_name = student_data.get('name', 'Unknown')
+                student_id = student_data.get('student_id', 'Unknown')
+                student_class = student_data.get('class', '')
+                student_division = student_data.get('division', '')
 
                 identified_people.append({
-                    "name": rec_name,
-                    "student_id": rec_id,
-                    "confidence": confidence
+                    "name": student_name,
+                    "student_id": student_id,
+                    "confidence": confidence,
+                    "class": student_class,
+                    "division": student_division
                 })
 
-                # Log attendance if recognized
-                if rec_id != "Unknown":
-                    attendance_doc = {
-                        "student_id": rec_id,
-                        "name": rec_name,
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "subject_id": subject_id,
-                        "subject_name": subject_name,
-                        "status": "PRESENT"
-                    }
-                    current_app.db.collection("attendance").add(attendance_doc)
+                # Log attendance
+                attendance_doc = {
+                    "student_id": student_id,
+                    "name": student_name,
+                    "class": student_class,
+                    "division": student_division,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "subject_id": subject_id,
+                    "subject_name": subject_name,
+                    "status": "PRESENT"
+                }
+                current_app.db.collection("attendance").add(attendance_doc)
 
             except Exception as e:
                 identified_people.append({

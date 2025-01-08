@@ -232,6 +232,17 @@
         </div>
     </div>
 </dialog>
+
+<!-- Recognition Success Modal -->
+<dialog id="recognitionSuccessModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Recognition Results</h3>
+        <div id="recognitionSuccessMessage" class="prose"></div>
+        <div class="modal-action">
+            <button class="btn btn-primary" onclick="document.getElementById('recognitionSuccessModal').close()">OK</button>
+        </div>
+    </div>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -419,7 +430,6 @@ async function recognizeFaces(imageData, subjectId, subjectName) {
         recognitionModal.showModal();
         updateRecognitionProgress(0, 'Starting face recognition...');
 
-        // Clean the base64 image data if it's a data URL
         const base64Image = imageData.includes('base64') ? imageData : `data:image/jpeg;base64,${imageData}`;
 
         const response = await fetch('/recognize', {
@@ -442,24 +452,44 @@ async function recognizeFaces(imageData, subjectId, subjectName) {
         const result = await response.json();
         updateRecognitionProgress(50, 'Processing faces...');
 
-        // Process results
         const totalFaces = result.total_faces;
         const identified = result.identified_people;
 
         updateRecognitionProgress(75, `Found ${totalFaces} face(s)...`);
 
-        // Show results
-        let message = `${totalFaces} face(s) detected.\n`;
-        identified.forEach(person => {
-            if (person.name) {
-                message += `\n${person.name} (${Math.round(person.confidence)}% confidence)`;
-            } else {
-                message += `\n${person.message}`;
-            }
-        });
+        // Show results in success modal
+        let message = `<div class="space-y-4">`;
+        message += `<p class="text-lg font-medium">Found ${totalFaces} face(s) in the image.</p>`;
+        
+        if (identified.length > 0) {
+            message += `<div class="space-y-2">`;
+            identified.forEach(person => {
+                if (person.name) {
+                    message += `
+                        <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg">
+                            <i class="ri-user-smile-line text-success text-xl"></i>
+                            <div>
+                                <p class="font-medium">${person.name}</p>
+                                <p class="text-sm opacity-70">Confidence: ${Math.round(person.confidence)}%</p>
+                            </div>
+                        </div>`;
+                } else {
+                    message += `
+                        <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg">
+                            <i class="ri-user-unfollow-line text-error text-xl"></i>
+                            <p>${person.message}</p>
+                        </div>`;
+                }
+            });
+            message += `</div>`;
+        }
+        message += `</div>`;
 
-        updateRecognitionProgress(100, message);
-        showToast('Recognition completed successfully', 'success');
+        // Hide progress modal and show success modal
+        recognitionModal.close();
+        document.getElementById('recognitionSuccessMessage').innerHTML = message;
+        document.getElementById('recognitionSuccessModal').showModal();
+
         return result;
     } catch (error) {
         console.error('Recognition error:', error);
