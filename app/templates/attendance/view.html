@@ -258,14 +258,19 @@ function displayAttendance(records) {
 
     // Add the handleFieldChange function
     function handleFieldChange(docId, field, value) {
+        console.log(`Field change: docId=${docId}, field=${field}, value=${value}`);
         if (!changedRecords.has(docId)) {
             changedRecords.set(docId, {});
         }
         changedRecords.get(docId)[field] = value;
+        
         const saveBtn = document.getElementById(`save-${docId}`);
         if (saveBtn) {
             saveBtn.disabled = false;
+            saveBtn.classList.remove('opacity-50');
+            saveBtn.classList.add('hover:text-success');
         }
+        console.log('Updated changedRecords:', changedRecords);
     }
 
     // Update the saveChanges function
@@ -274,7 +279,12 @@ function displayAttendance(records) {
             const changes = changedRecords.get(docId);
             if (!changes) return;
 
-            const response = await fetch('/attendance/api/attendance/update', {
+            const saveBtn = document.getElementById(`save-${docId}`);
+            if (saveBtn) {
+                saveBtn.disabled = true; // Disable while saving
+            }
+
+            const response = await fetch('/api/attendance/update', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -285,21 +295,21 @@ function displayAttendance(records) {
                 })
             });
 
+            const result = await response.json();
             if (!response.ok) {
-                throw new Error('Failed to save changes');
+                throw new Error(result.error || 'Failed to save changes');
             }
 
             changedRecords.delete(docId);
-            const saveBtn = document.getElementById(`save-${docId}`);
-            if (saveBtn) {
-                saveBtn.disabled = true;
-            }
-
             showToast('Changes saved successfully', 'success');
             loadAttendance();  // Reload to show updated data
         } catch (error) {
             console.error('Error saving changes:', error);
             showToast(error.message, 'error');
+            const saveBtn = document.getElementById(`save-${docId}`);
+            if (saveBtn) {
+                saveBtn.disabled = false; // Re-enable on error
+            }
         }
     }
 
