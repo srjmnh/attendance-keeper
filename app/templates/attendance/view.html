@@ -134,7 +134,7 @@ async function saveChanges(docId) {
             saveBtn.disabled = true; // Disable while saving
         }
 
-        const response = await fetch('/api/attendance/update', {
+        const response = await fetch('/attendance/api/attendance/update', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -166,7 +166,7 @@ async function saveChanges(docId) {
 // Initialize filters and load data
 document.addEventListener('DOMContentLoaded', () => {
     // Set up event listeners
-    document.getElementById('dateRange').addEventListener('change', loadAttendance);
+    document.getElementById('dateRange').addEventListener('change', handleDateRangeChange);
     document.getElementById('dateFrom').addEventListener('change', loadAttendance);
     document.getElementById('dateTo').addEventListener('change', loadAttendance);
     document.getElementById('subjectFilter')?.addEventListener('change', loadAttendance);
@@ -184,45 +184,61 @@ function handleDateRangeChange() {
     const dateRange = document.getElementById('dateRange').value;
     const customDateContainer = document.getElementById('customDateContainer');
     customDateContainer.style.display = dateRange === 'custom' ? 'block' : 'none';
-    loadAttendance();
+    if (dateRange !== 'custom') {
+        loadAttendance();  // Only call loadAttendance if not custom (custom will trigger through date input changes)
+    }
 }
 
 async function loadAttendance() {
     try {
         // Build query parameters
         const params = new URLSearchParams();
-        params.append('date_range', document.getElementById('dateRange').value);
+        const dateRange = document.getElementById('dateRange').value;
+        params.append('date_range', dateRange);
         
-        if (document.getElementById('dateRange').value === 'custom') {
-            params.append('date_from', document.getElementById('dateFrom').value);
-            params.append('date_to', document.getElementById('dateTo').value);
+        console.log('Selected date range:', dateRange);
+        
+        if (dateRange === 'custom') {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            console.log('Custom date range:', { dateFrom, dateTo });
+            
+            if (dateFrom && dateTo) {
+                params.append('date_from', dateFrom);
+                params.append('date_to', dateTo);
+            }
         }
 
         const subjectFilter = document.getElementById('subjectFilter');
         if (subjectFilter?.value) {
+            console.log('Subject filter:', subjectFilter.value);
             params.append('subject_id', subjectFilter.value);
         }
 
         const statusFilter = document.getElementById('statusFilter');
         if (statusFilter?.value) {
+            console.log('Status filter:', statusFilter.value);
             params.append('status', statusFilter.value);
         }
 
         const searchInput = document.getElementById('searchInput');
         if (searchInput?.value) {
+            console.log('Search filter:', searchInput.value);
             params.append('search', searchInput.value);
         }
 
-        console.log('Fetching attendance with params:', params.toString());
+        const url = `/attendance/api/attendance?${params.toString()}`;
+        console.log('Fetching attendance from URL:', url);
 
         // Fetch attendance data
-        const response = await fetch(`/attendance/api/attendance?${params.toString()}`);
+        const response = await fetch(url);
         if (!response.ok) {
-            throw new Error('Failed to load attendance data');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to load attendance data');
         }
 
         const records = await response.json();
-        console.log('Received records:', records);
+        console.log('Received records:', records.length);
         displayAttendance(records);
     } catch (error) {
         console.error('Error loading attendance:', error);
@@ -321,8 +337,9 @@ async function deleteAttendance(docId) {
             method: 'DELETE'
         });
 
+        const result = await response.json();
         if (!response.ok) {
-            throw new Error('Failed to delete attendance record');
+            throw new Error(result.error || 'Failed to delete attendance record');
         }
 
         showToast('Attendance record deleted successfully', 'success');
