@@ -1,69 +1,42 @@
 # AttendanceAI - Face Recognition Attendance System
 
-A modern, AI-powered attendance management system built with Flask, AWS Rekognition, and Firebase. The system uses facial recognition to automate attendance tracking for educational institutions.
+A modern web-based attendance management system using facial recognition technology. Built with Flask, AWS Rekognition, and Firebase.
 
 ## Features
 
-- **Face Recognition Attendance**
-  - Real-time face detection and recognition
-  - Support for group photos
-  - Progress tracking during recognition
-  - High accuracy with AWS Rekognition
-
-- **User Management**
-  - Multi-role system (Admin, Teacher, Student)
-  - Secure authentication
-  - Profile management
-  - Bulk user import via Excel
-
-- **Attendance Management**
-  - Real-time attendance tracking
-  - Historical attendance records
-  - Attendance reports and analytics
-  - Export functionality
-  - Subject-wise attendance
-
-- **Dashboard**
-  - Real-time statistics
-  - Attendance trends visualization
-  - Recent activity feed
-  - Role-based views
+- 🎯 Face Recognition-based Attendance
+- 👥 Student & Teacher Management
+- 📊 Real-time Attendance Dashboard
+- 📅 Attendance History & Reports
+- 📱 Responsive Design
+- 🔒 Role-based Access Control
 
 ## Tech Stack
 
 - **Backend**: Python Flask
 - **Database**: Firebase Firestore
 - **Face Recognition**: AWS Rekognition
-- **Frontend**: 
-  - HTML/Jinja2 Templates
-  - TailwindCSS
-  - DaisyUI Components
-  - Chart.js for visualizations
-  - Remix Icons
+- **Frontend**: HTML, JavaScript, TailwindCSS, DaisyUI
+- **Authentication**: Firebase Auth
 
 ## Prerequisites
 
-- Python 3.11+
-- AWS Account with Rekognition access
-- Firebase Project
-- Node.js and npm (for TailwindCSS)
+1. Python 3.8+
+2. AWS Account with Rekognition access
+3. Firebase Project
+4. Node.js and npm (for development)
 
 ## Environment Variables
 
-Create a `.env` file with the following:
+Create a `.env` file in the root directory with:
 
 ```env
 FLASK_APP=app
 FLASK_ENV=development
-SECRET_KEY=your-secret-key
-
-# AWS Credentials
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=your-aws-region
-
-# Firebase
-FIREBASE_CREDENTIALS=path-to-firebase-credentials.json
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=your_aws_region
+FIREBASE_CREDENTIALS=path_to_firebase_credentials.json
 ```
 
 ## Installation
@@ -76,8 +49,8 @@ FIREBASE_CREDENTIALS=path-to-firebase-credentials.json
 
 2. Create and activate virtual environment:
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
 3. Install dependencies:
@@ -85,24 +58,19 @@ FIREBASE_CREDENTIALS=path-to-firebase-credentials.json
    pip install -r requirements.txt
    ```
 
-4. Install frontend dependencies:
-   ```bash
-   npm install
-   ```
+4. Set up Firebase:
+   - Create a new Firebase project
+   - Enable Authentication and Firestore
+   - Download service account key and save as `firebase_credentials.json`
 
-5. Build CSS:
-   ```bash
-   npm run build-css
-   ```
-
-6. Initialize the database:
-   ```bash
-   flask init-db
-   ```
+5. Set up AWS:
+   - Create an AWS account
+   - Set up IAM user with Rekognition access
+   - Configure AWS credentials
 
 ## Running the Application
 
-1. Start the Flask development server:
+1. Start the Flask server:
    ```bash
    flask run
    ```
@@ -114,38 +82,60 @@ FIREBASE_CREDENTIALS=path-to-firebase-credentials.json
 ```
 attendance-keeper/
 ├── app/
-│   ├── static/          # Static files (CSS, JS)
-│   ├── templates/       # Jinja2 templates
-│   ├── routes/          # Route handlers
-│   ├── services/        # Business logic
-│   └── utils/           # Utility functions
-├── instance/           # Instance-specific files
-├── tests/             # Test suite
-├── .env               # Environment variables
-├── requirements.txt   # Python dependencies
-└── README.md         # This file
+│   ├── routes/
+│   │   ├── admin.py      # Admin routes
+│   │   ├── auth.py       # Authentication routes
+│   │   ├── main.py       # Main routes
+│   │   └── recognition.py # Face recognition routes
+│   ├── templates/
+│   │   ├── admin/        # Admin templates
+│   │   ├── auth/         # Auth templates
+│   │   └── dashboard.html # Main dashboard
+│   ├── static/
+│   │   ├── css/          # Stylesheets
+│   │   └── js/           # JavaScript files
+│   └── __init__.py       # App initialization
+├── requirements.txt
+└── README.md
 ```
 
 ## API Endpoints
 
 ### Authentication
-- `POST /login`: User login
-- `GET /logout`: User logout
+- `POST /auth/login` - User login
+- `POST /auth/register` - User registration
+- `GET /auth/logout` - User logout
 
-### Dashboard
-- `GET /`: Main dashboard
-- `GET /dashboard`: Dashboard (alternate route)
+### Face Recognition
+- `POST /recognition/register` - Register a new face
+- `POST /recognize` - Recognize faces in image
+
+### Student Management
+- `GET /api/students` - Get all students
+- `GET /api/students/template` - Download student template
+- `POST /api/students/upload` - Upload student data
 
 ### Attendance
-- `POST /recognition/register`: Register a new face
-- `POST /recognition/recognize`: Recognize faces in image
-- `GET /attendance/`: View attendance records
-- `GET /attendance/export`: Export attendance data
+- `GET /api/attendance` - Get attendance records
+- `GET /api/attendance/download` - Download attendance report
 
-### Admin Routes
-- `GET /admin/students`: Manage students
-- `GET /admin/users`: Manage users
-- `GET /admin/subjects`: Manage subjects
+## User Roles
+
+1. **Admin**
+   - Manage students and teachers
+   - View all attendance records
+   - Generate reports
+   - Register faces
+
+2. **Teacher**
+   - Take attendance using face recognition
+   - View class attendance
+   - Register student faces
+   - Download reports
+
+3. **Student**
+   - View personal attendance
+   - Check attendance history
 
 ## Contributing
 
@@ -159,10 +149,7 @@ attendance-keeper/
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Acknowledgments
+## Support
 
-- AWS Rekognition for face recognition
-- Firebase for database management
-- TailwindCSS and DaisyUI for UI components
-- Chart.js for data visualization
+For support, email your.email@example.com or open an issue in the repository.
 
