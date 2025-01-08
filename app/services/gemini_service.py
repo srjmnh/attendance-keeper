@@ -60,13 +60,12 @@ Always be helpful, clear, and maintain a friendly tone."""
         conversation = []
         for msg in self._conversation_memory:
             if msg["role"] == "system":
-                conversation.append(f"System: {msg["content"]}")
+                conversation.append(f"System: {msg['content']}")
             elif msg["role"] == "user":
-                conversation.append(f"User: {msg["content"]}")
+                conversation.append(f"User: {msg['content']}")
             else:
-                conversation.append(f"Assistant: {msg["content"]}")
-        return "
-".join(conversation)
+                conversation.append(f"Assistant: {msg['content']}")
+        return "\n".join(conversation)
     
     def analyze_attendance(self, attendance_data):
         """Analyze attendance data and provide insights"""
@@ -143,9 +142,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             # Build conversation context
             conversation = self._build_conversation()
             if context:
-                conversation = f"Additional Context: {context}
-
-{conversation}"
+                conversation = f"Additional Context: {context}\n\n{conversation}"
             
             # Get AI response
             response = self.model.generate_content(conversation)
