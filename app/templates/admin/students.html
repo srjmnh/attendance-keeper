@@ -330,83 +330,110 @@ async function uploadFile() {
     }
 }
 
-// Edit record
-function editRecord(type, record) {
-    document.getElementById('editType').value = type;
-    document.getElementById('editId').value = record.id;
-    document.getElementById('editName').value = record.name;
+function validateStudentData(data) {
+    const errors = [];
     
-    // Show/hide appropriate fields
-    document.getElementById('studentFields').style.display = type === 'student' ? 'block' : 'none';
-    document.getElementById('teacherFields').style.display = type === 'teacher' ? 'block' : 'none';
+    // Validate name
+    if (!data.name || !data.name.trim()) {
+        errors.push('Name is required');
+    }
+    
+    // Validate student ID (alphanumeric, no spaces)
+    if (!data.student_id || !data.student_id.trim()) {
+        errors.push('Student ID is required');
+    } else if (!/^[a-zA-Z0-9]+$/.test(data.student_id)) {
+        errors.push('Student ID must be alphanumeric without spaces');
+    }
+    
+    // Validate class (1-12)
+    const classNum = parseInt(data.class);
+    if (isNaN(classNum) || classNum < 1 || classNum > 12) {
+        errors.push('Class must be between 1 and 12');
+    }
+    
+    // Validate division (A, B, C, D)
+    if (!['A', 'B', 'C', 'D'].includes(data.division.toUpperCase())) {
+        errors.push('Division must be A, B, C, or D');
+    }
+    
+    return errors;
+}
+
+// Update the editRecord function
+async function editRecord(type, record) {
+    const modal = document.getElementById('editModal');
+    const form = document.getElementById('editForm');
+    
+    // Reset form
+    form.reset();
+    
+    // Set form fields
+    document.getElementById('editId').value = record.id;
+    document.getElementById('editType').value = type;
+    document.getElementById('editName').value = record.name || '';
     
     if (type === 'student') {
-        document.getElementById('editStudentId').value = record.student_id;
-        document.getElementById('editClass').value = record.class;
-        document.getElementById('editDivision').value = record.division;
+        document.getElementById('studentFields').style.display = 'block';
+        document.getElementById('teacherFields').style.display = 'none';
+        document.getElementById('editStudentId').value = record.student_id || '';
+        document.getElementById('editClass').value = record.class || '1';
+        document.getElementById('editDivision').value = record.division || 'A';
     } else {
-        document.getElementById('editTeacherId').value = record.teacher_id;
-        document.getElementById('editEmail').value = record.email;
-        // Set selected classes
-        const select = document.getElementById('editAssignedClasses');
-        Array.from(select.options).forEach(option => {
-            option.selected = record.assigned_classes.includes(parseInt(option.value));
+        document.getElementById('studentFields').style.display = 'none';
+        document.getElementById('teacherFields').style.display = 'block';
+        document.getElementById('editTeacherId').value = record.teacher_id || '';
+        document.getElementById('editEmail').value = record.email || '';
+        // Set assigned classes
+        const assignedClasses = document.getElementById('editAssignedClasses');
+        Array.from(assignedClasses.options).forEach(option => {
+            option.selected = record.assigned_classes?.includes(parseInt(option.value));
         });
     }
     
-    document.getElementById('editModal').showModal();
-}
-
-// Handle form submission
-document.getElementById('editForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
+    // Show modal
+    modal.showModal();
     
-    const type = document.getElementById('editType').value;
-    const id = document.getElementById('editId').value;
-    
-    const data = {
-        name: document.getElementById('editName').value
-    };
-    
-    if (type === 'student') {
-        Object.assign(data, {
+    // Handle form submission
+    form.onsubmit = async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            name: document.getElementById('editName').value,
             student_id: document.getElementById('editStudentId').value,
             class: document.getElementById('editClass').value,
             division: document.getElementById('editDivision').value
-        });
-    } else {
-        const assignedClasses = Array.from(document.getElementById('editAssignedClasses').selectedOptions)
-            .map(option => parseInt(option.value));
+        };
         
-        Object.assign(data, {
-            teacher_id: document.getElementById('editTeacherId').value,
-            email: document.getElementById('editEmail').value,
-            assigned_classes: assignedClasses
-        });
-    }
-    
-    try {
-        const response = await fetch(`/api/${type}s/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        
-        if (response.ok) {
-            showToast('Changes saved successfully', 'success');
-            document.getElementById('editModal').close();
-            if (type === currentTab) {
-                type === 'student' ? loadStudents() : loadTeachers();
-            }
-        } else {
-            const result = await response.json();
-            showToast(result.error || 'Failed to save changes', 'error');
+        // Validate data
+        const errors = validateStudentData(formData);
+        if (errors.length > 0) {
+            showToast(errors.join('\n'), 'error');
+            return;
         }
-    } catch (error) {
-        console.error('Error saving changes:', error);
-        showToast('Failed to save changes', 'error');
-    }
-});
+        
+        try {
+            const response = await fetch(`/api/students/${record.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update student');
+            }
+            
+            showToast('Student updated successfully', 'success');
+            modal.close();
+            loadStudents();
+        } catch (error) {
+            console.error('Error updating student:', error);
+            showToast(error.message || 'Failed to update student', 'error');
+        }
+    };
+}
 
 // Delete record
 async function deleteRecord(type, id) {

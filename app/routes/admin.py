@@ -268,18 +268,47 @@ def upload_students():
         # Process each row
         success_count = 0
         error_count = 0
-        for _, row in df.iterrows():
+        errors = []
+        
+        for index, row in df.iterrows():
             try:
                 # Validate data
                 if not all(str(row[col]).strip() for col in required_columns):
+                    errors.append(f"Row {index + 2}: All fields are required")
+                    error_count += 1
+                    continue
+
+                # Validate student ID format (alphanumeric, no spaces)
+                student_id = str(row['student_id']).strip()
+                if not student_id.isalnum():
+                    errors.append(f"Row {index + 2}: Student ID must be alphanumeric without spaces")
+                    error_count += 1
+                    continue
+
+                # Validate class (must be between 1 and 12)
+                try:
+                    class_num = int(row['class'])
+                    if not 1 <= class_num <= 12:
+                        errors.append(f"Row {index + 2}: Class must be between 1 and 12")
+                        error_count += 1
+                        continue
+                except ValueError:
+                    errors.append(f"Row {index + 2}: Class must be a number")
+                    error_count += 1
+                    continue
+
+                # Validate division (must be A, B, C, or D)
+                division = str(row['division']).strip().upper()
+                if division not in ['A', 'B', 'C', 'D']:
+                    errors.append(f"Row {index + 2}: Division must be A, B, C, or D")
                     error_count += 1
                     continue
 
                 student_data = {
                     'name': str(row['name']).strip(),
-                    'student_id': str(row['student_id']).strip(),
-                    'class': int(row['class']),
-                    'division': str(row['division']).strip().upper(),
+                    'student_id': student_id,
+                    'class': class_num,
+                    'division': division,
                     'role': 'student',
                     'created_at': datetime.utcnow().isoformat()
                 }
@@ -287,6 +316,7 @@ def upload_students():
                 # Check if student already exists
                 existing = current_app.db.collection('users').where('student_id', '==', student_data['student_id']).get()
                 if len(list(existing)) > 0:
+                    errors.append(f"Row {index + 2}: Student ID {student_id} already exists")
                     error_count += 1
                     continue
                     
@@ -295,14 +325,16 @@ def upload_students():
                 success_count += 1
                 
             except Exception as e:
-                current_app.logger.error(f"Error processing row: {str(e)}")
+                current_app.logger.error(f"Error processing row {index + 2}: {str(e)}")
+                errors.append(f"Row {index + 2}: {str(e)}")
                 error_count += 1
                 continue
             
         return jsonify({
             'message': f'Upload completed. {success_count} students added successfully, {error_count} errors.',
             'success_count': success_count,
-            'error_count': error_count
+            'error_count': error_count,
+            'errors': errors
         })
     except Exception as e:
         current_app.logger.error(f"Error uploading students: {str(e)}")
