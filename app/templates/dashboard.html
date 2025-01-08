@@ -1,88 +1,194 @@
 {% extends "base.html" %}
 
+{% block title %}Dashboard{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+<div class="space-y-8">
+    <!-- Header Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="stats shadow-lg bg-primary text-primary-content hover-scale">
+            <div class="stat">
+                <div class="stat-figure text-primary-content">
+                    <span class="material-icons-round text-4xl">face</span>
+                </div>
+                <div class="stat-title text-primary-content/80">Total Students</div>
+                <div class="stat-value">{{ total_students }}</div>
+                <div class="stat-desc text-primary-content/60">Active in system</div>
+            </div>
+        </div>
+        
+        <div class="stats shadow-lg bg-accent text-accent-content hover-scale">
+            <div class="stat">
+                <div class="stat-figure text-accent-content">
+                    <span class="material-icons-round text-4xl">event_available</span>
+                </div>
+                <div class="stat-title text-accent-content/80">Today's Attendance</div>
+                <div class="stat-value">{{ today_attendance }}%</div>
+                <div class="stat-desc text-accent-content/60">{{ attendance_trend }}</div>
+            </div>
+        </div>
+        
+        <div class="stats shadow-lg bg-secondary text-secondary-content hover-scale">
+            <div class="stat">
+                <div class="stat-figure text-secondary-content">
+                    <span class="material-icons-round text-4xl">school</span>
+                </div>
+                <div class="stat-title text-secondary-content/80">Total Subjects</div>
+                <div class="stat-value">{{ total_subjects }}</div>
+                <div class="stat-desc text-secondary-content/60">Active courses</div>
+            </div>
+        </div>
+    </div>
     
     <!-- Main Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
         <!-- Face Recognition Section -->
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold text-gray-900 mb-4">Face Recognition</h2>
-            
-            {% if current_user.role in ['admin', 'teacher'] %}
-            <!-- Register Face Form -->
-            <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h3 class="text-lg font-medium text-gray-900 mb-3">Register New Face</h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Name</label>
-                        <input type="text" id="reg_name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title flex items-center gap-2 mb-6">
+                    <span class="material-icons-round text-primary">face</span>
+                    Face Recognition
+                </h2>
+                
+                {% if current_user.role in ['admin', 'teacher'] %}
+                <!-- Register Face Form -->
+                <div class="card bg-base-200 hover-scale">
+                    <div class="card-body">
+                        <h3 class="card-title text-lg">
+                            <span class="material-icons-round text-primary">person_add</span>
+                            Register New Face
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="form-control w-full">
+                                <label class="label">
+                                    <span class="label-text font-medium">Name</span>
+                                </label>
+                                <input type="text" id="reg_name" class="input input-bordered w-full" />
+                            </div>
+                            <div class="form-control w-full">
+                                <label class="label">
+                                    <span class="label-text font-medium">Student ID</span>
+                                </label>
+                                <input type="text" id="reg_student_id" class="input input-bordered w-full" />
+                            </div>
+                            <div class="form-control w-full">
+                                <label class="label">
+                                    <span class="label-text font-medium">Image</span>
+                                </label>
+                                <input type="file" id="reg_image" accept="image/*" 
+                                       onchange="previewImage(this, 'reg_preview')" 
+                                       class="file-input file-input-bordered w-full" />
+                                <div class="mt-4 relative aspect-video bg-base-300 rounded-lg overflow-hidden">
+                                    <img id="reg_preview" class="absolute inset-0 w-full h-full object-contain hidden" />
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="material-icons-round text-4xl text-base-content/30">add_photo_alternate</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="registerFace()" class="btn btn-primary w-full gap-2">
+                                <span class="material-icons-round">person_add</span>
+                                Register Face
+                            </button>
+                        </div>
+                        <div id="register_result" class="mt-3 hidden"></div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Student ID</label>
-                        <input type="text" id="reg_student_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Image</label>
-                        <input type="file" id="reg_image" accept="image/*" onchange="previewImage(this, 'reg_preview')" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                        <img id="reg_preview" class="mt-2 max-h-48 hidden">
-                    </div>
-                    <button onclick="registerFace()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors">
-                        Register Face
-                    </button>
                 </div>
-                <div id="register_result" class="mt-3 hidden"></div>
-            </div>
-            {% endif %}
-            
-            <!-- Recognize Face Form -->
-            <div class="p-4 bg-gray-50 rounded-lg">
-                <h3 class="text-lg font-medium text-gray-900 mb-3">Recognize Face</h3>
-                <div class="space-y-4">
-                    {% if current_user.role != 'student' %}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Subject</label>
-                        <select id="rec_subject_select" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="">-- Select Subject --</option>
-                            {% for subject in subjects %}
-                            <option value="{{ subject.id }}">{{ subject.name }}</option>
-                            {% endfor %}
-                        </select>
+                {% endif %}
+                
+                <!-- Recognize Face Form -->
+                <div class="card bg-base-200 mt-6 hover-scale">
+                    <div class="card-body">
+                        <h3 class="card-title text-lg">
+                            <span class="material-icons-round text-accent">face</span>
+                            Recognize Face
+                        </h3>
+                        <div class="space-y-4">
+                            {% if current_user.role != 'student' %}
+                            <div class="form-control w-full">
+                                <label class="label">
+                                    <span class="label-text font-medium">Subject</span>
+                                </label>
+                                <select id="rec_subject_select" class="select select-bordered w-full">
+                                    <option value="">-- Select Subject --</option>
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+                            <div class="form-control w-full">
+                                <label class="label">
+                                    <span class="label-text font-medium">Image</span>
+                                </label>
+                                <input type="file" id="rec_image" accept="image/*" 
+                                       onchange="previewImage(this, 'rec_preview')" 
+                                       class="file-input file-input-bordered w-full" />
+                                <div class="mt-4 relative aspect-video bg-base-300 rounded-lg overflow-hidden">
+                                    <img id="rec_preview" class="absolute inset-0 w-full h-full object-contain hidden" />
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="material-icons-round text-4xl text-base-content/30">add_photo_alternate</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="recognizeFace()" class="btn btn-accent w-full gap-2">
+                                <span class="material-icons-round">face</span>
+                                Recognize Face
+                            </button>
+                        </div>
+                        
+                        <!-- Recognition Results -->
+                        <div id="recognize_result" class="mt-6 hidden">
+                            <div class="divider">Recognition Results</div>
+                            <div id="results_container" class="space-y-4">
+                                <!-- Results will be inserted here -->
+                            </div>
+                        </div>
                     </div>
-                    {% endif %}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Image</label>
-                        <input type="file" id="rec_image" accept="image/*" onchange="previewImage(this, 'rec_preview')" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
-                        <img id="rec_preview" class="mt-2 max-h-48 hidden">
-                    </div>
-                    <button onclick="recognizeFace()" class="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
-                        Recognize Face
-                    </button>
                 </div>
-                <div id="recognize_result" class="mt-3 hidden"></div>
             </div>
         </div>
         
         <!-- Recent Activity Section -->
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
-            <div class="space-y-4">
-                {% if attendance_records %}
-                {% for record in attendance_records %}
-                <div class="p-3 bg-gray-50 rounded-md">
-                    <p class="text-sm text-gray-600">{{ record.timestamp }}</p>
-                    <p class="font-medium">{{ record.name }}</p>
-                    <p class="text-sm text-gray-500">{{ record.subject_name }}</p>
+        <div class="card bg-base-100 shadow-lg">
+            <div class="card-body">
+                <h2 class="card-title flex items-center gap-2 mb-6">
+                    <span class="material-icons-round text-primary">history</span>
+                    Recent Activity
+                </h2>
+                <div class="space-y-4">
+                    {% if attendance_records %}
+                    {% for record in attendance_records %}
+                    <div class="card bg-base-200 hover-scale">
+                        <div class="card-body py-4">
+                            <div class="flex items-center gap-4">
+                                <div class="avatar placeholder">
+                                    <div class="bg-primary text-primary-content rounded-full w-12">
+                                        <span class="text-lg">{{ record.name[0].upper() }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium">{{ record.name }}</p>
+                                    <p class="text-sm opacity-70">{{ record.subject_name }}</p>
+                                    <p class="text-xs opacity-50">{{ record.timestamp }}</p>
+                                </div>
+                                <div>
+                                    <div class="badge {% if record.status == 'PRESENT' %}badge-success{% elif record.status == 'ABSENT' %}badge-error{% else %}badge-warning{% endif %} badge-lg">
+                                        {{ record.status }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-12 bg-base-200 rounded-box">
+                        <span class="material-icons-round text-6xl text-base-content/30 mb-4">history</span>
+                        <p class="text-base-content/50">No recent activity</p>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endfor %}
-                {% else %}
-                <p class="text-gray-500">No recent activity</p>
-                {% endif %}
             </div>
         </div>
-        
     </div>
 </div>
 
@@ -96,15 +202,24 @@ function previewImage(input, previewId) {
         reader.onload = function(e) {
             preview.src = e.target.result;
             preview.classList.remove('hidden');
+            preview.parentElement.querySelector('.material-icons-round').classList.add('hidden');
         }
         reader.readAsDataURL(file);
     }
 }
 
 function showResult(element, message, type = 'success') {
-    element.textContent = message;
+    element.innerHTML = `
+        <div class="alert alert-${type} shadow-lg animate-fade-up">
+            <div class="flex items-center gap-2">
+                <span class="material-icons-round">
+                    ${type === 'success' ? 'check_circle' : 'error'}
+                </span>
+                <span>${message}</span>
+            </div>
+        </div>
+    `;
     element.classList.remove('hidden');
-    element.className = `mt-3 p-3 rounded-md ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
 }
 
 async function getBase64(file) {
@@ -123,7 +238,7 @@ async function registerFace() {
     const resultDiv = document.getElementById('register_result');
     
     if (!name || !studentId || !file) {
-        showResult(resultDiv, 'Please fill in all fields', 'error');
+        showToast('Please fill in all fields', 'error');
         return;
     }
     
@@ -140,9 +255,9 @@ async function registerFace() {
         });
         
         const data = await response.json();
-        showResult(resultDiv, data.message || data.error, response.ok ? 'success' : 'error');
+        showToast(data.message || data.error, response.ok ? 'success' : 'error');
     } catch (error) {
-        showResult(resultDiv, 'An error occurred while registering the face', 'error');
+        showToast('An error occurred while registering the face', 'error');
     }
 }
 
@@ -151,9 +266,10 @@ async function recognizeFace() {
     const subjectSelect = document.getElementById('rec_subject_select');
     const subjectId = subjectSelect ? subjectSelect.value : '';
     const resultDiv = document.getElementById('recognize_result');
+    const resultsContainer = document.getElementById('results_container');
     
     if (!file) {
-        showResult(resultDiv, 'Please select an image', 'error');
+        showToast('Please select an image', 'error');
         return;
     }
     
@@ -169,22 +285,91 @@ async function recognizeFace() {
         });
         
         const data = await response.json();
-        let resultMessage = data.message + '\n\n';
-        if (data.identified_people) {
-            resultMessage += 'Identified People:\n';
-            data.identified_people.forEach(person => {
+        
+        // Show results container
+        resultDiv.classList.remove('hidden');
+        resultsContainer.innerHTML = '';
+        
+        // Add summary card
+        resultsContainer.innerHTML += `
+            <div class="card bg-base-300">
+                <div class="card-body">
+                    <h3 class="card-title text-lg">Summary</h3>
+                    <p>${data.message}</p>
+                </div>
+            </div>
+        `;
+        
+        // Add individual results
+        if (data.identified_people && data.identified_people.length > 0) {
+            data.identified_people.forEach((person, index) => {
+                const card = document.createElement('div');
+                card.className = 'card bg-base-300 animate-fade-up';
+                card.style.animationDelay = `${index * 100}ms`;
+                
                 if (person.name && person.student_id) {
-                    resultMessage += `- ${person.name} (ID: ${person.student_id}) Confidence: ${person.confidence}%\n`;
+                    card.innerHTML = `
+                        <div class="card-body">
+                            <div class="flex items-center gap-4">
+                                <div class="avatar placeholder">
+                                    <div class="bg-primary text-primary-content rounded-full w-12">
+                                        <span class="text-lg">${person.name[0].toUpperCase()}</span>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-medium">${person.name}</h3>
+                                    <p class="text-sm opacity-70">ID: ${person.student_id}</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="radial-progress text-primary" style="--value:${person.confidence};">
+                                        ${Math.round(person.confidence)}%
+                                    </div>
+                                    <p class="text-xs opacity-50 mt-1">Confidence</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 } else {
-                    resultMessage += `- ${person.message}\n`;
+                    card.innerHTML = `
+                        <div class="card-body">
+                            <div class="alert alert-warning">
+                                <span class="material-icons-round">warning</span>
+                                <span>${person.message}</span>
+                            </div>
+                        </div>
+                    `;
                 }
+                
+                resultsContainer.appendChild(card);
             });
         }
-        
-        showResult(resultDiv, resultMessage, response.ok ? 'success' : 'error');
     } catch (error) {
-        showResult(resultDiv, 'An error occurred while recognizing faces', 'error');
+        showToast('An error occurred while recognizing faces', 'error');
     }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} shadow-lg max-w-sm animate-fade-in fixed bottom-4 right-4 z-50`;
+    
+    const icon = document.createElement('span');
+    icon.className = 'material-icons-round';
+    icon.textContent = type === 'success' ? 'check_circle' :
+                      type === 'error' ? 'error' :
+                      type === 'warning' ? 'warning' :
+                      'info';
+    
+    const text = document.createElement('span');
+    text.textContent = message;
+    
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 </script>
 {% endblock %} 

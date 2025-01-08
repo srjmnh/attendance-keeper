@@ -46,7 +46,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         # Start with system context
         self._conversation_memory = [

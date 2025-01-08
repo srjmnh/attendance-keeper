@@ -26,7 +26,6 @@ def index():
 @login_required
 def get_attendance():
     """Get attendance records with filters"""
-    # Get filter parameters
     student_id = request.args.get('student_id')
     subject_id = request.args.get('subject_id')
     date_range = request.args.get('date_range')
@@ -86,6 +85,7 @@ def get_attendance():
         
         return jsonify(records)
     except Exception as e:
+        current_app.logger.error(f"Error getting attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/attendance/update', methods=['POST'])
@@ -120,6 +120,7 @@ def update_attendance():
         
         return jsonify({'message': 'Records updated successfully'})
     except Exception as e:
+        current_app.logger.error(f"Error updating attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/attendance/<doc_id>', methods=['DELETE'])
@@ -131,6 +132,7 @@ def delete_attendance(doc_id):
         doc_ref.delete()
         return jsonify({'message': 'Record deleted successfully'})
     except Exception as e:
+        current_app.logger.error(f"Error deleting attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/attendance/template')
@@ -218,4 +220,5 @@ def upload_attendance():
         
         return jsonify({'message': 'Records uploaded successfully'})
     except Exception as e:
+        current_app.logger.error(f"Error uploading attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500 

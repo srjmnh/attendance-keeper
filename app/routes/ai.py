@@ -51,7 +51,7 @@ def chat():
     """Chat with AI assistant"""
     try:
         data = request.get_json()
-        message = data.get('message')
+        message = data.get('message') or data.get('prompt')
         context = data.get('context')  # Optional context
         
         if not message:
@@ -59,8 +59,9 @@ def chat():
         
         # Get AI response
         response = gemini.chat_with_assistant(message, context)
-        return jsonify({"response": response})
+        return jsonify({"message": response})
     except Exception as e:
+        current_app.logger.error(f"Error in chat: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @bp.route('/api/ai/generate-report', methods=['POST'])
