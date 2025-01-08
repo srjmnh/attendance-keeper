@@ -7,11 +7,15 @@ import io
 from PIL import Image, ImageEnhance
 import cv2
 import numpy as np
+import logging
 
 bp = Blueprint('recognition', __name__)
 
 def enhance_image(pil_image):
-    """Enhance image quality to improve face detection"""
+    """
+    Enhance image quality to improve face detection in distant group photos.
+    This includes increasing brightness and contrast.
+    """
     # Convert PIL image to OpenCV format
     cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
