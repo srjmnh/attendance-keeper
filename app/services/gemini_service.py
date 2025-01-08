@@ -47,12 +47,32 @@ Always be helpful, clear, and maintain a friendly tone."""
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
         
-        # Start with system context
-        self._conversation_memory = [
-            {"role": "system", "content": self._system_context}
+        # Configure the model
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 2048,
+        }
+        
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
         ]
+        
+        self.model = genai.GenerativeModel(
+            model_name="gemini-pro",
+            generation_config=generation_config,
+            safety_settings=safety_settings
+        )
+        
+        # Initialize chat
+        self.chat = self.model.start_chat(history=[])
+        self.chat.send_message(self._system_context)
+        
         self._initialized = True
     
     def _build_conversation(self):
@@ -61,15 +81,15 @@ Always be helpful, clear, and maintain a friendly tone."""
             conversation = []
             for msg in self._conversation_memory:
                 if msg["role"] == "system":
-                    conversation.append(f"System: {msg['content']}")
+                    conversation.append({"role": "user", "parts": [msg["content"]]})
                 elif msg["role"] == "user":
-                    conversation.append(f"User: {msg['content']}")
+                    conversation.append({"role": "user", "parts": [msg["content"]]})
                 else:
-                    conversation.append(f"Assistant: {msg['content']}")
-            return "\n".join(conversation)
+                    conversation.append({"role": "model", "parts": [msg["content"]]})
+            return conversation
         except Exception as e:
             current_app.logger.error(f"Error building conversation: {str(e)}")
-            return ""
+            return []
     
     def analyze_attendance(self, attendance_data):
         """Analyze attendance data and provide insights"""
@@ -88,8 +108,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
-            if not response or not hasattr(response, 'text'):
-                return "Sorry, I could not analyze the attendance data at this moment."
+            if response.prompt_feedback.block_reason:
+                return "Sorry, I cannot analyze this content due to safety concerns."
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error analyzing attendance: {str(e)}")
@@ -112,8 +132,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
-            if not response or not hasattr(response, 'text'):
-                return "Sorry, I could not generate the report summary at this moment."
+            if response.prompt_feedback.block_reason:
+                return "Sorry, I cannot analyze this content due to safety concerns."
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error generating report summary: {str(e)}")
@@ -136,8 +156,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
-            if not response or not hasattr(response, 'text'):
-                return "Sorry, I could not generate recommendations at this moment."
+            if response.prompt_feedback.block_reason:
+                return "Sorry, I cannot analyze this content due to safety concerns."
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error getting student recommendations: {str(e)}")
@@ -146,21 +166,17 @@ Always be helpful, clear, and maintain a friendly tone."""
     def chat_with_assistant(self, user_message, context=None):
         """General chat interface with context awareness"""
         try:
-            # Add user message to memory
-            self._conversation_memory.append({"role": "user", "content": user_message})
-            
-            # Build conversation context
-            conversation = self._build_conversation()
             if context:
-                conversation = f"Additional Context: {context}\n\n{conversation}"
+                user_message = f"Context: {context}\n\nUser: {user_message}"
             
-            # Get AI response
-            response = self.model.generate_content(conversation)
+            # Send message to chat
+            response = self.chat.send_message(user_message)
             
-            if not response or not hasattr(response, 'text'):
-                return "I'm having trouble generating a response. Please try again."
+            if response.prompt_feedback.block_reason:
+                return "I apologize, but I cannot respond to that due to safety concerns."
             
-            # Add AI response to memory
+            # Add to conversation memory
+            self._conversation_memory.append({"role": "user", "content": user_message})
             self._conversation_memory.append({"role": "assistant", "content": response.text})
             
             # Trim memory if too long (keep last 20 messages)
