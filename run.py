@@ -1,48 +1,35 @@
-import os
-from app import create_app
-from werkzeug.security import generate_password_hash
+from flask import Flask
+from flask_login import LoginManager
 from app.services.db_service import DatabaseService
+from app.routes import admin, auth, main, ai, attendance, recognition
 
-def create_default_admin(app):
-    """Creates a default admin user if no admin exists"""
-    try:
-        db = DatabaseService()
-        admin = db.get_user_by_email('admin@example.com')
-        
-        if not admin:
-            default_username = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin')
-            default_password = "Admin123!"  # Change this immediately after first login
-            password_hash = generate_password_hash(default_password)
-            
-            admin_data = {
-                "email": "admin@example.com",
-                "name": "Admin User",
-                "password_hash": password_hash,
-                "role": "admin"
-            }
-            
-            db.create_user(admin_data)
-            print(f"Default admin created with username: {default_username}")
-            print(f"Password hash: {password_hash}")
-        else:
-            print("Admin user already exists")
-    except Exception as e:
-        print(f"Error creating default admin: {str(e)}")
-
-def init_app():
-    """Initialize the application"""
-    app = create_app(os.getenv('FLASK_CONFIG', 'default'))
+def create_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'your-secret-key'  # Change this to use environment variable
     
-    # Initialize services that require app context
-    with app.app_context():
-        create_default_admin(app)
+    # Initialize Firebase Admin
+    db = DatabaseService()
+    app.db = db.get_db()
+    
+    # Initialize Login Manager
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return db.get_user_by_id(user_id)
+    
+    # Register blueprints
+    app.register_blueprint(admin.bp)
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(main.bp)
+    app.register_blueprint(ai.bp)
+    app.register_blueprint(attendance.bp)
+    app.register_blueprint(recognition.bp)
     
     return app
 
-# Create the application instance
-app = init_app()
-
-if __name__ == "__main__":
-    # Run the application
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=app.config['DEBUG']) 
+if __name__ == '__main__':
+    app = create_app()
+    app.run(debug=True) 

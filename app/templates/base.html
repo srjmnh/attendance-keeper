@@ -5,55 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AttendanceAI{% endblock %}</title>
     
-    <!-- DaisyUI and Tailwind -->
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.2/dist/full.css" rel="stylesheet" type="text/css" />
+    <!-- Tailwind and DaisyUI -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Material Icons -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-    
     <!-- Custom CSS -->
-    <link href="{{ url_for('static', filename='css/main.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: "#6366F1",
-                        secondary: "#EC4899",
-                        accent: "#14B8A6",
-                        neutral: "#1F2937",
-                        "base-100": "#FFFFFF",
-                        info: "#06B6D4",
-                        success: "#10B981",
-                        warning: "#F59E0B",
-                        error: "#EF4444",
-                    }
-                }
-            },
-            daisyui: {
-                themes: [
-                    {
-                        light: {
-                            ...require("daisyui/src/theming/themes")["light"],
-                            primary: "#6366F1",
-                            secondary: "#EC4899",
-                            accent: "#14B8A6",
-                        },
-                    },
-                    {
-                        dark: {
-                            ...require("daisyui/src/theming/themes")["dark"],
-                            primary: "#818CF8",
-                            secondary: "#F472B6",
-                            accent: "#2DD4BF",
-                        },
-                    },
-                ],
-            }
-        }
-    </script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body class="min-h-screen bg-gradient-to-br from-base-100 to-base-200">
