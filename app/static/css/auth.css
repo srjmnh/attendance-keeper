@@ -1,0 +1,142 @@
+/* Auth pages specific styles */
+.auth-container {
+    background-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.auth-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease-in-out;
+}
+
+.auth-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Form input styling */
+.auth-input {
+    transition: border-color 0.2s ease-in-out;
+}
+
+.auth-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Button effects */
+.auth-button {
+    position: relative;
+    overflow: hidden;
+}
+
+.auth-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease-out, height 0.3s ease-out;
+}
+
+.auth-button:active::after {
+    width: 200px;
+    height: 200px;
+}
+
+/* Checkbox styling */
+.auth-checkbox {
+    position: relative;
+    cursor: pointer;
+}
+
+.auth-checkbox:checked {
+    border-color: #6366f1;
+    background-color: #6366f1;
+}
+
+.auth-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 6px;
+    width: 4px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* Error message styling */
+.auth-error {
+    background-color: #fee2e2;
+    border-left: 4px solid #ef4444;
+    color: #b91c1c;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Success message styling */
+.auth-success {
+    background-color: #dcfce7;
+    border-left: 4px solid #22c55e;
+    color: #15803d;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .auth-container {
+        padding: 1rem;
+    }
+    
+    .auth-card {
+        width: 100%;
+        margin: 0 1rem;
+    }
+}
+
+/* Loading animation */
+.auth-loading {
+    position: relative;
+}
+
+.auth-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+    border: 4px solid transparent;
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: auth-spin 1s ease infinite;
+}
+
+@keyframes auth-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+} 

@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Management{% endblock %}
+
+{% block breadcrumbs %}
+<li>
+    <a href="#" class="flex items-center gap-2">
+        <span class="material-icons-round text-primary">event_available</span>
+        Attendance
+    </a>
+</li>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h1 class="text-2xl font-bold flex items-center gap-2">
+            <span class="material-icons-round text-primary">event_available</span>
+            Attendance Management
+        </h1>
+        
+        {% if current_user.role in ['admin', 'teacher'] %}
+        <div class="flex flex-wrap gap-3">
+            <button onclick="downloadTemplate()" class="btn btn-outline gap-2 hover-scale">
+                <span class="material-icons-round">download</span>
+                Download Template
+            </button>
+            <button onclick="document.getElementById('upload_excel').click()" class="btn btn-secondary gap-2 hover-scale">
+                <span class="material-icons-round">upload</span>
+                Upload Excel
+            </button>
+            <input type="file" id="upload_excel" accept=".xlsx,.xls" class="hidden" onchange="uploadExcel(this)">
+            <button onclick="downloadAttendance()" class="btn btn-primary gap-2 hover-scale">
+                <span class="material-icons-round">file_download</span>
+                Export to Excel
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filters -->
+    <div class="card bg-base-100 shadow-lg hover-scale">
+        <div class="card-body">
+            <h2 class="card-title mb-4">
+                <span class="material-icons-round text-primary">filter_list</span>
+                Filters
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">Date Range</span>
+                    </label>
+                    <select id="date_filter" class="select select-bordered w-full">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">Subject</span>
+                    </label>
+                    <select id="subject_filter" class="select select-bordered w-full">
+                        <option value="">All Subjects</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">Status</span>
+                    </label>
+                    <select id="status_filter" class="select select-bordered w-full">
+                        <option value="">All Status</option>
+                        <option value="PRESENT">Present</option>
+                        <option value="ABSENT">Absent</option>
+                        <option value="LATE">Late</option>
+                    </select>
+                </div>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">Search</span>
+                    </label>
+                    <div class="join w-full">
+                        <div class="join-item flex items-center px-4 bg-base-200">
+                            <span class="material-icons-round text-base-content/50">search</span>
+                        </div>
+                        <input type="text" id="search_filter" 
+                               placeholder="Search by name or ID..." 
+                               class="input input-bordered join-item w-full">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Date Range -->
+            <div id="custom_date_range" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 hidden">
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">From</span>
+                    </label>
+                    <input type="date" id="date_from" class="input input-bordered w-full">
+                </div>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">To</span>
+                    </label>
+                    <input type="date" id="date_to" class="input input-bordered w-full">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Changes Button (Admin Only) -->
+    {% if current_user.role == 'admin' %}
+    <div class="flex justify-end">
+        <button onclick="saveAllChanges()" class="btn btn-primary gap-2 hover-scale">
+            <span class="material-icons-round">save</span>
+            Save All Changes
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Attendance Table -->
+    <div class="card bg-base-100 shadow-lg hover-scale">
+        <div class="card-body">
+            <h2 class="card-title mb-4">
+                <span class="material-icons-round text-primary">list_alt</span>
+                Attendance Records
+            </h2>
+            <div class="overflow-x-auto">
+                <table id="attendanceTable" class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Name</th>
+                            <th>Student ID</th>
+                            <th>Subject</th>
+                            <th>Status</th>
+                            {% if current_user.role == 'admin' %}
+                            <th class="w-24">Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Analysis Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="card bg-base-100 shadow-lg hover-scale">
+            <div class="card-body">
+                <h2 class="card-title gap-2">
+                    <span class="material-icons-round text-primary">analytics</span>
+                    Attendance Analysis
+                </h2>
+                <div id="ai_analysis" class="prose mt-4">
+                    <div class="flex flex-col items-center justify-center py-8 text-base-content/50">
+                        <span class="material-icons-round text-6xl mb-4">analytics</span>
+                        <p>Select a student to view AI analysis</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow-lg hover-scale">
+            <div class="card-body">
+                <h2 class="card-title gap-2">
+                    <span class="material-icons-round text-primary">tips_and_updates</span>
+                    Recommendations
+                </h2>
+                <div id="ai_recommendations" class="prose mt-4">
+                    <div class="flex flex-col items-center justify-center py-8 text-base-content/50">
+                        <span class="material-icons-round text-6xl mb-4">tips_and_updates</span>
+                        <p>Select a student to view recommendations</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
+
+<script>
+let attendanceTable;
+let editedRows = new Set();
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize DataTable with modern styling and error handling
+    attendanceTable = new DataTable('#attendanceTable', {
+        ajax: {
+            url: '/api/attendance',
+            dataSrc: function(json) {
+                if (!json || !Array.isArray(json)) {
+                    showToast('No attendance records found', 'info');
+                    return [];
+                }
+                return json;
+            },
+            error: function(xhr, error, thrown) {
+                console.error('DataTables error:', error);
+                showToast('Error loading attendance data. Please try again.', 'error');
+            }
+        },
+        processing: true,
+        serverSide: false,
+        columns: [
+            { 
+                data: 'timestamp',
+                render: function(data) {
+                    return data || 'N/A';
+                }
+            },
+            { 
+                data: 'name',
+                render: function(data, type, row) {
+                    if (type === 'display' && '{{ current_user.role }}' === 'admin') {
+                        return '<input type="text" class="input input-bordered input-sm w-full max-w-xs" value="' + 
+                               (data || '') + '" onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
+                    }
+                    return data || 'N/A';
+                }
+            },
+            { 
+                data: 'student_id',
+                defaultContent: 'N/A'
+            },
+            { 
+                data: 'subject_name',
+                defaultContent: 'N/A'
+            },
+            {
+                data: 'status',
+                render: function(data, type, row) {
+                    if (type === 'display' && '{{ current_user.role }}' === 'admin') {
+                        var selectHtml = '<select class="select select-bordered select-sm w-full max-w-xs" ' +
+                                       'onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
+                        selectHtml += '<option value="PRESENT"' + (data === 'PRESENT' ? ' selected' : '') + '>Present</option>';
+                        selectHtml += '<option value="ABSENT"' + (data === 'ABSENT' ? ' selected' : '') + '>Absent</option>';
+                        selectHtml += '<option value="LATE"' + (data === 'LATE' ? ' selected' : '') + '>Late</option>';
+                        selectHtml += '</select>';
+                        return selectHtml;
+                    }
+                    var badgeClass = data === 'PRESENT' ? 'badge-success' : 
+                                   data === 'ABSENT' ? 'badge-error' : 
+                                   'badge-warning';
+                    return '<div class="badge badge-lg ' + badgeClass + '">' + (data || 'N/A') + '</div>';
+                }
+            }
+            {% if current_user.role == 'admin' %},
+            {
+                data: null,
+                render: function(data, type, row) {
+                    var buttonHtml = '<button onclick="deleteRecord(\'' + row.doc_id + '\')" ' +
+                                   'class="btn btn-ghost btn-sm text-error">';
+                    buttonHtml += '<span class="material-icons-round">delete</span>';
+                    buttonHtml += '</button>';
+                    return buttonHtml;
+                }
+            }
+            {% endif %}
+        ],
+        order: [[0, 'desc']],
+        pageLength: 25,
+        responsive: true,
+        dom: '<"flex flex-col md:flex-row md:items-center justify-between mb-6"<"flex-1"f><"flex-shrink-0"l>>' +
+             '<"overflow-x-auto"t>' +
+             '<"flex flex-col md:flex-row justify-between mt-6"<"flex-1"i><"flex-shrink-0"p>>',
+        language: {
+            search: "",
+            searchPlaceholder: "Search records...",
+            processing: "Loading...",
+            emptyTable: "No attendance records found",
+            zeroRecords: "No matching records found"
+        }
+    });
+
+    // Handle filter changes
+    document.getElementById('date_filter').addEventListener('change', function() {
+        var customRange = document.getElementById('custom_date_range');
+        customRange.classList.toggle('hidden', this.value !== 'custom');
+        applyFilters();
+    });
+
+    document.getElementById('subject_filter').addEventListener('change', applyFilters);
+    document.getElementById('status_filter').addEventListener('change', applyFilters);
+    document.getElementById('search_filter').addEventListener('input', applyFilters);
+    document.getElementById('date_from').addEventListener('change', applyFilters);
+    document.getElementById('date_to').addEventListener('change', applyFilters);
+});
+
+function applyFilters() {
+    var filters = {
+        date_range: document.getElementById('date_filter').value,
+        subject_id: document.getElementById('subject_filter').value,
+        status: document.getElementById('status_filter').value,
+        search: document.getElementById('search_filter').value,
+        date_from: document.getElementById('date_from').value,
+        date_to: document.getElementById('date_to').value
+    };
+    
+    var queryString = new URLSearchParams(filters).toString();
+    attendanceTable.ajax.url('/api/attendance?' + queryString).load();
+}
+
+function saveAllChanges() {
+    var editedRows = document.querySelectorAll('[data-edited="true"]');
+    if (!editedRows.length) {
+        showToast('No changes to save', 'info');
+        return;
+    }
+
+    var changes = [];
+    editedRows.forEach(function(row) {
+        var docId = row.getAttribute('data-doc-id');
+        var inputs = row.querySelectorAll('input, select');
+        var data = {};
+        inputs.forEach(function(input) {
+            data[input.getAttribute('data-field')] = input.value;
+        });
+        changes.push(Object.assign({ doc_id: docId }, data));
+    });
+
+    fetch('/api/attendance/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ records: changes })
+    })
+    .then(function(response) {
+        if (response.ok) {
+            showToast('Changes saved successfully', 'success');
+            applyFilters();
+        } else {
+            response.json().then(function(data) {
+                showToast(data.error || 'Failed to save changes', 'error');
+            });
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('Error saving changes', 'error');
+    });
+}
+
+function markRowAsEdited(docId) {
+    var row = document.querySelector('[data-doc-id="' + docId + '"]');
+    if (row) {
+        row.setAttribute('data-edited', 'true');
+    }
+}
+
+function deleteRecord(docId) {
+    if (!confirm('Are you sure you want to delete this record?')) {
+        return;
+    }
+
+    fetch('/api/attendance/' + docId, {
+        method: 'DELETE'
+    })
+    .then(function(response) {
+        if (response.ok) {
+            showToast('Record deleted successfully', 'success');
+            applyFilters();
+        } else {
+            response.json().then(function(data) {
+                showToast(data.error || 'Failed to delete record', 'error');
+            });
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('Error deleting record', 'error');
+    });
+}
+
+function downloadTemplate() {
+    window.location.href = '/api/attendance/template';
+}
+
+async function uploadExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch('/api/attendance/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            showToast('Upload successful', 'success');
+            applyFilters();
+        } else {
+            showToast(data.error || 'Upload failed', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Error uploading file', 'error');
+    }
+}
+
+function downloadAttendance() {
+    const filters = {
+        date_range: document.getElementById('date_filter').value,
+        subject: document.getElementById('subject_filter').value,
+        status: document.getElementById('status_filter').value,
+        search: document.getElementById('search_filter').value,
+        date_from: document.getElementById('date_from').value,
+        date_to: document.getElementById('date_to').value
+    };
+    
+    const queryString = new URLSearchParams(filters).toString();
+    window.location.href = `/api/attendance/export?${queryString}`;
+}
+
+// AI Analysis Functions
+async function getAIAnalysis(studentId) {
+    try {
+        const response = await fetch('/api/ai/analyze-attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: studentId })
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            document.getElementById('ai_analysis').innerHTML = data.analysis;
+        } else {
+            showToast(data.error || 'Failed to get AI analysis', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Error getting AI analysis', 'error');
+    }
+}
+
+async function getAIRecommendations(studentId) {
+    try {
+        const response = await fetch('/api/ai/get-recommendations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: studentId })
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            document.getElementById('ai_recommendations').innerHTML = data.recommendations;
+        } else {
+            showToast(data.error || 'Failed to get recommendations', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Error getting recommendations', 'error');
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} shadow-lg max-w-sm animate-fade-in fixed bottom-4 right-4 z-50`;
+    
+    const icon = document.createElement('span');
+    icon.className = 'material-icons-round';
+    icon.textContent = type === 'success' ? 'check_circle' :
+                      type === 'error' ? 'error' :
+                      type === 'warning' ? 'warning' :
+                      'info';
+    
+    const text = document.createElement('span');
+    text.textContent = message;
+    
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+</script>
+{% endblock %} 
