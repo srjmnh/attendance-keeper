@@ -53,6 +53,50 @@
         </div>
     </div>
     
+    <!-- Recognition Controls -->
+    {% if current_user.role in ['admin', 'teacher'] %}
+    <div class="card bg-base-100 shadow-lg">
+        <div class="card-body">
+            <h2 class="card-title flex items-center gap-2">
+                <i class="ri-camera-line text-primary"></i>
+                Face Recognition
+            </h2>
+            <div class="space-y-4">
+                <!-- Subject Selection -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Select Subject</span>
+                    </label>
+                    <select id="subjectSelect" class="select select-bordered">
+                        <option value="">Select a subject</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}" data-name="{{ subject.name }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Camera Preview -->
+                <div class="relative aspect-video bg-base-200 rounded-lg overflow-hidden">
+                    <video id="cameraPreview" class="w-full h-full object-cover" autoplay playsinline></video>
+                    <canvas id="photoCanvas" class="hidden"></canvas>
+                </div>
+                
+                <!-- Camera Controls -->
+                <div class="flex gap-2 justify-end">
+                    <button onclick="startCamera()" class="btn btn-outline gap-2">
+                        <i class="ri-camera-line"></i>
+                        Start Camera
+                    </button>
+                    <button onclick="captureAndRecognize()" class="btn btn-primary gap-2">
+                        <i class="ri-camera-lens-line"></i>
+                        Take Attendance
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- Main Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Attendance Chart -->
@@ -109,6 +153,19 @@
         </div>
     </div>
 </dialog>
+
+<!-- Camera Access Modal -->
+<dialog id="cameraModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Camera Access Required</h3>
+        <p>Please allow camera access to use face recognition features.</p>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn">Close</button>
+            </form>
+        </div>
+    </div>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -154,6 +211,67 @@ const attendanceChart = new Chart(ctx, {
     }
 });
 
+// Camera handling
+let stream = null;
+const video = document.getElementById('cameraPreview');
+const canvas = document.getElementById('photoCanvas');
+
+async function startCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            } 
+        });
+        video.srcObject = stream;
+    } catch (error) {
+        console.error('Camera error:', error);
+        document.getElementById('cameraModal').showModal();
+    }
+}
+
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+    }
+}
+
+async function captureAndRecognize() {
+    const subjectSelect = document.getElementById('subjectSelect');
+    const subjectId = subjectSelect.value;
+    const subjectName = subjectSelect.selectedOptions[0]?.dataset?.name;
+    
+    if (!subjectId) {
+        alert('Please select a subject first');
+        return;
+    }
+    
+    if (!stream) {
+        alert('Please start the camera first');
+        return;
+    }
+    
+    // Capture photo
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    
+    // Convert to base64
+    const imageData = canvas.toDataURL('image/jpeg');
+    
+    try {
+        await recognizeFaces(imageData, subjectId, subjectName);
+        // Reload page to update attendance data
+        setTimeout(() => location.reload(), 2000);
+    } catch (error) {
+        console.error('Recognition failed:', error);
+    }
+}
+
 // Recognition progress handling
 let recognitionProgress = 0;
 const recognitionModal = document.getElementById('recognitionModal');
@@ -180,27 +298,93 @@ function updateRecognitionProgress(progress, message) {
     }
 }
 
-// Example of how to use the progress update
-// This should be called from your face recognition code
-window.showRecognitionProgress = function() {
-    recognitionModal.showModal();
-    recognitionProgress = 0;
-    updateRecognitionProgress(0, 'Starting face recognition...');
-    
-    // Simulate progress (replace with actual recognition progress)
-    const interval = setInterval(() => {
-        if (recognitionProgress < 100) {
-            recognitionProgress += 10;
-            updateRecognitionProgress(
-                recognitionProgress,
-                recognitionProgress < 50 ? 'Detecting faces...' :
-                recognitionProgress < 80 ? 'Matching faces...' :
-                'Finalizing results...'
-            );
-        } else {
-            clearInterval(interval);
+// Function to handle face recognition
+async function recognizeFaces(imageData, subjectId, subjectName) {
+    try {
+        recognitionModal.showModal();
+        updateRecognitionProgress(0, 'Starting face recognition...');
+
+        const response = await fetch('/recognition/recognize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                image: imageData,
+                subject_id: subjectId,
+                subject_name: subjectName
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Recognition failed');
         }
-    }, 500);
-};
+
+        const result = await response.json();
+        updateRecognitionProgress(50, 'Processing faces...');
+
+        // Process results
+        const totalFaces = result.total_faces;
+        const identified = result.identified_people;
+
+        updateRecognitionProgress(75, `Found ${totalFaces} face(s)...`);
+
+        // Show results
+        let message = `${totalFaces} face(s) detected.\n`;
+        identified.forEach(person => {
+            if (person.name) {
+                message += `\n${person.name} (${Math.round(person.confidence)}% confidence)`;
+            } else {
+                message += `\n${person.message}`;
+            }
+        });
+
+        updateRecognitionProgress(100, message);
+        return result;
+    } catch (error) {
+        console.error('Recognition error:', error);
+        messageEl.textContent = 'Error: ' + error.message;
+        progressBar.value = 0;
+        statusEl.textContent = 'Error';
+        throw error;
+    }
+}
+
+// Function to handle face registration
+async function registerFace(imageData, name, studentId) {
+    try {
+        recognitionModal.showModal();
+        updateRecognitionProgress(0, 'Starting face registration...');
+
+        const response = await fetch('/recognition/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                image: imageData,
+                name: name,
+                student_id: studentId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Registration failed');
+        }
+
+        const result = await response.json();
+        updateRecognitionProgress(100, result.message);
+        return result;
+    } catch (error) {
+        console.error('Registration error:', error);
+        messageEl.textContent = 'Error: ' + error.message;
+        progressBar.value = 0;
+        statusEl.textContent = 'Error';
+        throw error;
+    }
+}
+
+// Clean up camera when leaving page
+window.addEventListener('beforeunload', stopCamera);
 </script>
 {% endblock %} 
