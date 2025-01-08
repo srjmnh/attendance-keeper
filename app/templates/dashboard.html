@@ -352,26 +352,82 @@ function updateRecognitionProgress(progress, message) {
     }
 }
 
+// Function to handle face registration
+async function registerFace(imageData, name, studentId) {
+    try {
+        recognitionModal.showModal();
+        updateRecognitionProgress(0, 'Starting face registration...');
+
+        // Clean the base64 image data if it's a data URL
+        const base64Image = imageData.includes('base64') ? imageData : `data:image/jpeg;base64,${imageData}`;
+
+        const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                student_id: studentId,
+                image: base64Image
+            })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Registration failed');
+        }
+
+        updateRecognitionProgress(100, data.message || 'Registration successful!');
+        
+        // Clear form and show success message
+        document.getElementById('studentName').value = '';
+        document.getElementById('studentId').value = '';
+        if (document.getElementById('registrationFile')) {
+            document.getElementById('registrationFile').value = '';
+        }
+        
+        showToast(data.message, 'success');
+        setTimeout(() => {
+            recognitionModal.close();
+        }, 2000);
+        
+        return data;
+    } catch (error) {
+        console.error('Registration error:', error);
+        messageEl.textContent = 'Error: ' + error.message;
+        progressBar.value = 0;
+        statusEl.textContent = 'Error';
+        showToast(error.message, 'error');
+        throw error;
+    }
+}
+
 // Function to handle face recognition
 async function recognizeFaces(imageData, subjectId, subjectName) {
     try {
         recognitionModal.showModal();
         updateRecognitionProgress(0, 'Starting face recognition...');
 
-        const response = await fetch('/recognition/recognize', {
+        // Clean the base64 image data if it's a data URL
+        const base64Image = imageData.includes('base64') ? imageData : `data:image/jpeg;base64,${imageData}`;
+
+        const response = await fetch('/recognize', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                image: imageData,
+                image: base64Image,
                 subject_id: subjectId,
                 subject_name: subjectName
             })
         });
 
         if (!response.ok) {
-            throw new Error('Recognition failed');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Recognition failed');
         }
 
         const result = await response.json();
@@ -394,48 +450,40 @@ async function recognizeFaces(imageData, subjectId, subjectName) {
         });
 
         updateRecognitionProgress(100, message);
+        showToast('Recognition completed successfully', 'success');
         return result;
     } catch (error) {
         console.error('Recognition error:', error);
         messageEl.textContent = 'Error: ' + error.message;
         progressBar.value = 0;
         statusEl.textContent = 'Error';
+        showToast(error.message, 'error');
         throw error;
     }
 }
 
-// Function to handle face registration
-async function registerFace(imageData, name, studentId) {
-    try {
-        recognitionModal.showModal();
-        updateRecognitionProgress(0, 'Starting face registration...');
-
-        const response = await fetch('/recognition/register', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                image: imageData,
-                name: name,
-                student_id: studentId
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Registration failed');
-        }
-
-        const result = await response.json();
-        updateRecognitionProgress(100, result.message);
-        return result;
-    } catch (error) {
-        console.error('Registration error:', error);
-        messageEl.textContent = 'Error: ' + error.message;
-        progressBar.value = 0;
-        statusEl.textContent = 'Error';
-        throw error;
-    }
+// Toast notification function
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} shadow-lg max-w-sm animate-fade-in fixed bottom-4 right-4 z-50`;
+    
+    const icon = document.createElement('span');
+    icon.className = 'ri-information-line';
+    if (type === 'success') icon.className = 'ri-checkbox-circle-line';
+    else if (type === 'error') icon.className = 'ri-error-warning-line';
+    else if (type === 'warning') icon.className = 'ri-alert-line';
+    
+    const text = document.createElement('span');
+    text.textContent = message;
+    
+    toast.appendChild(icon);
+    toast.appendChild(text);
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 // Mode switching
@@ -476,7 +524,6 @@ async function handleRecognitionUpload() {
 async function handleRegistrationUpload() {
     const file = document.getElementById('registrationFile').files[0];
     if (file) {
-        const imageData = await fileToBase64(file);
         const name = document.getElementById('studentName').value.trim();
         const studentId = document.getElementById('studentId').value.trim();
         
@@ -486,9 +533,15 @@ async function handleRegistrationUpload() {
         }
         
         try {
-            await registerFace(imageData, name, studentId);
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const imageData = e.target.result;
+                await registerFace(imageData, name, studentId);
+            };
+            reader.readAsDataURL(file);
         } catch (error) {
             console.error('Registration failed:', error);
+            alert('Registration failed: ' + error.message);
         }
     }
 }
@@ -516,18 +569,19 @@ async function captureAndRegister() {
         return;
     }
     
-    // Capture photo
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    
-    // Convert to base64
-    const imageData = canvas.toDataURL('image/jpeg');
-    
     try {
+        // Capture photo
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0);
+        
+        // Convert to base64
+        const imageData = canvas.toDataURL('image/jpeg', 0.9);
         await registerFace(imageData, name, studentId);
     } catch (error) {
         console.error('Registration failed:', error);
+        alert('Registration failed: ' + error.message);
     }
 }
 
