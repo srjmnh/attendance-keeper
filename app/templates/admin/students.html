@@ -210,38 +210,49 @@ function switchTab(tab) {
 // Load students data
 async function loadStudents() {
     try {
+        console.log('Loading students...');
         const response = await fetch('/api/students');
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
             const error = await response.json();
+            console.error('API Error:', error);
             throw new Error(error.error || 'Failed to load students');
         }
         
         const students = await response.json();
+        console.log('Received students data:', students);
+        
         if (!Array.isArray(students)) {
+            console.error('Invalid data format:', students);
             throw new Error('Invalid data format received');
         }
         
         const tbody = document.getElementById('studentsTableBody');
-        tbody.innerHTML = students.map(student => `
-            <tr>
-                <td>${student.student_id || 'N/A'}</td>
-                <td>${student.name || 'N/A'}</td>
-                <td>Class ${student.class || 'N/A'}</td>
-                <td>${student.division || 'N/A'}</td>
-                <td>
-                    <div class="flex gap-2">
-                        <button onclick="editRecord('student', ${JSON.stringify(student).replace(/"/g, '&quot;')})" 
-                                class="btn btn-ghost btn-sm">
-                            <i class="ri-edit-line"></i>
-                        </button>
-                        <button onclick="deleteRecord('student', '${student.id}')" 
-                                class="btn btn-ghost btn-sm text-error">
-                            <i class="ri-delete-bin-line"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = students.map(student => {
+            console.log('Processing student:', student);
+            return `
+                <tr>
+                    <td>${student.student_id || 'N/A'}</td>
+                    <td>${student.name || 'N/A'}</td>
+                    <td>Class ${student.class || 'N/A'}</td>
+                    <td>${student.division || 'N/A'}</td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button onclick="editRecord('student', ${JSON.stringify(student).replace(/"/g, '&quot;')})" 
+                                    class="btn btn-ghost btn-sm">
+                                <i class="ri-edit-line"></i>
+                            </button>
+                            <button onclick="deleteRecord('student', '${student.id}')" 
+                                    class="btn btn-ghost btn-sm text-error">
+                                <i class="ri-delete-bin-line"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        console.log('Students table updated');
     } catch (error) {
         console.error('Error loading students:', error);
         showToast(error.message || 'Failed to load students', 'error');
@@ -249,7 +260,8 @@ async function loadStudents() {
         tbody.innerHTML = `
             <tr>
                 <td colspan="5" class="text-center text-error">
-                    Failed to load students. Please try again.
+                    <i class="ri-error-warning-line text-xl mb-2"></i>
+                    <p>Failed to load students</p>
                 </td>
             </tr>
         `;

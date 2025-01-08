@@ -190,19 +190,24 @@ def add_student():
 def get_students():
     """Get all students"""
     try:
+        current_app.logger.info("Fetching students from database")
         students = []
         students_ref = current_app.db.collection('users').where('role', '==', 'student').stream()
         
         for doc in students_ref:
             data = doc.to_dict()
-            students.append({
+            current_app.logger.debug(f"Processing student document: {doc.id}")
+            student_data = {
                 'id': doc.id,
                 'name': data.get('name', ''),
                 'student_id': data.get('student_id', ''),
                 'class': data.get('class', ''),
                 'division': data.get('division', '')
-            })
+            }
+            current_app.logger.debug(f"Student data: {student_data}")
+            students.append(student_data)
         
+        current_app.logger.info(f"Found {len(students)} students")
         return jsonify(students)
     except Exception as e:
         current_app.logger.error(f"Error getting students: {str(e)}")
