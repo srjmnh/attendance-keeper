@@ -120,7 +120,8 @@ def register_face():
             'division': student_division.upper(),
             'role': 'student',
             'created_at': datetime.utcnow().isoformat(),
-            'face_id': external_image_id
+            'face_id': external_image_id,
+            'rekognition_face_id': response['FaceRecords'][0]['Face']['FaceId']
         }
 
         # Add student to Firestore
@@ -213,6 +214,7 @@ def recognize_face():
                     FaceMatchThreshold=60
                 )
 
+                current_app.logger.info(f"Face search response: {search_response}")
                 matches = search_response.get('FaceMatches', [])
                 if not matches:
                     identified_people.append({
@@ -226,17 +228,23 @@ def recognize_face():
                 ext_id = match['Face']['ExternalImageId']
                 confidence = match['Face']['Confidence']
 
+                current_app.logger.info(f"Found match with external ID: {ext_id} and confidence: {confidence}")
+
                 # Get student details from Firestore
                 student_query = current_app.db.collection('users').where('face_id', '==', ext_id).limit(1).get()
-                if not student_query:
+                student_docs = list(student_query)
+                current_app.logger.info(f"Found {len(student_docs)} student documents for face_id {ext_id}")
+                
+                if not student_docs:
                     identified_people.append({
                         "message": "Student data not found",
                         "confidence": confidence
                     })
                     continue
 
-                student_doc = list(student_query)[0]
+                student_doc = student_docs[0]
                 student_data = student_doc.to_dict()
+                current_app.logger.info(f"Student data: {student_data}")
                 student_name = student_data.get('name', 'Unknown')
                 student_id = student_data.get('student_id', 'Unknown')
                 student_class = student_data.get('class', '')
