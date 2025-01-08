@@ -149,10 +149,10 @@ def update_student(student_id):
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
             
-        # Validate student ID format
+        # Validate student ID format (allow letters, numbers, and common separators)
         student_id_new = str(data['student_id']).strip()
-        if not student_id_new.isalnum():
-            return jsonify({'error': 'Student ID must be alphanumeric without spaces'}), 400
+        if not student_id_new or len(student_id_new) > 20:  # Basic length check
+            return jsonify({'error': 'Student ID must be between 1 and 20 characters'}), 400
             
         # Validate class
         try:
@@ -438,10 +438,10 @@ def create_student():
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
             
-        # Validate student ID format
+        # Validate student ID format (allow letters, numbers, and common separators)
         student_id = str(data['student_id']).strip()
-        if not student_id.isalnum():
-            return jsonify({'error': 'Student ID must be alphanumeric without spaces'}), 400
+        if not student_id or len(student_id) > 20:  # Basic length check
+            return jsonify({'error': 'Student ID must be between 1 and 20 characters'}), 400
             
         # Validate class
         try:
