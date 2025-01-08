@@ -2,10 +2,18 @@ services:
   - type: web
     name: attendance-keeper
     env: python
+    branch: modernize-ui
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn run:app --bind 0.0.0.0:$PORT --workers 2 --threads 8
     autoDeploy: true
     healthCheckPath: /
+    envVars:
+      - key: FLASK_CONFIG
+        value: production
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: true
     disk:
       name: pip-cache
       mountPath: /root/.cache/pip
