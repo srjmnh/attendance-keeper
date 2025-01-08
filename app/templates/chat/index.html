@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}AI Assistant - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-[calc(100vh-4rem)]">
+    <!-- Header -->
+    <div class="flex-none p-4 bg-base-100 border-b">
+        <h1 class="text-2xl font-bold flex items-center gap-2">
+            <i class="ri-robot-line text-primary"></i>
+            AI Assistant
+        </h1>
+        <p class="text-base-content/60">Ask me anything about the attendance system!</p>
+    </div>
+
+    <!-- Chat Messages -->
+    <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
+        <!-- Welcome Message -->
+        <div class="chat chat-start">
+            <div class="chat-bubble chat-bubble-primary">
+                👋 Hi! I'm your AI assistant. I can help you with:
+                <ul class="list-disc list-inside mt-2">
+                    <li>Taking attendance with face recognition</li>
+                    <li>Managing attendance records</li>
+                    <li>Student registration</li>
+                    <li>Navigating the system</li>
+                </ul>
+                How can I help you today?
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="flex-none p-4 bg-base-100 border-t">
+        <form id="chatForm" class="flex gap-2">
+            <input type="text" id="messageInput" 
+                   class="input input-bordered flex-1" 
+                   placeholder="Type your message here..."
+                   autocomplete="off">
+            <button type="submit" class="btn btn-primary gap-2">
+                <i class="ri-send-plane-line"></i>
+                Send
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatForm = document.getElementById('chatForm');
+const messageInput = document.getElementById('messageInput');
+
+// Add user message to chat
+function addUserMessage(message) {
+    const div = document.createElement('div');
+    div.className = 'chat chat-end';
+    div.innerHTML = `
+        <div class="chat-bubble">${escapeHtml(message)}</div>
+    `;
+    chatMessages.appendChild(div);
+    scrollToBottom();
+}
+
+// Add assistant message to chat
+function addAssistantMessage(message) {
+    const div = document.createElement('div');
+    div.className = 'chat chat-start';
+    div.innerHTML = `
+        <div class="chat-bubble chat-bubble-primary">${formatMessage(message)}</div>
+    `;
+    chatMessages.appendChild(div);
+    scrollToBottom();
+}
+
+// Format message with links and line breaks
+function formatMessage(message) {
+    // Convert URLs to links
+    message = message.replace(
+        /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim,
+        '<a href="$1" class="link" target="_blank">$1</a>'
+    );
+    
+    // Convert page references to links
+    message = message.replace(
+        /\((\/[a-zA-Z0-9\/\-_]+)\)/g,
+        '(<a href="$1" class="link">$1</a>)'
+    );
+    
+    // Convert line breaks to <br>
+    return message.replace(/\n/g, '<br>');
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Scroll chat to bottom
+function scrollToBottom() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Handle form submission
+chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const message = messageInput.value.trim();
+    if (!message) return;
+    
+    // Clear input
+    messageInput.value = '';
+    
+    // Add user message
+    addUserMessage(message);
+    
+    try {
+        // Show typing indicator
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'chat chat-start';
+        typingDiv.innerHTML = `
+            <div class="chat-bubble chat-bubble-primary opacity-50">
+                <span class="loading loading-dots"></span>
+            </div>
+        `;
+        chatMessages.appendChild(typingDiv);
+        scrollToBottom();
+        
+        // Send message to server
+        const response = await fetch('/chat/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message })
+        });
+        
+        // Remove typing indicator
+        typingDiv.remove();
+        
+        if (!response.ok) {
+            throw new Error('Failed to get response');
+        }
+        
+        const data = await response.json();
+        addAssistantMessage(data.response);
+        
+    } catch (error) {
+        console.error('Chat error:', error);
+        addAssistantMessage('Sorry, I encountered an error. Please try again.');
+    }
+});
+
+// Focus input on load
+messageInput.focus();
+</script>
+{% endblock %} 

@@ -88,13 +88,14 @@ def create_app(config_name=None):
     
     # Register blueprints
     with app.app_context():
-        from app.routes import auth, main, admin, ai, recognition, attendance
+        from app.routes import auth, main, admin, ai, recognition, attendance, chat
         app.register_blueprint(auth.bp)
         app.register_blueprint(main.bp)
         app.register_blueprint(admin.bp)
         app.register_blueprint(ai.bp)
         app.register_blueprint(recognition.bp)
         app.register_blueprint(attendance.bp)
+        app.register_blueprint(chat.bp)
     
     @app.before_request
     def before_request():

@@ -40,32 +40,33 @@ def get_attendance():
         # Build query
         query = current_app.db.collection('attendance')
         
-        # Apply role-based restrictions
+        # Note: This query requires a composite index on (subject_id, timestamp, __name__)
+        # Create the index in Firebase Console or use the link in the error message
         if current_user.role == 'teacher':
-            query = query.where('subject_id', 'in', current_user.classes)
+            query = query.filter('subject_id', 'in', current_user.classes)
             current_app.logger.debug(f"Applied teacher filter: classes={current_user.classes}")
         elif current_user.role == 'student':
-            query = query.where('student_id', '==', current_user.id)
+            query = query.filter('student_id', '==', current_user.id)
             current_app.logger.debug(f"Applied student filter: student_id={current_user.id}")
 
         # Apply filters
         if student_id:
-            query = query.where('student_id', '==', student_id)
+            query = query.filter('student_id', '==', student_id)
         if subject_id:
-            query = query.where('subject_id', '==', subject_id)
+            query = query.filter('subject_id', '==', subject_id)
         if status:
-            query = query.where('status', '==', status)
+            query = query.filter('status', '==', status)
 
         # Date range filter
         today = datetime.now().date()
         if date_range == 'today':
-            query = query.where('timestamp', '>=', today.isoformat())
-            query = query.where('timestamp', '<', (today + timedelta(days=1)).isoformat())
+            query = query.filter('timestamp', '>=', today.isoformat())
+            query = query.filter('timestamp', '<', (today + timedelta(days=1)).isoformat())
             current_app.logger.debug(f"Applied today filter: {today.isoformat()} to {(today + timedelta(days=1)).isoformat()}")
         elif date_range == 'week':
             start_of_week = today - timedelta(days=today.weekday())
-            query = query.where('timestamp', '>=', start_of_week.isoformat())
-            query = query.where('timestamp', '<', (start_of_week + timedelta(days=7)).isoformat())
+            query = query.filter('timestamp', '>=', start_of_week.isoformat())
+            query = query.filter('timestamp', '<', (start_of_week + timedelta(days=7)).isoformat())
             current_app.logger.debug(f"Applied week filter: {start_of_week.isoformat()} to {(start_of_week + timedelta(days=7)).isoformat()}")
         elif date_range == 'month':
             start_of_month = today.replace(day=1)
@@ -73,15 +74,15 @@ def get_attendance():
                 end_of_month = today.replace(year=today.year + 1, month=1, day=1)
             else:
                 end_of_month = today.replace(month=today.month + 1, day=1)
-            query = query.where('timestamp', '>=', start_of_month.isoformat())
-            query = query.where('timestamp', '<', end_of_month.isoformat())
+            query = query.filter('timestamp', '>=', start_of_month.isoformat())
+            query = query.filter('timestamp', '<', end_of_month.isoformat())
             current_app.logger.debug(f"Applied month filter: {start_of_month.isoformat()} to {end_of_month.isoformat()}")
         elif date_range == 'custom' and date_from and date_to:
             try:
                 from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
                 to_date = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
-                query = query.where('timestamp', '>=', from_date.isoformat())
-                query = query.where('timestamp', '<', to_date.isoformat())
+                query = query.filter('timestamp', '>=', from_date.isoformat())
+                query = query.filter('timestamp', '<', to_date.isoformat())
                 current_app.logger.debug(f"Applied custom date filter: {from_date.isoformat()} to {to_date.isoformat()}")
             except ValueError:
                 return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
