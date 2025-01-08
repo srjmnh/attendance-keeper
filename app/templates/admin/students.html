@@ -238,7 +238,7 @@ async function handleStudentSubmit(event) {
     console.log('Submitting data:', data);  // Debug log
     
     try {
-        const url = studentId ? `/api/students/${studentId}` : '/api/students';
+        const url = studentId ? `/admin/api/students/${studentId}` : '/admin/api/students';
         const method = studentId ? 'PUT' : 'POST';
         console.log(`Making ${method} request to ${url}`);  // Debug log
         
@@ -274,7 +274,7 @@ async function deleteStudent(id) {
     }
     
     try {
-        const response = await fetch(`/api/students/${id}`, {
+        const response = await fetch(`/admin/api/students/${id}`, {
             method: 'DELETE'
         });
         
@@ -302,7 +302,7 @@ async function uploadStudents() {
     formData.append('file', file);
     
     try {
-        const response = await fetch('/api/students/upload', {
+        const response = await fetch('/admin/api/students/upload', {
             method: 'POST',
             body: formData
         });
