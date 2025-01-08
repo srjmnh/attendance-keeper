@@ -115,10 +115,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // Get attendance data from server-side
-const chartData = {
-    labels: JSON.parse('{{ attendance_data.labels | tojson | safe }}'),
-    values: JSON.parse('{{ attendance_data.values | tojson | safe }}')
-};
+const chartData = JSON.parse('{{ attendance_data | tojson | safe }}');
 
 // Initialize attendance chart
 const ctx = document.getElementById('attendanceChart').getContext('2d');

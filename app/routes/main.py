@@ -69,11 +69,22 @@ def dashboard():
     
     for doc in query.stream():
         record = doc.to_dict()
+        # Format timestamp for display
+        timestamp = record.get('timestamp', '')
+        if timestamp:
+            try:
+                dt = datetime.fromisoformat(timestamp)
+                formatted_timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                formatted_timestamp = timestamp
+        else:
+            formatted_timestamp = ''
+            
         attendance_records.append({
-            'timestamp': record.get('timestamp', ''),
-            'name': record.get('name', ''),
-            'subject_name': record.get('subject_name', ''),
-            'status': record.get('status', '')
+            'timestamp': formatted_timestamp,
+            'name': str(record.get('name', '')),
+            'subject_name': str(record.get('subject_name', '')),
+            'status': str(record.get('status', ''))
         })
     
     # Calculate attendance data for chart
@@ -101,17 +112,17 @@ def dashboard():
         else:
             percentage = 0
         
-        attendance_values.append(percentage)
+        attendance_values.append(int(percentage))  # Ensure it's a simple integer
     
     attendance_data = {
-        'labels': last_7_days,
-        'values': attendance_values
+        'labels': [str(d) for d in last_7_days],  # Ensure all labels are strings
+        'values': attendance_values  # List of integers
     }
     
     return render_template('dashboard.html',
-                         total_students=total_students,
-                         total_subjects=total_subjects,
-                         today_attendance=today_attendance,
-                         attendance_trend=attendance_trend,
+                         total_students=int(total_students),
+                         total_subjects=int(total_subjects),
+                         today_attendance=int(today_attendance),
+                         attendance_trend=str(attendance_trend),
                          attendance_records=attendance_records,
                          attendance_data=attendance_data) 
