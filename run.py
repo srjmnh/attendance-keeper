@@ -2,10 +2,11 @@ from flask import Flask
 from flask_login import LoginManager
 from app.services.db_service import DatabaseService
 from app.routes import admin, auth, main, ai, attendance, recognition
+import os
 
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'your-secret-key'  # Change this to use environment variable
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
     
     # Initialize Firebase Admin
     db = DatabaseService()
@@ -30,6 +31,14 @@ def create_app():
     
     return app
 
+# Create the application instance
+app = create_app()
+
+# Push an application context if running directly
 if __name__ == '__main__':
-    app = create_app()
-    app.run(debug=True) 
+    with app.app_context():
+        app.run(debug=True)
+else:
+    # For gunicorn and other WSGI servers
+    # Push an application context
+    app.app_context().push() 
