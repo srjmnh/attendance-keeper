@@ -28,76 +28,34 @@
         
         <!-- Page content -->
         <div class="drawer-content flex flex-col">
-            <!-- Top Navigation -->
+            <!-- Top Navigation (Mobile only) -->
             <div class="navbar bg-base-100 shadow-sm lg:hidden animate-slide-down">
                 <div class="flex-none">
                     <label for="drawer-toggle" class="btn btn-ghost btn-circle drawer-button">
-                        <span class="material-icons-round">menu</span>
+                        <i class="ri-menu-line text-xl"></i>
                     </label>
                 </div>
                 <div class="flex-1">
                     <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost normal-case text-xl gap-2">
-                        <span class="material-icons-round text-primary">school</span>
+                        <i class="ri-building-4-line text-primary"></i>
                         AttendanceAI
                     </a>
                 </div>
-                {% if current_user.is_authenticated %}
-                <div class="flex-none">
-                    <div class="dropdown dropdown-end">
-                        <label tabindex="0" class="btn btn-ghost btn-circle avatar">
-                            <div class="avatar placeholder">
-                                <div class="bg-primary text-primary-content rounded-full w-10">
-                                    <span>{{ current_user.email[0].upper() }}</span>
-                                </div>
-                            </div>
-                        </label>
-                        <ul tabindex="0" class="menu dropdown-content z-[1] p-2 shadow-lg bg-base-100 rounded-box w-52 mt-4">
-                            <li class="menu-title">
-                                <span class="text-sm opacity-50">{{ current_user.email }}</span>
-                            </li>
-                            <li>
-                                <a href="{{ url_for('auth.logout') }}" class="text-error">
-                                    <span class="material-icons-round">logout</span>
-                                    Sign out
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-                {% endif %}
             </div>
             
             <!-- Main Content -->
             <main class="flex-1 overflow-y-auto p-4 lg:p-8 animate-fade-in">
-                <!-- Breadcrumbs -->
-                <div class="text-sm breadcrumbs mb-6">
-                    <ul>
-                        <li>
-                            <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2">
-                                <span class="material-icons-round text-primary">dashboard</span>
-                                Dashboard
-                            </a>
-                        </li>
-                        {% block breadcrumbs %}{% endblock %}
-                    </ul>
-                </div>
-                
                 <!-- Flash Messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
                             <div class="alert alert-{{ category }} shadow-lg mb-6 animate-fade-in">
                                 <div class="flex items-center gap-2">
-                                    <span class="material-icons-round">
-                                        {% if category == 'success' %}check_circle
-                                        {% elif category == 'error' %}error
-                                        {% elif category == 'warning' %}warning
-                                        {% else %}info{% endif %}
-                                    </span>
+                                    <i class="ri-{% if category == 'success' %}check-line{% elif category == 'error' %}error-warning-line{% elif category == 'warning' %}alert-line{% else %}information-line{% endif %}"></i>
                                     <span>{{ message }}</span>
                                 </div>
                                 <button onclick="this.parentElement.remove()" class="btn btn-ghost btn-xs">
-                                    <span class="material-icons-round">close</span>
+                                    <i class="ri-close-line"></i>
                                 </button>
                             </div>
                         {% endfor %}
@@ -116,7 +74,7 @@
                 <!-- Logo -->
                 <div class="p-4">
                     <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost normal-case text-xl w-full justify-start gap-2 hover:bg-primary hover:text-primary-content">
-                        <span class="material-icons-round">school</span>
+                        <i class="ri-building-4-line"></i>
                         AttendanceAI
                     </a>
                 </div>
@@ -127,7 +85,7 @@
                         <li>
                             <a href="{{ url_for('main.dashboard') }}" 
                                class="flex items-center gap-2 {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
-                                <span class="material-icons-round">dashboard</span>
+                                <i class="ri-dashboard-line"></i>
                                 Dashboard
                             </a>
                         </li>
@@ -136,21 +94,21 @@
                         <li>
                             <a href="{{ url_for('attendance.index') }}"
                                class="flex items-center gap-2 {% if request.endpoint == 'attendance.index' %}active{% endif %}">
-                                <span class="material-icons-round">event_available</span>
+                                <i class="ri-calendar-check-line"></i>
                                 Attendance
                             </a>
                         </li>
                         <li>
                             <a href="{{ url_for('admin.manage_subjects') }}"
                                class="flex items-center gap-2 {% if request.endpoint == 'admin.manage_subjects' %}active{% endif %}">
-                                <span class="material-icons-round">book</span>
+                                <i class="ri-book-line"></i>
                                 Subjects
                             </a>
                         </li>
                         <li>
-                            <a href="#"
+                            <a href="{{ url_for('admin.manage_students') }}"
                                class="flex items-center gap-2 {% if request.endpoint == 'admin.manage_students' %}active{% endif %}">
-                                <span class="material-icons-round">people</span>
+                                <i class="ri-user-line"></i>
                                 Students
                             </a>
                         </li>
@@ -160,7 +118,7 @@
                         <li>
                             <a href="{{ url_for('admin.admin_dashboard') }}"
                                class="flex items-center gap-2 {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}">
-                                <span class="material-icons-round">admin_panel_settings</span>
+                                <i class="ri-settings-5-line"></i>
                                 Admin
                             </a>
                         </li>
@@ -171,7 +129,7 @@
                         <!-- Theme Toggle -->
                         <div class="flex items-center justify-between px-4 py-2">
                             <span class="flex items-center gap-2">
-                                <span class="material-icons-round">palette</span>
+                                <i class="ri-palette-line"></i>
                                 Theme
                             </span>
                             <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
@@ -179,26 +137,26 @@
                         
                         <!-- User Section -->
                         <div class="bg-base-200 rounded-box p-4 mt-4">
-                            <div class="flex items-center gap-4 mb-4">
+                            <div class="flex items-center gap-4">
                                 <div class="avatar placeholder">
                                     <div class="bg-primary text-primary-content rounded-full w-12">
                                         <span class="text-lg">{{ current_user.email[0].upper() }}</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <div class="font-medium">{{ current_user.email }}</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-medium truncate">{{ current_user.email }}</div>
                                     <div class="text-sm opacity-50">{{ current_user.role.capitalize() }}</div>
                                 </div>
                             </div>
-                            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-error btn-block gap-2">
-                                <span class="material-icons-round">logout</span>
+                            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-error btn-sm w-full mt-4 gap-2">
+                                <i class="ri-logout-box-line"></i>
                                 Sign out
                             </a>
                         </div>
                     {% else %}
                         <li>
                             <a href="{{ url_for('auth.login') }}" class="btn btn-primary gap-2">
-                                <span class="material-icons-round">login</span>
+                                <i class="ri-login-box-line"></i>
                                 Sign in
                             </a>
                         </li>
@@ -213,13 +171,13 @@
     <div class="fixed bottom-6 right-6 z-50">
         <div class="dropdown dropdown-top dropdown-end">
             <label tabindex="0" class="btn btn-circle btn-primary btn-lg shadow-lg hover:scale-105 transition-transform">
-                <span class="material-icons-round text-2xl">smart_toy</span>
+                <i class="ri-robot-line text-2xl"></i>
             </label>
             <div tabindex="0" class="dropdown-content w-96 max-w-[calc(100vw-2rem)] card bg-base-100 shadow-2xl animate-fade-up">
                 <div class="card-body p-0">
                     <div class="border-b p-4">
                         <h3 class="card-title gap-2">
-                            <span class="material-icons-round text-primary">smart_toy</span>
+                            <i class="ri-robot-line text-primary"></i>
                             AI Assistant
                         </h3>
                     </div>
@@ -231,8 +189,8 @@
                             <input type="text" id="chatInput" 
                                    class="input input-bordered join-item flex-grow"
                                    placeholder="Ask me anything...">
-                            <button id="chatSendBtn" class="btn btn-primary join-item gap-2">
-                                <span class="material-icons-round">send</span>
+                            <button id="chatSendBtn" class="btn btn-primary join-item">
+                                <i class="ri-send-plane-line"></i>
                             </button>
                         </div>
                     </div>
@@ -248,74 +206,64 @@
     <script>
         // Theme Toggle
         const themeToggle = document.getElementById('theme-toggle');
-        const html = document.documentElement;
-        
-        // Set initial state from localStorage
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        html.setAttribute('data-theme', savedTheme);
-        themeToggle.checked = savedTheme === 'dark';
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        themeToggle.checked = currentTheme === 'dark';
         
         themeToggle.addEventListener('change', function() {
             const theme = this.checked ? 'dark' : 'light';
-            html.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
         });
         
-        // AI Assistant
-        {% if current_user.is_authenticated %}
+        // Chat Functionality
+        const chatMessages = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
         const chatSendBtn = document.getElementById('chatSendBtn');
-        const chatMessages = document.getElementById('chatMessages');
-
-        function addMessage(text, sender) {
+        
+        function addMessage(content, isUser = false) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = `chat ${sender === 'user' ? 'chat-end' : 'chat-start'} animate-fade-up`;
-            
-            const bubble = document.createElement('div');
-            bubble.className = `chat-bubble ${sender === 'user' ? 'chat-bubble-primary' : ''} shadow-md`;
-            bubble.textContent = text;
-            
-            messageDiv.appendChild(bubble);
+            messageDiv.className = `chat ${isUser ? 'chat-end' : 'chat-start'}`;
+            messageDiv.innerHTML = `
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full ${isUser ? 'bg-primary' : 'bg-neutral'}">
+                        <span class="text-lg text-white">${isUser ? '{{ current_user.email[0].upper() }}' : 'AI'}</span>
+                    </div>
+                </div>
+                <div class="chat-bubble ${isUser ? 'chat-bubble-primary' : ''}">${content}</div>
+            `;
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-
-        {% if current_user.role == 'admin' %}
-        async function sendMessage() {
+        
+        chatSendBtn.addEventListener('click', async function() {
             const message = chatInput.value.trim();
             if (!message) return;
             
-            addMessage(message, 'user');
+            addMessage(message, true);
             chatInput.value = '';
-
+            
             try {
-                const response = await fetch('/process_prompt', {
+                const response = await fetch('/api/ai/chat', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({ prompt: message })
                 });
                 
                 const data = await response.json();
-                if (data.error) {
-                    addMessage(`Error: ${data.error}`, 'assistant');
-                } else {
-                    addMessage(data.message, 'assistant');
-                }
+                addMessage(data.message);
             } catch (error) {
-                console.error('Error:', error);
-                addMessage('Sorry, I encountered an error.', 'assistant');
-            }
-        }
-
-        chatSendBtn.addEventListener('click', sendMessage);
-        chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+                addMessage('Sorry, I encountered an error. Please try again.');
             }
         });
-        {% endif %}
-        {% endif %}
+        
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                chatSendBtn.click();
+            }
+        });
     </script>
     
     {% block extra_js %}{% endblock %}
