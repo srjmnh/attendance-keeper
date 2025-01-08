@@ -146,6 +146,9 @@ def update_attendance():
             
             # Update record
             update_data = {
+                'name': record.get('name'),
+                'student_id': record.get('student_id'),
+                'subject_name': record.get('subject_name'),
                 'status': record.get('status'),
                 'updated_at': datetime.now().isoformat(),
                 'updated_by': current_user.id

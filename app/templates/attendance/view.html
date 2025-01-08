@@ -203,30 +203,116 @@ function displayAttendance(records) {
     records.forEach((record, index) => {
         console.log(`Processing record ${index}:`, record);
         const row = document.createElement('tr');
+        row.dataset.docId = record.doc_id;
         row.innerHTML = `
             <td>${formatDateTime(record.timestamp)}</td>
-            <td>${record.student_id}</td>
-            <td>${record.name}</td>
-            <td>${record.subject_name || 'N/A'}</td>
+            <td>
+                <input type="text" class="input input-bordered input-sm w-full" 
+                       value="${record.student_id}" 
+                       onchange="handleFieldChange('${record.doc_id}', 'student_id', this.value)">
+            </td>
+            <td>
+                <input type="text" class="input input-bordered input-sm w-full" 
+                       value="${record.name}" 
+                       onchange="handleFieldChange('${record.doc_id}', 'name', this.value)">
+            </td>
+            <td>
+                <input type="text" class="input input-bordered input-sm w-full" 
+                       value="${record.subject_name || ''}" 
+                       onchange="handleFieldChange('${record.doc_id}', 'subject_name', this.value)">
+            </td>
             <td>
                 <select class="select select-bordered select-sm w-28" 
-                        onchange="updateStatus('${record.doc_id}', this.value)">
+                        onchange="handleFieldChange('${record.doc_id}', 'status', this.value)">
                     <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>Present</option>
                     <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>Absent</option>
                 </select>
             </td>
-            ${user_role === 'admin' ? `
             <td class="text-center">
-                <button onclick="deleteAttendance('${record.doc_id}')" 
-                        class="btn btn-ghost btn-sm text-error">
-                    <i class="ri-delete-bin-line"></i>
-                </button>
+                <div class="flex justify-center gap-2">
+                    <button onclick="saveChanges('${record.doc_id}')" 
+                            class="btn btn-ghost btn-sm text-success save-btn" disabled>
+                        <i class="ri-save-line"></i>
+                    </button>
+                    ${user_role === 'admin' ? `
+                    <button onclick="deleteAttendance('${record.doc_id}')" 
+                            class="btn btn-ghost btn-sm text-error">
+                        <i class="ri-delete-bin-line"></i>
+                    </button>
+                    ` : ''}
+                </div>
             </td>
-            ` : ''}
         `;
         tbody.appendChild(row);
     });
     console.log('Finished displaying records');
+}
+
+// Store changes before saving
+const pendingChanges = {};
+
+function handleFieldChange(docId, field, value) {
+    // Initialize changes object for this document if it doesn't exist
+    if (!pendingChanges[docId]) {
+        pendingChanges[docId] = {};
+    }
+    
+    // Store the change
+    pendingChanges[docId][field] = value;
+    
+    // Enable the save button for this row
+    const row = document.querySelector(`tr[data-doc-id="${docId}"]`);
+    if (row) {
+        const saveBtn = row.querySelector('.save-btn');
+        if (saveBtn) {
+            saveBtn.disabled = false;
+        }
+    }
+}
+
+async function saveChanges(docId) {
+    if (!pendingChanges[docId]) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/attendance/api/attendance/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                records: [{
+                    doc_id: docId,
+                    ...pendingChanges[docId]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update record');
+        }
+
+        // Clear pending changes for this record
+        delete pendingChanges[docId];
+        
+        // Disable save button
+        const row = document.querySelector(`tr[data-doc-id="${docId}"]`);
+        if (row) {
+            const saveBtn = row.querySelector('.save-btn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+            }
+        }
+
+        showToast('Record updated successfully', 'success');
+    } catch (error) {
+        console.error('Error updating record:', error);
+        showToast(error.message, 'error');
+        // Reload to reset the fields
+        loadAttendance();
+    }
 }
 
 function formatDateTime(timestamp) {
@@ -288,35 +374,6 @@ async function exportAttendance() {
     } catch (error) {
         console.error('Error exporting attendance:', error);
         showToast(error.message, 'error');
-    }
-}
-
-async function updateStatus(docId, newStatus) {
-    try {
-        const response = await fetch(`/attendance/api/attendance/update`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                records: [{
-                    doc_id: docId,
-                    status: newStatus
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update status');
-        }
-
-        showToast('Status updated successfully', 'success');
-    } catch (error) {
-        console.error('Error updating status:', error);
-        showToast(error.message, 'error');
-        // Reload to reset the status
-        loadAttendance();
     }
 }
 </script>
