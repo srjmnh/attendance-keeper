@@ -64,7 +64,7 @@
 <dialog id="subjectModal" class="modal">
     <div class="modal-box">
         <h3 class="font-bold text-lg mb-4" id="modalTitle">Add Subject</h3>
-        <form method="POST" id="subjectForm">
+        <form method="POST" action="{{ url_for('admin.manage_subjects') }}" id="subjectForm">
             <input type="hidden" name="subject_id" id="subject_id">
             
             <div class="form-control w-full mb-4">
@@ -149,7 +149,7 @@ async function confirmDelete() {
     if (!subjectToDelete) return;
     
     try {
-        const response = await fetch(`/admin/subjects/${subjectToDelete}`, {
+        const response = await fetch(`/admin/manage_subjects/${subjectToDelete}`, {
             method: 'DELETE'
         });
         

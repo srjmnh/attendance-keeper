@@ -22,7 +22,7 @@ def manage_users():
     users = db.get_all_users()
     return render_template('admin/users.html', users=users)
 
-@bp.route('/subjects', methods=['GET', 'POST'])
+@bp.route('/manage_subjects', methods=['GET', 'POST'])
 @login_required
 @role_required(['admin'])
 def manage_subjects():
@@ -73,7 +73,7 @@ def manage_subjects():
         flash(f"Error loading subjects: {str(e)}", "error")
         return render_template("admin/subjects.html", subjects=[])
 
-@bp.route('/subjects/<subject_id>', methods=['DELETE'])
+@bp.route('/manage_subjects/<subject_id>', methods=['DELETE'])
 @login_required
 @role_required(['admin'])
 def delete_subject(subject_id):
@@ -82,7 +82,7 @@ def delete_subject(subject_id):
         current_app.db.collection("subjects").document(subject_id).delete()
         return {'message': 'Subject deleted successfully'}, 200
     except Exception as e:
-        return {'error': str(e)}, 500 
+        return {'error': str(e)}, 500
 
 @bp.route('/students')
 @login_required
