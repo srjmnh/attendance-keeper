@@ -48,6 +48,7 @@ Always be helpful, clear, and maintain a friendly tone."""
         
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-pro')
+        self.chat = self.model.start_chat(history=[])
         
         # Start with system context
         self._conversation_memory = [
@@ -57,15 +58,19 @@ Always be helpful, clear, and maintain a friendly tone."""
     
     def _build_conversation(self):
         """Build conversation string from memory"""
-        conversation = []
-        for msg in self._conversation_memory:
-            if msg["role"] == "system":
-                conversation.append(f"System: {msg['content']}")
-            elif msg["role"] == "user":
-                conversation.append(f"User: {msg['content']}")
-            else:
-                conversation.append(f"Assistant: {msg['content']}")
-        return "\n".join(conversation)
+        try:
+            conversation = []
+            for msg in self._conversation_memory:
+                if msg["role"] == "system":
+                    conversation.append(f"System: {msg['content']}")
+                elif msg["role"] == "user":
+                    conversation.append(f"User: {msg['content']}")
+                else:
+                    conversation.append(f"Assistant: {msg['content']}")
+            return "\n".join(conversation)
+        except Exception as e:
+            current_app.logger.error(f"Error building conversation: {str(e)}")
+            return ""
     
     def analyze_attendance(self, attendance_data):
         """Analyze attendance data and provide insights"""
@@ -84,6 +89,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
+            if not response.text:
+                return "Sorry, I could not analyze the attendance data at this moment."
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error analyzing attendance: {str(e)}")
@@ -106,6 +113,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
+            if not response.text:
+                return "Sorry, I could not generate the report summary at this moment."
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error generating report summary: {str(e)}")
@@ -128,6 +137,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             """
             
             response = self.model.generate_content(prompt)
+            if not response.text:
+                return "Sorry, I could not generate recommendations at this moment."
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error getting student recommendations: {str(e)}")
@@ -144,8 +155,8 @@ Always be helpful, clear, and maintain a friendly tone."""
             if context:
                 conversation = f"Additional Context: {context}\n\n{conversation}"
             
-            # Get AI response
-            response = self.model.generate_content(conversation)
+            # Get AI response using chat
+            response = self.chat.send_message(conversation)
             
             if not response.text:
                 return "I'm having trouble generating a response. Please try again."
