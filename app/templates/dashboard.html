@@ -128,7 +128,19 @@
                                 <span class="label-text">Student Details</span>
                             </label>
                             <input type="text" id="studentName" placeholder="Student Name" class="input input-bordered input-sm mb-2" />
-                            <input type="text" id="studentId" placeholder="Student ID" class="input input-bordered input-sm" />
+                            <input type="text" id="studentId" placeholder="Student ID" class="input input-bordered input-sm mb-2" />
+                            <select id="studentClass" class="select select-bordered select-sm mb-2">
+                                <option value="">Select Class</option>
+                                {% for class in range(1, 13) %}
+                                    <option value="{{ class }}">Class {{ class }}</option>
+                                {% endfor %}
+                            </select>
+                            <select id="studentDivision" class="select select-bordered select-sm">
+                                <option value="">Select Division</option>
+                                {% for div in ['A', 'B', 'C', 'D'] %}
+                                    <option value="{{ div }}">Division {{ div }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         
                         <div class="flex flex-col gap-2 mt-4">
@@ -353,23 +365,19 @@ function updateRecognitionProgress(progress, message) {
 }
 
 // Function to handle face registration
-async function registerFace(imageData, name, studentId) {
+async function registerFace(imageData, name, studentId, studentClass, division) {
     try {
-        recognitionModal.showModal();
-        updateRecognitionProgress(0, 'Starting face registration...');
-
-        // Clean the base64 image data if it's a data URL
-        const base64Image = imageData.includes('base64') ? imageData : `data:image/jpeg;base64,${imageData}`;
-
-        const response = await fetch('/register', {
+        const response = await fetch('/recognition/register', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json'
+            headers: {
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 name: name,
                 student_id: studentId,
-                image: base64Image
+                class: studentClass,
+                division: division,
+                image: imageData
             })
         });
 
@@ -381,9 +389,11 @@ async function registerFace(imageData, name, studentId) {
 
         updateRecognitionProgress(100, data.message || 'Registration successful!');
         
-        // Clear form and show success message
+        // Clear form
         document.getElementById('studentName').value = '';
         document.getElementById('studentId').value = '';
+        document.getElementById('studentClass').value = '';
+        document.getElementById('studentDivision').value = '';
         if (document.getElementById('registrationFile')) {
             document.getElementById('registrationFile').value = '';
         }
@@ -399,7 +409,6 @@ async function registerFace(imageData, name, studentId) {
         messageEl.textContent = 'Error: ' + error.message;
         progressBar.value = 0;
         statusEl.textContent = 'Error';
-        showToast(error.message, 'error');
         throw error;
     }
 }
@@ -523,26 +532,31 @@ async function handleRecognitionUpload() {
 
 async function handleRegistrationUpload() {
     const file = document.getElementById('registrationFile').files[0];
-    if (file) {
-        const name = document.getElementById('studentName').value.trim();
-        const studentId = document.getElementById('studentId').value.trim();
-        
-        if (!name || !studentId) {
-            alert('Please enter student name and ID');
-            return;
-        }
-        
-        try {
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const imageData = e.target.result;
-                await registerFace(imageData, name, studentId);
-            };
-            reader.readAsDataURL(file);
-        } catch (error) {
-            console.error('Registration failed:', error);
-            alert('Registration failed: ' + error.message);
-        }
+    if (!file) {
+        alert('Please select an image file');
+        return;
+    }
+
+    const name = document.getElementById('studentName').value.trim();
+    const studentId = document.getElementById('studentId').value.trim();
+    const studentClass = document.getElementById('studentClass').value;
+    const division = document.getElementById('studentDivision').value;
+
+    if (!name || !studentId || !studentClass || !division) {
+        alert('Please fill in all student details');
+        return;
+    }
+
+    try {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const imageData = e.target.result;
+            await registerFace(imageData, name, studentId, studentClass, division);
+        };
+        reader.readAsDataURL(file);
+    } catch (error) {
+        console.error('Registration failed:', error);
+        alert('Registration failed: ' + error.message);
     }
 }
 
@@ -558,9 +572,11 @@ async function fileToBase64(file) {
 async function captureAndRegister() {
     const name = document.getElementById('studentName').value.trim();
     const studentId = document.getElementById('studentId').value.trim();
+    const studentClass = document.getElementById('studentClass').value;
+    const division = document.getElementById('studentDivision').value;
     
-    if (!name || !studentId) {
-        alert('Please enter student name and ID');
+    if (!name || !studentId || !studentClass || !division) {
+        alert('Please fill in all student details');
         return;
     }
     
@@ -578,7 +594,7 @@ async function captureAndRegister() {
         
         // Convert to base64
         const imageData = canvas.toDataURL('image/jpeg', 0.9);
-        await registerFace(imageData, name, studentId);
+        await registerFace(imageData, name, studentId, studentClass, division);
     } catch (error) {
         console.error('Registration failed:', error);
         alert('Registration failed: ' + error.message);

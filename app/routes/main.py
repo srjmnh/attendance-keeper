@@ -53,7 +53,7 @@ def dashboard():
     else:
         today_attendance = 0
         attendance_trend = "No attendance recorded today"
-    
+
     # Get recent attendance records
     attendance_records = []
     query = attendance_ref
@@ -86,43 +86,43 @@ def dashboard():
             'subject_name': str(record.get('subject_name', '')),
             'status': str(record.get('status', ''))
         })
-    
-    # Calculate attendance data for chart
-    # Get last 7 days of attendance
-    last_7_days = []
-    attendance_values = []
-    
+
+    # Get attendance data for chart
+    attendance_data = {
+        'labels': [],
+        'values': []
+    }
+
+    # Get last 7 days attendance
     for i in range(6, -1, -1):
         date = today - timedelta(days=i)
-        last_7_days.append(date.strftime('%Y-%m-%d'))
+        next_date = date + timedelta(days=1)
         
         # Query attendance for this day
-        day_query = attendance_ref.where('timestamp', '>=', date.isoformat())
-        day_query = day_query.where('timestamp', '<', (date + timedelta(days=1)).isoformat())
+        day_query = attendance_ref.where('timestamp', '>=', date.isoformat()).where('timestamp', '<', next_date.isoformat())
         
+        # Apply role-based filters
         if current_user.role == 'student':
             day_query = day_query.where('student_id', '==', current_user.id)
         elif current_user.role == 'teacher':
             day_query = day_query.where('subject_id', 'in', current_user.classes)
         
         day_records = list(day_query.stream())
+        
         if day_records:
             present_count = len([r for r in day_records if r.to_dict().get('status') == 'PRESENT'])
             percentage = round((present_count / len(day_records)) * 100)
         else:
             percentage = 0
         
-        attendance_values.append(int(percentage))  # Ensure it's a simple integer
-    
-    attendance_data = {
-        'labels': [str(d) for d in last_7_days],  # Ensure all labels are strings
-        'values': attendance_values  # List of integers
-    }
-    
+        attendance_data['labels'].append(date.strftime('%b %d'))
+        attendance_data['values'].append(percentage)
+
     return render_template('dashboard.html',
-                         total_students=int(total_students),
-                         total_subjects=int(total_subjects),
-                         today_attendance=int(today_attendance),
-                         attendance_trend=str(attendance_trend),
+                         subjects=subjects,
+                         total_students=total_students,
+                         total_subjects=total_subjects,
+                         today_attendance=today_attendance,
+                         attendance_trend=attendance_trend,
                          attendance_records=attendance_records,
                          attendance_data=attendance_data) 

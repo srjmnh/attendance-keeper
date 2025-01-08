@@ -37,10 +37,12 @@ def register_face():
     data = request.get_json()
     name = data.get('name')
     student_id = data.get('student_id')
+    student_class = data.get('class')
+    student_division = data.get('division')
     image = data.get('image')
     
-    if not name or not student_id or not image:
-        return jsonify({"error": "Missing name, student_id, or image"}), 400
+    if not all([name, student_id, student_class, student_division, image]):
+        return jsonify({"error": "Missing required fields"}), 400
 
     try:
         # Clean name for external ID
@@ -59,7 +61,7 @@ def register_face():
         
         # Index face in AWS Rekognition
         response = current_app.rekognition.index_faces(
-            CollectionId=COLLECTION_ID,  # Use the hardcoded collection ID
+            CollectionId=COLLECTION_ID,
             Image={'Bytes': enhanced_image_bytes},
             ExternalImageId=external_image_id,
             DetectionAttributes=['ALL'],
@@ -69,7 +71,35 @@ def register_face():
         if not response.get('FaceRecords'):
             return jsonify({"error": "No face detected in the image"}), 400
 
-        return jsonify({"message": f"Student {name} with ID {student_id} registered successfully!"}), 200
+        # Save student data to Firestore
+        student_data = {
+            'name': name,
+            'student_id': student_id,
+            'class': int(student_class),
+            'division': student_division,
+            'role': 'student',
+            'created_at': datetime.utcnow().isoformat(),
+            'face_id': external_image_id
+        }
+
+        # Check if student already exists
+        existing_student = current_app.db.collection('users').where('student_id', '==', student_id).get()
+        if len(list(existing_student)) > 0:
+            return jsonify({"error": "Student ID already exists"}), 400
+
+        # Add student to Firestore
+        current_app.db.collection('users').add(student_data)
+
+        return jsonify({
+            "message": f"Student {name} with ID {student_id} registered successfully!",
+            "data": {
+                "name": name,
+                "student_id": student_id,
+                "class": student_class,
+                "division": student_division
+            }
+        }), 200
+
     except Exception as e:
         current_app.logger.error(f"Error registering face: {str(e)}")
         return jsonify({"error": f"Failed to register face: {str(e)}"}), 500

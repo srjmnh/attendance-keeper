@@ -1,10 +1,12 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, send_file
 from flask_login import login_required, current_user
 from app.services.db_service import DatabaseService
 from app.utils.decorators import role_required
 from functools import wraps
 from werkzeug.security import generate_password_hash
 from datetime import datetime
+import pandas as pd
+import io
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -180,4 +182,102 @@ def add_student():
     except Exception as e:
         flash(f'Error adding student: {str(e)}', 'error')
     
-    return redirect(url_for('admin.manage_students')) 
+    return redirect(url_for('admin.manage_students'))
+
+@bp.route('/api/students')
+@login_required
+@role_required(['admin', 'teacher'])
+def get_students():
+    """Get all students"""
+    try:
+        students = []
+        students_ref = current_app.db.collection('users').where('role', '==', 'student').stream()
+        
+        for doc in students_ref:
+            data = doc.to_dict()
+            students.append({
+                'id': doc.id,
+                'name': data.get('name', ''),
+                'student_id': data.get('student_id', ''),
+                'class': data.get('class', ''),
+                'division': data.get('division', '')
+            })
+        
+        return jsonify(students)
+    except Exception as e:
+        current_app.logger.error(f"Error getting students: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/students/template')
+@login_required
+@role_required(['admin', 'teacher'])
+def get_student_template():
+    """Get student data template"""
+    try:
+        # Create Excel template
+        df = pd.DataFrame(columns=[
+            'name',
+            'student_id',
+            'class',
+            'division'
+        ])
+        
+        # Create Excel file in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='student_template.xlsx'
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error creating template: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/students/upload', methods=['POST'])
+@login_required
+@role_required(['admin', 'teacher'])
+def upload_students():
+    """Upload student data from Excel"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+            
+        file = request.files['file']
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({'error': 'Invalid file format. Please upload an Excel file'}), 400
+            
+        # Read Excel file
+        df = pd.read_excel(file)
+        required_columns = ['name', 'student_id', 'class', 'division']
+        
+        if not all(col in df.columns for col in required_columns):
+            return jsonify({'error': 'Invalid template format. Please use the provided template'}), 400
+            
+        # Process each row
+        for _, row in df.iterrows():
+            student_data = {
+                'name': row['name'],
+                'student_id': str(row['student_id']),
+                'class': int(row['class']),
+                'division': str(row['division']),
+                'role': 'student',
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+            # Check if student already exists
+            existing = current_app.db.collection('users').where('student_id', '==', str(row['student_id'])).get()
+            if len(list(existing)) > 0:
+                continue  # Skip existing students
+                
+            # Add new student
+            current_app.db.collection('users').add(student_data)
+            
+        return jsonify({'message': 'Students uploaded successfully'})
+    except Exception as e:
+        current_app.logger.error(f"Error uploading students: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
