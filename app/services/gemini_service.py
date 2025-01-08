@@ -59,11 +59,14 @@ Always be helpful, clear, and maintain a friendly tone."""
         conv_str = ""
         for msg in self._conversation_memory:
             if msg["role"] == "system":
-                conv_str += f"System: {msg['content']}\n"
+                conv_str += f"System: {msg['content']}
+"
             elif msg["role"] == "user":
-                conv_str += f"User: {msg['content']}\n"
+                conv_str += f"User: {msg['content']}
+"
             else:
-                conv_str += f"Assistant: {msg['content']}\n"
+                conv_str += f"Assistant: {msg['content']}
+"
         return conv_str
     
     def analyze_attendance(self, attendance_data):
@@ -141,7 +144,9 @@ Always be helpful, clear, and maintain a friendly tone."""
             # Build conversation context
             conversation = self._build_conversation()
             if context:
-                conversation = f"Additional Context: {context}\n\n{conversation}"
+                conversation = f"Additional Context: {context}
+
+{conversation}"
             
             # Get AI response
             response = self.model.generate_content(conversation)
@@ -156,4 +161,4 @@ Always be helpful, clear, and maintain a friendly tone."""
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error in chat: {str(e)}")
-            return "Sorry, I encountered an error. Please try again." 
+            return "Sorry, I encountered an error. Please try again." # Test comment
