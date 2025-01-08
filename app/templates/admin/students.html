@@ -70,7 +70,7 @@
                     <td>{{ student.division }}</td>
                     <td>
                         <div class="flex justify-center gap-2">
-                            <button onclick="editStudent(JSON.parse('{{ student|tojson|safe }}'))" 
+                            <button onclick='editStudent({{ student|tojson|safe }})' 
                                     class="btn btn-ghost btn-sm">
                                 <i class="ri-edit-line"></i>
                             </button>
@@ -211,37 +211,52 @@ function filterStudents() {
 }
 
 function editStudent(student) {
+    console.log('Editing student:', student);  // Debug log
     document.getElementById('modalTitle').textContent = 'Edit Student';
     document.getElementById('studentId').value = student.id;
-    document.getElementById('studentName').value = student.name;
-    document.getElementById('studentIdInput').value = student.student_id;
-    document.getElementById('studentClass').value = student.class;
-    document.getElementById('studentDivision').value = student.division;
-    document.getElementById('addStudentModal').showModal();
+    document.getElementById('studentName').value = student.name || '';
+    document.getElementById('studentIdInput').value = student.student_id || '';
+    document.getElementById('studentClass').value = student.class || '1';
+    document.getElementById('studentDivision').value = student.division || 'A';
+    
+    const modal = document.getElementById('addStudentModal');
+    modal.showModal();
 }
 
 async function handleStudentSubmit(event) {
     event.preventDefault();
+    console.log('Handling student submit');  // Debug log
     
     const studentId = document.getElementById('studentId').value;
     const data = {
-        name: document.getElementById('studentName').value,
-        student_id: document.getElementById('studentIdInput').value,
+        name: document.getElementById('studentName').value.trim(),
+        student_id: document.getElementById('studentIdInput').value.trim(),
         class: document.getElementById('studentClass').value,
         division: document.getElementById('studentDivision').value
     };
     
+    console.log('Submitting data:', data);  // Debug log
+    
     try {
-        const response = await fetch(
-            studentId ? `/api/students/${studentId}` : '/api/students', {
-            method: studentId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        const url = studentId ? `/api/students/${studentId}` : '/api/students';
+        const method = studentId ? 'PUT' : 'POST';
+        console.log(`Making ${method} request to ${url}`);  // Debug log
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: JSON.stringify(data)
         });
         
+        console.log('Response status:', response.status);  // Debug log
+        const result = await response.json();
+        console.log('Response data:', result);  // Debug log
+        
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to save student');
+            throw new Error(result.error || 'Failed to save student');
         }
         
         showToast('Student saved successfully', 'success');

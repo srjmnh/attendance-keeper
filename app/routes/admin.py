@@ -128,8 +128,11 @@ def get_student(student_id):
         return jsonify({'error': 'Student not found'}), 404
     data = doc.to_dict()
     return jsonify({
-        'username': data.get('username', ''),
-        'student_id': data.get('student_id', '')
+        'id': doc.id,
+        'name': data.get('name', ''),
+        'student_id': data.get('student_id', ''),
+        'class': data.get('class', ''),
+        'division': data.get('division', '')
     })
 
 @bp.route('/api/students/<student_id>', methods=['PUT'])
