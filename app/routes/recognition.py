@@ -5,6 +5,8 @@ from datetime import datetime
 import base64
 import io
 from PIL import Image, ImageEnhance
+import cv2
+import numpy as np
 
 bp = Blueprint('recognition', __name__)
 

@@ -39,7 +39,7 @@ A modern attendance management system using facial recognition, built with Flask
   - Customizable templates
 
 - 💬 **AI Chat Assistant**
-  - Powered by Google's Gemini Pro
+  - Powered by OpenAI's GPT-3.5
   - Context-aware responses
   - Usage guidance and support
   - Natural language processing
@@ -75,7 +75,7 @@ A modern attendance management system using facial recognition, built with Flask
   - JavaScript
   - Modern animations
   - Custom CSS components
-- **AI Chat**: Google Gemini Pro API
+- **AI Chat**: OpenAI GPT-3.5
 
 ## Recent Updates
 
@@ -147,8 +147,8 @@ A modern attendance management system using facial recognition, built with Flask
    MAIL_PASSWORD=your-app-password
    MAIL_DEFAULT_SENDER=noreply@attendanceai.com
    
-   # Gemini
-   GEMINI_API_KEY=your-gemini-api-key
+   # OpenAI
+   OPENAI_API_KEY=your-openai-api-key
    ```
 
 4. **Initialize Firebase**

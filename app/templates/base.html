@@ -176,8 +176,8 @@
                             </a>
                         </li>
                         <li>
-                            <a href="{{ url_for('admin.manage_subjects') }}"
-                               class="flex items-center gap-2 {% if request.endpoint == 'admin.manage_subjects' %}active{% endif %}">
+                            <a href="{{ url_for('admin.subjects') }}"
+                               class="flex items-center gap-2 {% if request.endpoint == 'admin.subjects' %}active{% endif %}">
                                 <span class="material-icons-round">book</span>
                                 Subjects
                             </a>
@@ -187,6 +187,16 @@
                                class="flex items-center gap-2 {% if request.endpoint == 'admin.manage_students' %}active{% endif %}">
                                 <span class="material-icons-round">people</span>
                                 Students
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if current_user.role == 'admin' %}
+                        <li>
+                            <a href="{{ url_for('admin.admin_dashboard') }}"
+                               class="flex items-center gap-2 {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}">
+                                <span class="material-icons-round">admin_panel_settings</span>
+                                Admin
                             </a>
                         </li>
                         {% endif %}

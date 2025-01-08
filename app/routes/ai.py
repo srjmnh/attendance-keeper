@@ -1,10 +1,10 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
-from app.services.gemini_service import GeminiService
+from app.services.openai_service import OpenAIService
 from app.services.db_service import DatabaseService
 
 bp = Blueprint('ai', __name__)
-gemini = GeminiService()
+ai_service = OpenAIService()
 db = DatabaseService()
 
 @bp.route('/api/ai/analyze-attendance', methods=['POST'])
@@ -21,7 +21,7 @@ def analyze_attendance():
             return jsonify({"error": "No attendance data found"}), 404
         
         # Get AI analysis
-        analysis = gemini.analyze_attendance(attendance_data)
+        analysis = ai_service.analyze_attendance(attendance_data)
         return jsonify({"analysis": analysis})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -40,7 +40,7 @@ def get_recommendations():
             return jsonify({"error": "Student not found"}), 404
         
         # Get AI recommendations
-        recommendations = gemini.get_student_recommendations(student_data)
+        recommendations = ai_service.get_student_recommendations(student_data)
         return jsonify({"recommendations": recommendations})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -58,7 +58,7 @@ def chat():
             return jsonify({"error": "Message is required"}), 400
         
         # Get AI response
-        response = gemini.chat_with_assistant(message, context)
+        response = ai_service.chat_with_assistant(message, context)
         return jsonify({"message": response})
     except Exception as e:
         current_app.logger.error(f"Error in chat: {str(e)}")
@@ -76,7 +76,7 @@ def generate_report():
             return jsonify({"error": "Report data is required"}), 400
         
         # Get AI summary
-        summary = gemini.generate_report_summary(report_data)
+        summary = ai_service.generate_report_summary(report_data)
         return jsonify({"summary": summary})
     except Exception as e:
         return jsonify({"error": str(e)}), 500 
