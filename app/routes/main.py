@@ -76,9 +76,42 @@ def dashboard():
             'status': record.get('status', '')
         })
     
+    # Calculate attendance data for chart
+    # Get last 7 days of attendance
+    last_7_days = []
+    attendance_values = []
+    
+    for i in range(6, -1, -1):
+        date = today - timedelta(days=i)
+        last_7_days.append(date.strftime('%Y-%m-%d'))
+        
+        # Query attendance for this day
+        day_query = attendance_ref.where('timestamp', '>=', date.isoformat())
+        day_query = day_query.where('timestamp', '<', (date + timedelta(days=1)).isoformat())
+        
+        if current_user.role == 'student':
+            day_query = day_query.where('student_id', '==', current_user.id)
+        elif current_user.role == 'teacher':
+            day_query = day_query.where('subject_id', 'in', current_user.classes)
+        
+        day_records = list(day_query.stream())
+        if day_records:
+            present_count = len([r for r in day_records if r.to_dict().get('status') == 'PRESENT'])
+            percentage = round((present_count / len(day_records)) * 100)
+        else:
+            percentage = 0
+        
+        attendance_values.append(percentage)
+    
+    attendance_data = {
+        'labels': last_7_days,
+        'values': attendance_values
+    }
+    
     return render_template('dashboard.html',
                          total_students=total_students,
                          total_subjects=total_subjects,
                          today_attendance=today_attendance,
                          attendance_trend=attendance_trend,
-                         attendance_records=attendance_records) 
+                         attendance_records=attendance_records,
+                         attendance_data=attendance_data) 
