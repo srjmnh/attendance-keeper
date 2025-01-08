@@ -99,7 +99,7 @@ def manage_students():
             'username': data.get('username', ''),
             'student_id': data.get('student_id', '')
         })
-    return render_template('manage_students.html', students=students)
+    return render_template('admin/students.html', students=students)
 
 @bp.route('/api/students/<student_id>', methods=['GET'])
 @login_required
