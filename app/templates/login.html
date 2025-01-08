@@ -2,57 +2,66 @@
 
 {% block title %}Login - AttendanceAI{% endblock %}
 
+{% block header_title %}Login{% endblock %}
+
 {% block content %}
-<div class="min-h-screen flex items-center justify-center">
-    <div class="card w-96 bg-base-100 shadow-xl">
+<div class="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+    <div class="card w-full max-w-md bg-base-100 shadow-xl">
         <div class="card-body">
-            <h2 class="card-title text-2xl font-bold mb-6 text-center">
-                <span class="text-primary">Attendance</span>AI
-            </h2>
+            <div class="text-center mb-8">
+                <div class="flex items-center justify-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
+                        <i class="ri-building-4-line text-2xl text-primary-content"></i>
+                    </div>
+                    <h1 class="text-3xl font-bold">
+                        <span class="text-primary">Attendance</span>AI
+                    </h1>
+                </div>
+                <p class="text-base-content/60">Sign in to access your account</p>
+            </div>
             
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} mb-4">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
-            <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-4">
+            <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-6">
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Email</span>
+                        <span class="label-text font-medium">Email</span>
                     </label>
                     <input type="email" name="email" placeholder="Enter your email" 
-                           class="input input-bordered w-full" required>
+                           class="input input-bordered w-full" required
+                           autocomplete="email">
                 </div>
                 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Password</span>
+                        <span class="label-text font-medium">Password</span>
                     </label>
                     <input type="password" name="password" placeholder="Enter your password" 
-                           class="input input-bordered w-full" required>
+                           class="input input-bordered w-full" required
+                           autocomplete="current-password">
                 </div>
                 
-                <div class="form-control mt-6">
-                    <button type="submit" class="btn btn-primary w-full">
-                        Login
-                    </button>
-                </div>
+                <button type="submit" class="btn btn-primary w-full gap-2">
+                    <i class="ri-login-box-line"></i>
+                    Sign in
+                </button>
             </form>
             
-            <div class="divider">OR</div>
+            <div class="divider text-xs text-base-content/30">DEMO CREDENTIALS</div>
             
-            <div class="text-center text-sm">
-                <p class="mb-2">Default Admin Login:</p>
-                <p class="font-mono bg-base-200 p-2 rounded">
-                    Email: admin@example.com<br>
-                    Password: Admin123!
-                </p>
+            <div class="bg-base-200 rounded-lg p-4">
+                <div class="text-sm font-medium mb-2 flex items-center gap-2">
+                    <i class="ri-admin-line text-primary"></i>
+                    Admin Account
+                </div>
+                <div class="font-mono text-xs space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="opacity-60">Email:</span>
+                        <span>admin@example.com</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="opacity-60">Password:</span>
+                        <span>Admin123!</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

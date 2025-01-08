@@ -9,159 +9,164 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    
     <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Icons -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .animate-slide-down {
+            animation: slideDown 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+    
     {% block extra_css %}{% endblock %}
 </head>
 
 <body class="min-h-screen bg-gradient-to-br from-base-100 to-base-200">
     <div class="drawer lg:drawer-open">
-        <!-- Drawer toggle for mobile -->
         <input id="drawer-toggle" type="checkbox" class="drawer-toggle" />
         
-        <!-- Page content -->
+        <!-- Main Content -->
         <div class="drawer-content flex flex-col">
-            <!-- Top Navigation (Mobile only) -->
+            <!-- Mobile Header -->
             <div class="navbar bg-base-100 shadow-sm lg:hidden animate-slide-down">
-                <div class="flex-none">
-                    <label for="drawer-toggle" class="btn btn-ghost btn-circle drawer-button">
-                        <i class="ri-menu-line text-xl"></i>
-                    </label>
-                </div>
-                <div class="flex-1">
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost normal-case text-xl gap-2">
-                        <i class="ri-building-4-line text-primary"></i>
-                        AttendanceAI
-                    </a>
-                </div>
+                <label for="drawer-toggle" class="btn btn-ghost btn-circle">
+                    <i class="ri-menu-line text-xl"></i>
+                </label>
+                <h1 class="flex-1 text-xl font-semibold px-4">
+                    {% block header_title %}AttendanceAI{% endblock %}
+                </h1>
             </div>
             
-            <!-- Main Content -->
-            <main class="flex-1 overflow-y-auto p-4 lg:p-8 animate-fade-in">
-                <!-- Flash Messages -->
+            <!-- Content Area -->
+            <main class="flex-1 overflow-y-auto p-4 lg:p-6 animate-fade-in">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} shadow-lg mb-6 animate-fade-in">
-                                <div class="flex items-center gap-2">
+                        <div class="space-y-2 mb-4">
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} shadow-md">
                                     <i class="ri-{% if category == 'success' %}check-line{% elif category == 'error' %}error-warning-line{% elif category == 'warning' %}alert-line{% else %}information-line{% endif %}"></i>
                                     <span>{{ message }}</span>
+                                    <button onclick="this.parentElement.remove()" class="btn btn-ghost btn-xs">
+                                        <i class="ri-close-line"></i>
+                                    </button>
                                 </div>
-                                <button onclick="this.parentElement.remove()" class="btn btn-ghost btn-xs">
-                                    <i class="ri-close-line"></i>
-                                </button>
-                            </div>
-                        {% endfor %}
+                            {% endfor %}
+                        </div>
                     {% endif %}
                 {% endwith %}
                 
-                <!-- Page Content -->
                 {% block content %}{% endblock %}
             </main>
         </div>
         
         <!-- Sidebar -->
-        <div class="drawer-side">
+        <div class="drawer-side z-40">
             <label for="drawer-toggle" class="drawer-overlay"></label>
-            <aside class="bg-base-100 w-80 min-h-full border-r">
+            <aside class="bg-base-100 w-80 min-h-full border-r flex flex-col">
                 <!-- Logo -->
-                <div class="p-4">
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost normal-case text-xl w-full justify-start gap-2 hover:bg-primary hover:text-primary-content">
-                        <i class="ri-building-4-line"></i>
-                        AttendanceAI
+                <div class="p-4 border-b">
+                    <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-3 px-2">
+                        <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                            <i class="ri-building-4-line text-xl text-primary-content"></i>
+                        </div>
+                        <span class="text-xl font-semibold">AttendanceAI</span>
                     </a>
                 </div>
                 
-                <!-- Navigation Menu -->
-                <ul class="menu p-4 text-base-content">
+                <!-- Navigation -->
+                <nav class="flex-1 p-4 space-y-2">
                     {% if current_user.is_authenticated %}
-                        <li>
-                            <a href="{{ url_for('main.dashboard') }}" 
-                               class="flex items-center gap-2 {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
-                                <i class="ri-dashboard-line"></i>
-                                Dashboard
-                            </a>
-                        </li>
+                        <a href="{{ url_for('main.dashboard') }}" 
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content{% endif %}">
+                            <i class="ri-dashboard-line text-lg"></i>
+                            <span>Dashboard</span>
+                        </a>
                         
                         {% if current_user.role in ['admin', 'teacher'] %}
-                        <li>
                             <a href="{{ url_for('attendance.index') }}"
-                               class="flex items-center gap-2 {% if request.endpoint == 'attendance.index' %}active{% endif %}">
-                                <i class="ri-calendar-check-line"></i>
-                                Attendance
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.index' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-calendar-check-line text-lg"></i>
+                                <span>Attendance</span>
                             </a>
-                        </li>
-                        <li>
+                            
                             <a href="{{ url_for('admin.manage_subjects') }}"
-                               class="flex items-center gap-2 {% if request.endpoint == 'admin.manage_subjects' %}active{% endif %}">
-                                <i class="ri-book-line"></i>
-                                Subjects
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-book-line text-lg"></i>
+                                <span>Subjects</span>
                             </a>
-                        </li>
-                        <li>
+                            
                             <a href="{{ url_for('admin.manage_students') }}"
-                               class="flex items-center gap-2 {% if request.endpoint == 'admin.manage_students' %}active{% endif %}">
-                                <i class="ri-user-line"></i>
-                                Students
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-user-line text-lg"></i>
+                                <span>Students</span>
                             </a>
-                        </li>
                         {% endif %}
                         
                         {% if current_user.role == 'admin' %}
-                        <li>
                             <a href="{{ url_for('admin.admin_dashboard') }}"
-                               class="flex items-center gap-2 {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}">
-                                <i class="ri-settings-5-line"></i>
-                                Admin
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.admin_dashboard' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-settings-5-line text-lg"></i>
+                                <span>Admin</span>
                             </a>
-                        </li>
                         {% endif %}
-                        
-                        <div class="divider"></div>
-                        
+                    {% endif %}
+                </nav>
+                
+                <!-- Footer -->
+                <div class="p-4 border-t">
+                    {% if current_user.is_authenticated %}
                         <!-- Theme Toggle -->
-                        <div class="flex items-center justify-between px-4 py-2">
-                            <span class="flex items-center gap-2">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="flex items-center gap-2 text-sm">
                                 <i class="ri-palette-line"></i>
-                                Theme
+                                Dark Mode
                             </span>
-                            <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
+                            <input type="checkbox" class="toggle toggle-primary toggle-sm" id="theme-toggle" />
                         </div>
                         
-                        <!-- User Section -->
-                        <div class="bg-base-200 rounded-box p-4 mt-4">
-                            <div class="flex items-center gap-4">
-                                <div class="avatar placeholder">
-                                    <div class="bg-primary text-primary-content rounded-full w-12">
-                                        <span class="text-lg">{{ current_user.email[0].upper() }}</span>
-                                    </div>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <div class="font-medium truncate">{{ current_user.email }}</div>
-                                    <div class="text-sm opacity-50">{{ current_user.role.capitalize() }}</div>
+                        <!-- User Profile -->
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="avatar placeholder">
+                                <div class="w-10 h-10 rounded-lg bg-primary text-primary-content">
+                                    <span>{{ current_user.email[0].upper() if current_user.email else 'U' }}</span>
                                 </div>
                             </div>
-                            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-error btn-sm w-full mt-4 gap-2">
-                                <i class="ri-logout-box-line"></i>
-                                Sign out
-                            </a>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium truncate">{{ current_user.email }}</div>
+                                <div class="text-xs opacity-60">{{ current_user.role.capitalize() }}</div>
+                            </div>
                         </div>
+                        
+                        <a href="{{ url_for('auth.logout') }}" 
+                           class="btn btn-outline btn-error btn-sm w-full gap-2">
+                            <i class="ri-logout-box-line"></i>
+                            Sign out
+                        </a>
                     {% else %}
-                        <li>
-                            <a href="{{ url_for('auth.login') }}" class="btn btn-primary gap-2">
-                                <i class="ri-login-box-line"></i>
-                                Sign in
-                            </a>
-                        </li>
+                        <a href="{{ url_for('auth.login') }}" 
+                           class="btn btn-primary w-full gap-2">
+                            <i class="ri-login-box-line"></i>
+                            Sign in
+                        </a>
                     {% endif %}
-                </ul>
+                </div>
             </aside>
         </div>
     </div>
@@ -170,13 +175,13 @@
     {% if current_user.is_authenticated %}
     <div class="fixed bottom-6 right-6 z-50">
         <div class="dropdown dropdown-top dropdown-end">
-            <label tabindex="0" class="btn btn-circle btn-primary btn-lg shadow-lg hover:scale-105 transition-transform">
+            <button class="btn btn-circle btn-primary btn-lg shadow-lg hover:scale-105 transition-transform">
                 <i class="ri-robot-line text-2xl"></i>
-            </label>
-            <div tabindex="0" class="dropdown-content w-96 max-w-[calc(100vw-2rem)] card bg-base-100 shadow-2xl animate-fade-up">
+            </button>
+            <div class="dropdown-content w-96 max-w-[calc(100vw-2rem)] card bg-base-100 shadow-2xl">
                 <div class="card-body p-0">
                     <div class="border-b p-4">
-                        <h3 class="card-title gap-2">
+                        <h3 class="text-lg font-semibold flex items-center gap-2">
                             <i class="ri-robot-line text-primary"></i>
                             AI Assistant
                         </h3>
@@ -184,25 +189,23 @@
                     
                     <div id="chatMessages" class="p-4 h-96 overflow-y-auto space-y-4"></div>
                     
-                    <div class="border-t p-4">
+                    <form id="chatForm" class="border-t p-4">
                         <div class="join w-full">
                             <input type="text" id="chatInput" 
                                    class="input input-bordered join-item flex-grow"
                                    placeholder="Ask me anything...">
-                            <button id="chatSendBtn" class="btn btn-primary join-item">
+                            <button type="submit" class="btn btn-primary join-item">
                                 <i class="ri-send-plane-line"></i>
                             </button>
                         </div>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- Scripts -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    
+    <!-- Theme Script -->
     <script>
         // Theme Toggle
         const themeToggle = document.getElementById('theme-toggle');
@@ -215,19 +218,24 @@
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
         });
-        
-        // Chat Functionality
+    </script>
+
+    <!-- Chat Script -->
+    {% if current_user.is_authenticated and current_user.email %}
+    <script>
         const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
         const chatInput = document.getElementById('chatInput');
-        const chatSendBtn = document.getElementById('chatSendBtn');
+        const userInitial = "{{ current_user.email[0].upper() }}";
         
         function addMessage(content, isUser = false) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `chat ${isUser ? 'chat-end' : 'chat-start'}`;
+            
             messageDiv.innerHTML = `
-                <div class="chat-image avatar">
-                    <div class="w-10 rounded-full ${isUser ? 'bg-primary' : 'bg-neutral'}">
-                        <span class="text-lg text-white">${isUser ? '{{ current_user.email[0].upper() }}' : 'AI'}</span>
+                <div class="chat-image avatar placeholder">
+                    <div class="w-8 h-8 rounded-lg ${isUser ? 'bg-primary' : 'bg-neutral'} text-${isUser ? 'primary' : 'neutral'}-content">
+                        <span class="text-xs">${isUser ? userInitial : 'AI'}</span>
                     </div>
                 </div>
                 <div class="chat-bubble ${isUser ? 'chat-bubble-primary' : ''}">${content}</div>
@@ -236,7 +244,8 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
-        chatSendBtn.addEventListener('click', async function() {
+        chatForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
             const message = chatInput.value.trim();
             if (!message) return;
             
@@ -246,9 +255,7 @@
             try {
                 const response = await fetch('/api/ai/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: message })
                 });
                 
@@ -258,13 +265,8 @@
                 addMessage('Sorry, I encountered an error. Please try again.');
             }
         });
-        
-        chatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                chatSendBtn.click();
-            }
-        });
     </script>
+    {% endif %}
     
     {% block extra_js %}{% endblock %}
 </body>
