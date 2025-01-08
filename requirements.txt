@@ -14,5 +14,5 @@ flask-wtf==1.1.1
 pandas==2.1.1
 python-multipart==0.0.6
 requests==2.31.0
-python-magic==0.4.27
-python-magic-bin==0.4.14 
+python-magic
+python-magic-bin
