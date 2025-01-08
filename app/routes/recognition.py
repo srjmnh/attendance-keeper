@@ -34,61 +34,101 @@ def enhance_image(pil_image):
 @role_required(['admin', 'teacher'])
 def register_face():
     """Register a new face"""
-    data = request.get_json()
-    name = data.get('name')
-    student_id = data.get('student_id')
-    student_class = data.get('class')
-    student_division = data.get('division')
-    image = data.get('image')
-    
-    if not all([name, student_id, student_class, student_division, image]):
-        return jsonify({"error": "Missing required fields"}), 400
-
     try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        student_id = data.get('student_id', '').strip()
+        student_class = data.get('class')
+        student_division = data.get('division', '').strip()
+        image = data.get('image', '')
+        
+        # Validate required fields
+        validation_errors = []
+        if not name:
+            validation_errors.append("Name is required")
+        if not student_id:
+            validation_errors.append("Student ID is required")
+        if not student_class:
+            validation_errors.append("Class is required")
+        if not student_division:
+            validation_errors.append("Division is required")
+        if not image:
+            validation_errors.append("Image is required")
+            
+        if validation_errors:
+            return jsonify({"error": "; ".join(validation_errors)}), 400
+
+        # Validate data formats
+        try:
+            student_class = int(student_class)
+            if not (1 <= student_class <= 12):
+                return jsonify({"error": "Class must be between 1 and 12"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid class format. Must be a number between 1 and 12"}), 400
+            
+        if student_division not in ['A', 'B', 'C', 'D']:
+            return jsonify({"error": "Division must be A, B, C, or D"}), 400
+
         # Clean name for external ID
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
-        image_data = image.split(",")[1]
-        image_bytes = base64.b64decode(image_data)
+        
+        # Process image
+        try:
+            image_data = image.split(",")[1]
+            image_bytes = base64.b64decode(image_data)
+        except Exception as e:
+            return jsonify({"error": "Invalid image format. Please provide a valid base64 encoded image"}), 400
 
         # Enhance image before indexing
-        pil_image = Image.open(io.BytesIO(image_bytes))
-        enhanced_image = enhance_image(pil_image)
-        buffered = io.BytesIO()
-        enhanced_image.save(buffered, format="JPEG")
-        enhanced_image_bytes = buffered.getvalue()
+        try:
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            enhanced_image = enhance_image(pil_image)
+            buffered = io.BytesIO()
+            enhanced_image.save(buffered, format="JPEG")
+            enhanced_image_bytes = buffered.getvalue()
+        except Exception as e:
+            return jsonify({"error": "Failed to process image. Please try with a different image"}), 400
 
         external_image_id = f"{sanitized_name}_{student_id}"
         
+        # Check if student already exists
+        existing_student = current_app.db.collection('users').where('student_id', '==', student_id).get()
+        if len(list(existing_student)) > 0:
+            return jsonify({"error": "Student ID already exists"}), 400
+        
         # Index face in AWS Rekognition
-        response = current_app.rekognition.index_faces(
-            CollectionId=COLLECTION_ID,
-            Image={'Bytes': enhanced_image_bytes},
-            ExternalImageId=external_image_id,
-            DetectionAttributes=['ALL'],
-            QualityFilter='AUTO'
-        )
-
-        if not response.get('FaceRecords'):
-            return jsonify({"error": "No face detected in the image"}), 400
+        try:
+            response = current_app.rekognition.index_faces(
+                CollectionId=COLLECTION_ID,
+                Image={'Bytes': enhanced_image_bytes},
+                ExternalImageId=external_image_id,
+                DetectionAttributes=['ALL'],
+                QualityFilter='AUTO'
+            )
+            
+            if not response.get('FaceRecords'):
+                return jsonify({"error": "No face detected in the image. Please try with a clearer photo"}), 400
+        except Exception as e:
+            current_app.logger.error(f"AWS Rekognition error: {str(e)}")
+            return jsonify({"error": "Failed to process face. Please try with a different image"}), 500
 
         # Save student data to Firestore
         student_data = {
             'name': name,
             'student_id': student_id,
-            'class': int(student_class),
-            'division': student_division,
+            'class': student_class,
+            'division': student_division.upper(),
             'role': 'student',
             'created_at': datetime.utcnow().isoformat(),
             'face_id': external_image_id
         }
 
-        # Check if student already exists
-        existing_student = current_app.db.collection('users').where('student_id', '==', student_id).get()
-        if len(list(existing_student)) > 0:
-            return jsonify({"error": "Student ID already exists"}), 400
-
         # Add student to Firestore
-        current_app.db.collection('users').add(student_data)
+        try:
+            current_app.db.collection('users').add(student_data)
+        except Exception as e:
+            current_app.logger.error(f"Firestore error: {str(e)}")
+            return jsonify({"error": "Failed to save student data. Please try again"}), 500
 
         return jsonify({
             "message": f"Student {name} with ID {student_id} registered successfully!",
@@ -102,7 +142,7 @@ def register_face():
 
     except Exception as e:
         current_app.logger.error(f"Error registering face: {str(e)}")
-        return jsonify({"error": f"Failed to register face: {str(e)}"}), 500
+        return jsonify({"error": "An unexpected error occurred. Please try again"}), 500
 
 @bp.route('/recognize', methods=['POST'])
 @login_required

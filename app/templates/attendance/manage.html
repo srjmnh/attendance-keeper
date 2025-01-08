@@ -192,9 +192,67 @@
 <script>
 let attendanceTable;
 let editedRows = new Set();
+const isAdmin = '{{ current_user.role }}' === 'admin';
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize DataTable with modern styling and error handling
+function initializeDataTable() {
+    const columns = [
+        { 
+            data: 'timestamp',
+            render: function(data) {
+                return data || 'N/A';
+            }
+        },
+        { 
+            data: 'name',
+            render: function(data, type, row) {
+                if (type === 'display' && isAdmin) {
+                    return '<input type="text" class="input input-bordered input-sm w-full max-w-xs" value="' + 
+                           (data || '') + '" onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
+                }
+                return data || 'N/A';
+            }
+        },
+        { 
+            data: 'student_id',
+            defaultContent: 'N/A'
+        },
+        { 
+            data: 'subject_name',
+            defaultContent: 'N/A'
+        },
+        {
+            data: 'status',
+            render: function(data, type, row) {
+                if (type === 'display' && isAdmin) {
+                    var selectHtml = '<select class="select select-bordered select-sm w-full max-w-xs" ' +
+                                   'onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
+                    selectHtml += '<option value="PRESENT"' + (data === 'PRESENT' ? ' selected' : '') + '>Present</option>';
+                    selectHtml += '<option value="ABSENT"' + (data === 'ABSENT' ? ' selected' : '') + '>Absent</option>';
+                    selectHtml += '<option value="LATE"' + (data === 'LATE' ? ' selected' : '') + '>Late</option>';
+                    selectHtml += '</select>';
+                    return selectHtml;
+                }
+                var badgeClass = data === 'PRESENT' ? 'badge-success' : 
+                               data === 'ABSENT' ? 'badge-error' : 
+                               'badge-warning';
+                return '<div class="badge badge-lg ' + badgeClass + '">' + (data || 'N/A') + '</div>';
+            }
+        }
+    ];
+
+    if (isAdmin) {
+        columns.push({
+            data: null,
+            render: function(data, type, row) {
+                var buttonHtml = '<button onclick="deleteRecord(\'' + row.doc_id + '\')" ' +
+                               'class="btn btn-ghost btn-sm text-error">';
+                buttonHtml += '<span class="material-icons-round">delete</span>';
+                buttonHtml += '</button>';
+                return buttonHtml;
+            }
+        });
+    }
+
     attendanceTable = new DataTable('#attendanceTable', {
         ajax: {
             url: '/api/attendance',
@@ -212,62 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         processing: true,
         serverSide: false,
-        columns: [
-            { 
-                data: 'timestamp',
-                render: function(data) {
-                    return data || 'N/A';
-                }
-            },
-            { 
-                data: 'name',
-                render: function(data, type, row) {
-                    if (type === 'display' && '{{ current_user.role }}' === 'admin') {
-                        return '<input type="text" class="input input-bordered input-sm w-full max-w-xs" value="' + 
-                               (data || '') + '" onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
-                    }
-                    return data || 'N/A';
-                }
-            },
-            { 
-                data: 'student_id',
-                defaultContent: 'N/A'
-            },
-            { 
-                data: 'subject_name',
-                defaultContent: 'N/A'
-            },
-            {
-                data: 'status',
-                render: function(data, type, row) {
-                    if (type === 'display' && '{{ current_user.role }}' === 'admin') {
-                        var selectHtml = '<select class="select select-bordered select-sm w-full max-w-xs" ' +
-                                       'onchange="markRowAsEdited(\'' + row.doc_id + '\')">';
-                        selectHtml += '<option value="PRESENT"' + (data === 'PRESENT' ? ' selected' : '') + '>Present</option>';
-                        selectHtml += '<option value="ABSENT"' + (data === 'ABSENT' ? ' selected' : '') + '>Absent</option>';
-                        selectHtml += '<option value="LATE"' + (data === 'LATE' ? ' selected' : '') + '>Late</option>';
-                        selectHtml += '</select>';
-                        return selectHtml;
-                    }
-                    var badgeClass = data === 'PRESENT' ? 'badge-success' : 
-                                   data === 'ABSENT' ? 'badge-error' : 
-                                   'badge-warning';
-                    return '<div class="badge badge-lg ' + badgeClass + '">' + (data || 'N/A') + '</div>';
-                }
-            }
-            {% if current_user.role == 'admin' %},
-            {
-                data: null,
-                render: function(data, type, row) {
-                    var buttonHtml = '<button onclick="deleteRecord(\'' + row.doc_id + '\')" ' +
-                                   'class="btn btn-ghost btn-sm text-error">';
-                    buttonHtml += '<span class="material-icons-round">delete</span>';
-                    buttonHtml += '</button>';
-                    return buttonHtml;
-                }
-            }
-            {% endif %}
-        ],
+        columns: columns,
         order: [[0, 'desc']],
         pageLength: 25,
         responsive: true,
@@ -282,19 +285,24 @@ document.addEventListener('DOMContentLoaded', function() {
             zeroRecords: "No matching records found"
         }
     });
+}
 
-    // Handle filter changes
+function setupEventListeners() {
     document.getElementById('date_filter').addEventListener('change', function() {
-        var customRange = document.getElementById('custom_date_range');
+        const customRange = document.getElementById('custom_date_range');
         customRange.classList.toggle('hidden', this.value !== 'custom');
-        applyFilters();
     });
 
-    document.getElementById('subject_filter').addEventListener('change', applyFilters);
-    document.getElementById('status_filter').addEventListener('change', applyFilters);
+    document.querySelectorAll('select, input').forEach(element => {
+        element.addEventListener('change', applyFilters);
+    });
     document.getElementById('search_filter').addEventListener('input', applyFilters);
-    document.getElementById('date_from').addEventListener('change', applyFilters);
-    document.getElementById('date_to').addEventListener('change', applyFilters);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDataTable();
+    setupEventListeners();
+    applyFilters();
 });
 
 function applyFilters() {

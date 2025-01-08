@@ -375,33 +375,33 @@ function updateRecognitionProgress(progress, message) {
 
 // Function to handle face registration
 async function registerFace(imageData, name, studentId, studentClass, division) {
+    const messageEl = document.getElementById('recognition_message');
+    const progressBar = document.getElementById('recognition_progress');
+    const statusEl = document.getElementById('recognition_status');
+    
     try {
         recognitionModal.showModal();
-        updateRecognitionProgress(0, 'Starting face registration...');
-
-        // Clean base64 image data
-        const base64Image = imageData.includes('base64') ? imageData : `data:image/jpeg;base64,${imageData}`;
-
-        const response = await fetch('/recognition/register', {
+        updateRecognitionProgress(0, 'Starting registration...');
+        
+        const response = await fetch('/register', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 name: name,
                 student_id: studentId,
                 class: studentClass,
                 division: division,
-                image: base64Image
+                image: imageData
             })
         });
-
-        const data = await response.json();
         
+        const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Registration failed');
         }
-
+        
         updateRecognitionProgress(100, data.message || 'Registration successful!');
         
         // Clear form
@@ -421,7 +421,7 @@ async function registerFace(imageData, name, studentId, studentClass, division) 
         return data;
     } catch (error) {
         console.error('Registration error:', error);
-        messageEl.textContent = 'Error: ' + error.message;
+        messageEl.textContent = error.message;
         progressBar.value = 0;
         statusEl.textContent = 'Error';
         showToast(error.message, 'error');
@@ -637,5 +637,52 @@ async function captureAndRegister() {
 
 // Clean up camera when leaving page
 window.addEventListener('beforeunload', stopCamera);
+
+async function handleRegistration(file) {
+    if (!file) {
+        showToast('Please select an image', 'error');
+        return;
+    }
+
+    const name = document.getElementById('studentName').value.trim();
+    const studentId = document.getElementById('studentId').value.trim();
+    const studentClass = document.getElementById('studentClass').value;
+    const division = document.getElementById('studentDivision').value;
+
+    // Validate all fields
+    const errors = [];
+    if (!name) errors.push('Name is required');
+    if (!studentId) errors.push('Student ID is required');
+    if (!studentClass) errors.push('Class is required');
+    if (!division) errors.push('Division is required');
+
+    // Additional validation
+    if (studentClass && (isNaN(studentClass) || studentClass < 1 || studentClass > 12)) {
+        errors.push('Class must be between 1 and 12');
+    }
+    if (division && !['A', 'B', 'C', 'D'].includes(division)) {
+        errors.push('Division must be A, B, C, or D');
+    }
+
+    if (errors.length > 0) {
+        showToast(errors.join('; '), 'error');
+        return;
+    }
+
+    try {
+        const imageData = await fileToBase64(file);
+        await registerFace(imageData, name, studentId, studentClass, division);
+    } catch (error) {
+        console.error('Registration failed:', error);
+        showToast(error.message || 'Registration failed', 'error');
+    }
+}
+
+// Add event listener to the registration form
+document.getElementById('registrationForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const file = document.getElementById('registrationFile').files[0];
+    await handleRegistration(file);
+});
 </script>
 {% endblock %} 

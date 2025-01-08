@@ -211,15 +211,23 @@ function switchTab(tab) {
 async function loadStudents() {
     try {
         const response = await fetch('/api/students');
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to load students');
+        }
+        
         const students = await response.json();
+        if (!Array.isArray(students)) {
+            throw new Error('Invalid data format received');
+        }
         
         const tbody = document.getElementById('studentsTableBody');
         tbody.innerHTML = students.map(student => `
             <tr>
-                <td>${student.student_id}</td>
-                <td>${student.name}</td>
-                <td>Class ${student.class}</td>
-                <td>${student.division}</td>
+                <td>${student.student_id || 'N/A'}</td>
+                <td>${student.name || 'N/A'}</td>
+                <td>Class ${student.class || 'N/A'}</td>
+                <td>${student.division || 'N/A'}</td>
                 <td>
                     <div class="flex gap-2">
                         <button onclick="editRecord('student', ${JSON.stringify(student).replace(/"/g, '&quot;')})" 
@@ -236,7 +244,15 @@ async function loadStudents() {
         `).join('');
     } catch (error) {
         console.error('Error loading students:', error);
-        showToast('Failed to load students', 'error');
+        showToast(error.message || 'Failed to load students', 'error');
+        const tbody = document.getElementById('studentsTableBody');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-error">
+                    Failed to load students. Please try again.
+                </td>
+            </tr>
+        `;
     }
 }
 
