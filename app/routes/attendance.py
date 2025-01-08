@@ -146,12 +146,16 @@ def update_attendance():
             
             # Update record
             update_data = {
-                'name': record.get('name'),
                 'status': record.get('status'),
                 'updated_at': datetime.now().isoformat(),
                 'updated_by': current_user.id
             }
-            doc_ref.update(update_data)
+            
+            # Only include fields that are provided
+            update_data = {k: v for k, v in update_data.items() if v is not None}
+            
+            if update_data:
+                doc_ref.update(update_data)
         
         return jsonify({'message': 'Records updated successfully'})
     except Exception as e:

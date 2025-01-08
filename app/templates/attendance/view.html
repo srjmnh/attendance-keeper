@@ -209,9 +209,11 @@ function displayAttendance(records) {
             <td>${record.name}</td>
             <td>${record.subject_name || 'N/A'}</td>
             <td>
-                <span class="badge badge-${record.status === 'PRESENT' ? 'success' : 'error'}">
-                    ${record.status}
-                </span>
+                <select class="select select-bordered select-sm w-28" 
+                        onchange="updateStatus('${record.doc_id}', this.value)">
+                    <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>Present</option>
+                    <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>Absent</option>
+                </select>
             </td>
             ${user_role === 'admin' ? `
             <td class="text-center">
@@ -286,6 +288,35 @@ async function exportAttendance() {
     } catch (error) {
         console.error('Error exporting attendance:', error);
         showToast(error.message, 'error');
+    }
+}
+
+async function updateStatus(docId, newStatus) {
+    try {
+        const response = await fetch(`/attendance/api/attendance/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                records: [{
+                    doc_id: docId,
+                    status: newStatus
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update status');
+        }
+
+        showToast('Status updated successfully', 'success');
+    } catch (error) {
+        console.error('Error updating status:', error);
+        showToast(error.message, 'error');
+        // Reload to reset the status
+        loadAttendance();
     }
 }
 </script>
