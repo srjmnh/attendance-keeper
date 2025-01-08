@@ -34,11 +34,5 @@ def create_app():
 # Create the application instance
 app = create_app()
 
-# Push an application context if running directly
 if __name__ == '__main__':
-    with app.app_context():
-        app.run(debug=True)
-else:
-    # For gunicorn and other WSGI servers
-    # Push an application context
-    app.app_context().push() 
+    app.run(debug=True) 

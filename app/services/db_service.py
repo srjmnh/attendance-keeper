@@ -1,13 +1,41 @@
 from flask import current_app, g
 from datetime import datetime
 from app.models.user import User
+import firebase_admin
+from firebase_admin import credentials, firestore
+import os
+import base64
+import json
 
 class DatabaseService:
     """Service class for database operations"""
     
+    _instance = None
+    _db = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DatabaseService, cls).__new__(cls)
+            # Initialize Firebase only once
+            if not firebase_admin._apps:
+                cred_json = base64.b64decode(os.getenv('FIREBASE_ADMIN_CREDENTIALS_BASE64')).decode('utf-8')
+                cred = credentials.Certificate(json.loads(cred_json))
+                firebase_admin.initialize_app(cred)
+            cls._db = firestore.client()
+        return cls._instance
+    
     def __init__(self):
-        """Initialize database service with Firestore client"""
-        self.db = current_app.db
+        """Initialize database service"""
+        pass
+    
+    @property
+    def db(self):
+        """Get the Firestore client"""
+        return self._db
+    
+    def get_db(self):
+        """Get the Firestore client"""
+        return self._db
     
     @classmethod
     def get_instance(cls):
