@@ -1,3 +1,4 @@
+# Gemini AI Service for chat and analysis
 import os
 import google.generativeai as genai
 from flask import current_app
@@ -41,12 +42,12 @@ Always be helpful, clear, and maintain a friendly tone."""
         if self._initialized:
             return
             
-        api_key = os.getenv('GEMINI_API_KEY')
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('models/gemini-1.5-flash')
+        self.model = genai.GenerativeModel("gemini-pro")
         
         # Start with system context
         self._conversation_memory = [
@@ -56,18 +57,17 @@ Always be helpful, clear, and maintain a friendly tone."""
     
     def _build_conversation(self):
         """Build conversation string from memory"""
-        conv_str = ""
+        conversation_parts = []
         for msg in self._conversation_memory:
             if msg["role"] == "system":
-                conv_str += f"System: {msg['content']}
-"
+                conversation_parts.append(f"System: {msg["content"]}")
             elif msg["role"] == "user":
-                conv_str += f"User: {msg['content']}
-"
+                conversation_parts.append(f"User: {msg["content"]}")
             else:
-                conv_str += f"Assistant: {msg['content']}
+                conversation_parts.append(f"Assistant: {msg["content"]}")
+        return "
+".join(conversation_parts) + "
 "
-        return conv_str
     
     def analyze_attendance(self, attendance_data):
         """Analyze attendance data and provide insights"""
@@ -89,7 +89,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error analyzing attendance: {str(e)}")
-            return "Sorry, I couldn't analyze the attendance data at this moment."
+            return "Sorry, I could not analyze the attendance data at this moment."
     
     def generate_report_summary(self, report_data):
         """Generate a summary of attendance reports"""
@@ -111,13 +111,13 @@ Always be helpful, clear, and maintain a friendly tone."""
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error generating report summary: {str(e)}")
-            return "Sorry, I couldn't generate the report summary at this moment."
+            return "Sorry, I could not generate the report summary at this moment."
     
     def get_student_recommendations(self, student_data):
         """Get personalized recommendations for a student"""
         try:
             prompt = f"""
-            Based on this student's attendance data:
+            Based on this student attendance data:
             {student_data}
             
             Provide:
@@ -133,7 +133,7 @@ Always be helpful, clear, and maintain a friendly tone."""
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error getting student recommendations: {str(e)}")
-            return "Sorry, I couldn't generate recommendations at this moment."
+            return "Sorry, I could not generate recommendations at this moment."
     
     def chat_with_assistant(self, user_message, context=None):
         """General chat interface with context awareness"""
@@ -161,4 +161,4 @@ Always be helpful, clear, and maintain a friendly tone."""
             return response.text
         except Exception as e:
             current_app.logger.error(f"Error in chat: {str(e)}")
-            return "Sorry, I encountered an error. Please try again." # Test comment
+            return "Sorry, I encountered an error. Please try again."
