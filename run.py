@@ -5,7 +5,10 @@ from app.routes import admin, auth, main, ai, attendance, recognition
 import os
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__,
+                template_folder='app/templates',
+                static_folder='app/static')
+    
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
     
     # Initialize Firebase Admin
