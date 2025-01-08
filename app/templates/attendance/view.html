@@ -106,6 +106,63 @@ const user_role = "{{ user_role }}";
 let debounceTimer;
 let changedRecords = new Map();
 
+// Handle field changes
+function handleFieldChange(docId, field, value) {
+    console.log(`Field change: docId=${docId}, field=${field}, value=${value}`);
+    if (!changedRecords.has(docId)) {
+        changedRecords.set(docId, {});
+    }
+    changedRecords.get(docId)[field] = value;
+    
+    const saveBtn = document.getElementById(`save-${docId}`);
+    if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('opacity-50');
+        saveBtn.classList.add('hover:text-success');
+    }
+    console.log('Updated changedRecords:', changedRecords);
+}
+
+// Save changes to a record
+async function saveChanges(docId) {
+    try {
+        const changes = changedRecords.get(docId);
+        if (!changes) return;
+
+        const saveBtn = document.getElementById(`save-${docId}`);
+        if (saveBtn) {
+            saveBtn.disabled = true; // Disable while saving
+        }
+
+        const response = await fetch('/api/attendance/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                doc_id: docId,
+                ...changes
+            })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to save changes');
+        }
+
+        changedRecords.delete(docId);
+        showToast('Changes saved successfully', 'success');
+        loadAttendance();  // Reload to show updated data
+    } catch (error) {
+        console.error('Error saving changes:', error);
+        showToast(error.message, 'error');
+        const saveBtn = document.getElementById(`save-${docId}`);
+        if (saveBtn) {
+            saveBtn.disabled = false; // Re-enable on error
+        }
+    }
+}
+
 // Initialize filters and load data
 document.addEventListener('DOMContentLoaded', () => {
     // Set up event listeners
@@ -180,7 +237,6 @@ function displayAttendance(records) {
     
     // Update record count
     recordCount.textContent = `${records.length} Records Found`;
-    console.log('Updated record count');
     
     // Clear existing rows
     tbody.innerHTML = '';
@@ -196,13 +252,11 @@ function displayAttendance(records) {
                 </td>
             </tr>
         `;
-        console.log('Displayed no records message');
         return;
     }
     
     // Add new rows
     records.forEach((record, index) => {
-        console.log(`Processing record ${index}:`, record);
         const row = document.createElement('tr');
         row.dataset.docId = record.doc_id;
         row.innerHTML = `
@@ -211,21 +265,21 @@ function displayAttendance(records) {
                 ${user_role === 'admin' ? 
                     `<input type="text" class="input input-bordered input-sm w-full" 
                             value="${record.student_id}" 
-                            onchange="handleFieldChange('${record.doc_id}', 'student_id', this.value)">` 
+                            oninput="handleFieldChange('${record.doc_id}', 'student_id', this.value)">` 
                     : record.student_id}
             </td>
             <td>
                 ${user_role === 'admin' ? 
                     `<input type="text" class="input input-bordered input-sm w-full" 
                             value="${record.name}" 
-                            onchange="handleFieldChange('${record.doc_id}', 'name', this.value)">` 
+                            oninput="handleFieldChange('${record.doc_id}', 'name', this.value)">` 
                     : record.name}
             </td>
             <td>
                 ${user_role === 'admin' ? 
                     `<input type="text" class="input input-bordered input-sm w-full" 
                             value="${record.subject_name || ''}" 
-                            onchange="handleFieldChange('${record.doc_id}', 'subject_name', this.value)">` 
+                            oninput="handleFieldChange('${record.doc_id}', 'subject_name', this.value)">` 
                     : record.subject_name || ''}
             </td>
             <td>
@@ -241,7 +295,7 @@ function displayAttendance(records) {
                 <div class="flex justify-center gap-2">
                     ${(user_role === 'admin' || user_role === 'teacher') ? 
                         `<button onclick="saveChanges('${record.doc_id}')" 
-                                class="btn btn-ghost btn-sm text-success save-btn" 
+                                class="btn btn-ghost btn-sm text-success save-btn opacity-50" 
                                 id="save-${record.doc_id}" disabled>
                             <i class="ri-save-line"></i>
                         </button>` : ''}
@@ -255,65 +309,6 @@ function displayAttendance(records) {
         `;
         tbody.appendChild(row);
     });
-
-    // Add the handleFieldChange function
-    function handleFieldChange(docId, field, value) {
-        console.log(`Field change: docId=${docId}, field=${field}, value=${value}`);
-        if (!changedRecords.has(docId)) {
-            changedRecords.set(docId, {});
-        }
-        changedRecords.get(docId)[field] = value;
-        
-        const saveBtn = document.getElementById(`save-${docId}`);
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.classList.remove('opacity-50');
-            saveBtn.classList.add('hover:text-success');
-        }
-        console.log('Updated changedRecords:', changedRecords);
-    }
-
-    // Update the saveChanges function
-    async function saveChanges(docId) {
-        try {
-            const changes = changedRecords.get(docId);
-            if (!changes) return;
-
-            const saveBtn = document.getElementById(`save-${docId}`);
-            if (saveBtn) {
-                saveBtn.disabled = true; // Disable while saving
-            }
-
-            const response = await fetch('/api/attendance/update', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    doc_id: docId,
-                    ...changes
-                })
-            });
-
-            const result = await response.json();
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to save changes');
-            }
-
-            changedRecords.delete(docId);
-            showToast('Changes saved successfully', 'success');
-            loadAttendance();  // Reload to show updated data
-        } catch (error) {
-            console.error('Error saving changes:', error);
-            showToast(error.message, 'error');
-            const saveBtn = document.getElementById(`save-${docId}`);
-            if (saveBtn) {
-                saveBtn.disabled = false; // Re-enable on error
-            }
-        }
-    }
-
-    console.log('Finished displaying records');
 }
 
 async function deleteAttendance(docId) {
