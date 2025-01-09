@@ -2,18 +2,18 @@ from flask import Blueprint, jsonify, request, current_app
 from app.services.chatbot_service import ChatbotService
 import asyncio
 
-bp = Blueprint('chat', __name__)
+bp = Blueprint('api', __name__, url_prefix='/api')
 
 # Initialize conversation memory
 MAX_MEMORY = 20
 conversation_memory = []
 
-@bp.route('/chat', methods=['POST'])
+@bp.route('/ai/chat', methods=['POST'])
 async def chat():
     """Handle chat messages"""
     try:
         data = request.get_json()
-        user_message = data.get('message', '').strip()
+        user_message = data.get('prompt', '').strip()
         
         if not user_message:
             return jsonify({"error": "No message provided"}), 400
