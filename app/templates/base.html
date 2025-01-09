@@ -194,11 +194,11 @@
     <!-- AI Assistant -->
     {% if current_user.is_authenticated and current_user.email %}
     <div class="fixed bottom-6 right-6 z-50">
-        <div class="dropdown dropdown-top dropdown-end">
-            <button class="btn btn-circle btn-primary btn-lg shadow-lg hover:scale-105 transition-transform">
+        <div class="dropdown dropdown-top dropdown-end" id="chatDropdown">
+            <button class="btn btn-circle btn-primary btn-lg shadow-lg hover:scale-105 transition-transform" onclick="toggleChat()">
                 <i class="ri-robot-line text-2xl"></i>
             </button>
-            <div class="dropdown-content w-96 max-w-[calc(100vw-2rem)] card bg-base-100 shadow-2xl">
+            <div class="dropdown-content w-96 max-w-[calc(100vw-2rem)] card bg-base-100 shadow-2xl" id="chatContent">
                 <div class="card-body p-0">
                     <div class="border-b p-4">
                         <h3 class="text-lg font-semibold flex items-center gap-2">
@@ -237,6 +237,27 @@
             const theme = this.checked ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
+        });
+
+        // Chat Toggle
+        function toggleChat() {
+            const dropdown = document.getElementById('chatDropdown');
+            const content = document.getElementById('chatContent');
+            dropdown.classList.toggle('dropdown-open');
+            
+            // Focus input when opening
+            if (dropdown.classList.contains('dropdown-open')) {
+                document.getElementById('chatInput').focus();
+            }
+        }
+
+        // Close chat when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('chatDropdown');
+            const content = document.getElementById('chatContent');
+            if (!dropdown.contains(event.target) && dropdown.classList.contains('dropdown-open')) {
+                dropdown.classList.remove('dropdown-open');
+            }
         });
     </script>
 
@@ -280,8 +301,20 @@
                 });
                 
                 const data = await response.json();
-                addMessage(data.message);
+                if (data.error) {
+                    addMessage('Error: ' + data.error);
+                } else {
+                    addMessage(data.message);
+                    // Handle navigation if provided
+                    if (data.navigation) {
+                        const tabButton = document.querySelector(`#${data.navigation}-tab`);
+                        if (tabButton) {
+                            tabButton.click();
+                        }
+                    }
+                }
             } catch (error) {
+                console.error('Chat error:', error);
                 addMessage('Sorry, I encountered an error. Please try again.');
             }
         });
