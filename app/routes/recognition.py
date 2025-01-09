@@ -184,7 +184,7 @@ def recognize_face():
         enhanced_image_bytes = buffered.getvalue()
 
         # Detect faces
-        detect_response = current_app.rekognition.client.detect_faces(
+        detect_response = current_app.rekognition.detect_faces(
             Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
@@ -231,16 +231,12 @@ def recognize_face():
                 face_bytes = buffered.getvalue()
 
                 try:
-                    # Search for the cropped face
-                    response = current_app.rekognition.client.search_faces_by_image(
-                        CollectionId=COLLECTION_ID,
-                        Image={'Bytes': face_bytes},
-                        MaxFaces=1,
-                        FaceMatchThreshold=80
+                    # Search for the cropped face using the service method
+                    matches = current_app.rekognition.search_faces(
+                        image_bytes=face_bytes,
+                        face_index=0  # Since we're passing a cropped face, use index 0
                     )
-                    
-                    matches = response.get('FaceMatches', [])
-                    current_app.logger.info(f"Search response for face {idx+1}: {response}")
+                    current_app.logger.info(f"Search response for face {idx+1}: {matches}")
                     
                 except Exception as e:
                     current_app.logger.error(f"Error searching face {idx+1}: {str(e)}")
