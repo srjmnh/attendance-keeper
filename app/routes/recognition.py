@@ -204,10 +204,7 @@ def recognize_face():
         for idx, face in enumerate(faces):
             try:
                 # Search for face match using the enhanced service
-                matches = current_app.rekognition.search_faces(
-                    image_bytes=enhanced_image_bytes,
-                    face_index=idx
-                )
+                matches = current_app.rekognition.search_faces(enhanced_image_bytes, idx)
                 
                 if not matches:
                     identified_people.append({

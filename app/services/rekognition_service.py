@@ -74,7 +74,7 @@ class RekognitionService:
                 Image={'Bytes': image_bytes},
                 Attributes=['ALL']
             )
-            return response['FaceDetails']
+            return response.get('FaceDetails', [])
             
         except Exception as e:
             current_app.logger.error(f"Error detecting faces: {str(e)}")
@@ -128,35 +128,30 @@ class RekognitionService:
                 
                 # Search for the cropped face using search_faces_by_image
                 try:
+                    # Log the collection ID being used
+                    current_app.logger.info(f"Searching in collection: {self.collection_id}")
+                    
+                    # Make the API call with correct parameters
                     response = self.client.search_faces_by_image(
                         CollectionId=self.collection_id,
                         Image={'Bytes': face_bytes},
                         MaxFaces=1,
                         FaceMatchThreshold=80
                     )
+                    
+                    # Log the response for debugging
                     current_app.logger.info(f"Search response for face {face_index}: {response}")
-                    return response.get('FaceMatches', [])
+                    
+                    # Return matches if any
+                    if 'FaceMatches' in response:
+                        return response['FaceMatches']
+                    return []
                     
                 except self.client.exceptions.InvalidParameterException as e:
                     current_app.logger.error(f"Invalid parameters for face search: {str(e)}")
                     return []
                 except self.client.exceptions.ResourceNotFoundException as e:
-                    current_app.logger.error(f"Collection not found: {str(e)}")
-                    return []
-                except self.client.exceptions.InvalidImageFormatException as e:
-                    current_app.logger.error(f"Invalid image format: {str(e)}")
-                    return []
-                except self.client.exceptions.ImageTooLargeException as e:
-                    current_app.logger.error(f"Image too large: {str(e)}")
-                    return []
-                except self.client.exceptions.AccessDeniedException as e:
-                    current_app.logger.error(f"Access denied to Rekognition: {str(e)}")
-                    raise
-                except self.client.exceptions.ProvisionedThroughputExceededException as e:
-                    current_app.logger.error(f"Throughput exceeded: {str(e)}")
-                    return []
-                except self.client.exceptions.ThrottlingException as e:
-                    current_app.logger.error(f"Request throttled: {str(e)}")
+                    current_app.logger.error(f"Collection {self.collection_id} not found: {str(e)}")
                     return []
                 except Exception as e:
                     current_app.logger.error(f"Error searching for face: {str(e)}")
