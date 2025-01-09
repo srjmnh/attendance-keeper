@@ -231,11 +231,14 @@ def recognize_face():
                 face_bytes = buffered.getvalue()
 
                 try:
-                    # Search for the cropped face using the service method
-                    matches = current_app.rekognition.search_faces(
-                        image_bytes=face_bytes,
-                        face_index=0  # Since we're passing a cropped face, use index 0
+                    # Search for the cropped face using AWS Rekognition directly
+                    response = current_app.rekognition._client.search_faces_by_image(
+                        CollectionId=COLLECTION_ID,
+                        Image={'Bytes': face_bytes},
+                        MaxFaces=1,
+                        FaceMatchThreshold=80
                     )
+                    matches = response.get('FaceMatches', [])
                     current_app.logger.info(f"Search response for face {idx+1}: {matches}")
                     
                 except Exception as e:

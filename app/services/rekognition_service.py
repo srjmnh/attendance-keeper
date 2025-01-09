@@ -10,13 +10,18 @@ class RekognitionService:
     
     def __init__(self):
         """Initialize Rekognition client"""
-        self.client = boto3.client(
+        self._client = boto3.client(
             'rekognition',
             aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
             aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
             region_name=os.getenv('AWS_REGION', 'us-east-1')
         )
         self.collection_id = os.getenv('AWS_COLLECTION_ID', 'students')
+    
+    @property
+    def client(self):
+        """Get the AWS Rekognition client"""
+        return self._client
     
     def decode_base64_image(self, base64_string):
         """Decode base64 image and enhance it"""
