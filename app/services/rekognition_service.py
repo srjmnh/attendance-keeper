@@ -116,24 +116,42 @@ class RekognitionService:
             faces = self.detect_faces(image_bytes)
             
             if not faces or face_index >= len(faces):
+                current_app.logger.info(f"No faces found or face_index {face_index} out of range")
                 return []
                 
             # Get the face we want to search for
             face = faces[face_index]
             
-            # Crop the face using its bounding box
-            face_bytes = self.crop_face(image_bytes, face['BoundingBox'])
-            
-            # Search for the cropped face
-            response = self.client.search_faces_by_image(
-                CollectionId=self.collection_id,
-                Image={'Bytes': face_bytes},
-                MaxFaces=1,
-                FaceMatchThreshold=80  # Increased threshold for better accuracy
-            )
-            
-            return response['FaceMatches']
+            try:
+                # Crop the face using its bounding box
+                face_bytes = self.crop_face(image_bytes, face['BoundingBox'])
+                
+                # Search for the cropped face
+                response = self.client.search_faces_by_image(
+                    CollectionId=self.collection_id,
+                    Image={'Bytes': face_bytes},
+                    MaxFaces=1,
+                    FaceMatchThreshold=80  # Increased threshold for better accuracy
+                )
+                
+                return response.get('FaceMatches', [])
+                
+            except self.client.exceptions.InvalidParameterException as e:
+                current_app.logger.error(f"Invalid parameters for face search: {str(e)}")
+                return []
+            except self.client.exceptions.InvalidImageFormatException as e:
+                current_app.logger.error(f"Invalid image format: {str(e)}")
+                return []
+            except self.client.exceptions.ImageTooLargeException as e:
+                current_app.logger.error(f"Image too large: {str(e)}")
+                return []
+            except self.client.exceptions.AccessDeniedException as e:
+                current_app.logger.error(f"Access denied to Rekognition: {str(e)}")
+                raise
+            except Exception as e:
+                current_app.logger.error(f"Error searching for face: {str(e)}")
+                return []
             
         except Exception as e:
-            current_app.logger.error(f"Error searching faces: {str(e)}")
+            current_app.logger.error(f"Error in face detection: {str(e)}")
             raise 
