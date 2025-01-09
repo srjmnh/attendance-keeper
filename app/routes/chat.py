@@ -1,73 +1,44 @@
-from flask import Blueprint, render_template, request, jsonify, current_app, url_for
-from flask_login import login_required, current_user
-import openai
-import os
+from flask import Blueprint, jsonify, request, current_app
+from app.services.chatbot_service import ChatbotService
+import asyncio
 
-bp = Blueprint('chat', __name__, url_prefix='/chat')
+bp = Blueprint('chat', __name__)
 
-# System message that gives context about our application
-SYSTEM_MESSAGE = """You are an AI assistant for the AttendanceAI system, a face recognition-based attendance management system. Here are your key functions:
+# Initialize conversation memory
+MAX_MEMORY = 20
+conversation_memory = []
 
-1. Help users navigate the system:
-   - Take Attendance (/attendance): Use face recognition to mark attendance
-   - View Attendance (/attendance/view): View and manage attendance records
-   - Register Students (/students/register): Register new students with face recognition
-   - Manage Students (/students): View and manage student records
-
-2. Explain features:
-   - Face Recognition: Automatically mark attendance using webcam
-   - Attendance Management: View, edit, and export attendance records
-   - Student Registration: Register students with photos and details
-   - Role-based Access: Different features for admin, teachers, and students
-
-3. Guide users through common tasks:
-   - Taking attendance using face recognition
-   - Viewing and filtering attendance records
-   - Exporting attendance to Excel
-   - Registering new students
-   - Managing student records
-
-Always be helpful and provide direct links to relevant pages when possible."""
-
-@bp.route('/')
-@login_required
-def index():
-    """Chat interface"""
-    return render_template('chat/index.html')
-
-@bp.route('/api/chat', methods=['POST'])
-@login_required
-def chat():
+@bp.route('/chat', methods=['POST'])
+async def chat():
     """Handle chat messages"""
     try:
         data = request.get_json()
-        message = data.get('message', '').strip()
+        user_message = data.get('message', '').strip()
         
-        if not message:
-            return jsonify({'error': 'Message is required'}), 400
-
-        # Initialize OpenAI client
-        openai.api_key = os.getenv('OPENAI_API_KEY')
+        if not user_message:
+            return jsonify({"error": "No message provided"}), 400
+            
+        # Add user message to memory
+        conversation_memory.append({"role": "user", "content": user_message})
         
-        # Create chat completion
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": SYSTEM_MESSAGE},
-                {"role": "user", "content": f"User Role: {current_user.role}\nMessage: {message}"}
-            ],
-            temperature=0.7,
-            max_tokens=500
-        )
+        # Maintain max memory size
+        if len(conversation_memory) > MAX_MEMORY:
+            conversation_memory.pop(0)
         
-        # Extract assistant's response
-        assistant_message = response.choices[0].message.content
+        # Get chatbot response
+        chatbot = ChatbotService()
+        response = await chatbot.get_chat_response(user_message, conversation_memory)
+        
+        # Add assistant response to memory
+        conversation_memory.append({"role": "assistant", "content": response["message"]})
         
         return jsonify({
-            'response': assistant_message,
-            'role': current_user.role
-        })
+            "message": response["message"],
+            "navigation": response["navigation"]
+        }), 200
         
     except Exception as e:
         current_app.logger.error(f"Chat error: {str(e)}")
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({
+            "error": "An error occurred while processing your message"
+        }), 500 
