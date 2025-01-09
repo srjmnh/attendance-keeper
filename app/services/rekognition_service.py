@@ -109,8 +109,8 @@ class RekognitionService:
             current_app.logger.error(f"Error cropping face: {str(e)}")
             raise
     
-    def search_faces(self, image_bytes, face_index=0):
-        """Search for faces in the collection"""
+    def search_faces(self, *, image_bytes, face_index=0):
+        """Search for faces in the collection using keyword-only arguments"""
         try:
             # First detect faces to get bounding boxes
             faces = self.detect_faces(image_bytes)
