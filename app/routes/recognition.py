@@ -232,7 +232,7 @@ def recognize_face():
 
                 try:
                     # Search for the cropped face using AWS Rekognition directly
-                    response = current_app.rekognition._client.search_faces_by_image(
+                    response = current_app.rekognition.client.search_faces_by_image(
                         CollectionId=COLLECTION_ID,
                         Image={'Bytes': face_bytes},
                         MaxFaces=1,
