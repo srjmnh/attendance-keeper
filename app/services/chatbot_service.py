@@ -8,7 +8,10 @@ class ChatbotService:
     
     def __init__(self):
         """Initialize Anthropic client and system context"""
-        self.api_key = os.getenv('SONNET')
+        self.api_key = os.getenv('SONNET')  # Using your environment variable name
+        if not self.api_key:
+            raise ValueError("SONNET environment variable not set")
+            
         self.api_url = "https://api.anthropic.com/v1/messages"
         
         # System context describing the attendance system
@@ -54,7 +57,7 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
     async def get_chat_response(self, user_message, conversation_history):
         """Get response from Anthropic's Claude API"""
         try:
-            # Prepare headers with API key
+            # Prepare headers with API key according to documentation
             headers = {
                 "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
@@ -106,26 +109,13 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
                 "navigation": None
             }
             
-        except requests.exceptions.RequestException as e:
-            error_msg = str(e)
-            current_app.logger.error(f"Anthropic API error: {error_msg}")
-            
-            if response.status_code == 429:
-                return {
-                    "message": "Too many requests. Please wait a moment and try again.",
-                    "navigation": None
-                }
-            elif response.status_code == 401:
-                return {
-                    "message": "Authentication error. Please contact the administrator.",
-                    "navigation": None
-                }
-            else:
-                return {
-                    "message": "I'm currently experiencing technical difficulties. Please try again later.",
-                    "navigation": None
-                }
-    
+        except Exception as e:
+            current_app.logger.error(f"Anthropic API error: {str(e)}")
+            return {
+                "message": "I'm currently experiencing technical difficulties. Please try again later.",
+                "navigation": None
+            }
+
     def _extract_navigation_command(self, message):
         """Extract navigation command from message if present"""
         navigation_commands = {
