@@ -57,20 +57,20 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
     async def get_chat_response(self, user_message, conversation_history):
         """Get response from Anthropic's Claude API"""
         try:
-            # Prepare headers with API key according to documentation
+            # Prepare headers with API key
             headers = {
                 "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json"
             }
             
-            # Prepare messages including system context
+            # Prepare messages array with system context as first message
             messages = [{"role": "user", "content": self.system_context}]
             
             # Add conversation history
             for msg in conversation_history:
                 messages.append({
-                    "role": "user" if msg["role"] == "user" else "assistant",
+                    "role": msg["role"],
                     "content": msg["content"]
                 })
             
@@ -81,8 +81,12 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
             payload = {
                 "model": "claude-3-sonnet-20240229",
                 "max_tokens": 1024,
-                "messages": messages
+                "messages": messages,
+                "temperature": 0.7
             }
+            
+            # Log request for debugging
+            current_app.logger.info(f"Sending request to Anthropic API")
             
             # Make request to Anthropic API
             response = requests.post(
@@ -91,13 +95,16 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
                 json=payload
             )
             
+            # Log response for debugging
+            current_app.logger.info(f"Anthropic API response status: {response.status_code}")
+            
             # Check for errors
             response.raise_for_status()
             
             # Parse response
             data = response.json()
             
-            if "content" in data:
+            if "content" in data and len(data["content"]) > 0:
                 message_content = data["content"][0]["text"]
                 return {
                     "message": message_content,
@@ -111,6 +118,8 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
             
         except Exception as e:
             current_app.logger.error(f"Anthropic API error: {str(e)}")
+            if isinstance(e, requests.exceptions.HTTPError):
+                current_app.logger.error(f"Response content: {e.response.text}")
             return {
                 "message": "I'm currently experiencing technical difficulties. Please try again later.",
                 "navigation": None
