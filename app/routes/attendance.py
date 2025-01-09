@@ -93,8 +93,13 @@ def get_attendance():
                 query = query.where('timestamp', '<', (today + timedelta(days=1)).isoformat())
                 current_app.logger.debug(f"No date range specified, defaulting to today: {today.isoformat()} to {(today + timedelta(days=1)).isoformat()}")
 
-            # Order by timestamp descending
+            # Always order by timestamp descending for consistent ordering
             query = query.order_by('timestamp', direction='DESCENDING')
+            
+            # For 'all' option, limit to last 1000 records to prevent performance issues
+            if date_range == 'all':
+                query = query.limit(1000)
+                current_app.logger.debug("Showing all records (limited to 1000)")
 
             # Execute query and format results
             records = []

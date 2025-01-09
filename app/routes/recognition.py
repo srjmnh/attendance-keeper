@@ -296,6 +296,8 @@ def recognize_face():
                         }
                         current_app.db.collection("attendance").add(attendance_doc)
                         current_app.logger.info(f"Added attendance record for student {student_id}")
+                    else:
+                        current_app.logger.info(f"Student {student_id} already has attendance for today")
                 except Exception as e:
                     current_app.logger.error(f"Error checking/adding attendance: {str(e)}")
                     if "The query requires an index" in str(e):
