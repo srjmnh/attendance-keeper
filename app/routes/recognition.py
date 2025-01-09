@@ -184,11 +184,10 @@ def recognize_face():
         enhanced_image_bytes = buffered.getvalue()
 
         # Detect faces
-        detect_response = current_app.rekognition.detect_faces(
+        detect_response = current_app.rekognition.client.detect_faces(
             Image={'Bytes': enhanced_image_bytes},
             Attributes=['ALL']
         )
-
         faces = detect_response.get('FaceDetails', [])
         face_count = len(faces)
         identified_people = []
@@ -203,12 +202,54 @@ def recognize_face():
         # Process each detected face
         for idx, face in enumerate(faces):
             try:
-                # Search for face match using the enhanced service
-                matches = current_app.rekognition.search_faces(
-                    image_bytes=enhanced_image_bytes,
-                    face_index=idx
-                )
+                # Get the bounding box for this face
+                bbox = face.get('BoundingBox')
+                if not bbox:
+                    current_app.logger.error(f"No bounding box found for face {idx+1}")
+                    continue
+
+                # Crop the face using the bounding box
+                image = Image.open(io.BytesIO(enhanced_image_bytes))
+                width, height = image.size
+                left = int(bbox['Left'] * width)
+                top = int(bbox['Top'] * height)
+                right = int((bbox['Left'] + bbox['Width']) * width)
+                bottom = int((bbox['Top'] + bbox['Height']) * height)
+
+                # Add padding
+                padding = int(min(width, height) * 0.1)
+                left = max(0, left - padding)
+                top = max(0, top - padding)
+                right = min(width, right + padding)
+                bottom = min(height, bottom + padding)
+
+                face_image = image.crop((left, top, right, bottom))
                 
+                # Convert cropped face to bytes
+                buffered = io.BytesIO()
+                face_image.save(buffered, format="JPEG")
+                face_bytes = buffered.getvalue()
+
+                try:
+                    # Search for the cropped face
+                    response = current_app.rekognition.client.search_faces_by_image(
+                        CollectionId=COLLECTION_ID,
+                        Image={'Bytes': face_bytes},
+                        MaxFaces=1,
+                        FaceMatchThreshold=80
+                    )
+                    
+                    matches = response.get('FaceMatches', [])
+                    current_app.logger.info(f"Search response for face {idx+1}: {response}")
+                    
+                except Exception as e:
+                    current_app.logger.error(f"Error searching face {idx+1}: {str(e)}")
+                    identified_people.append({
+                        "message": "Face not recognized",
+                        "confidence": "N/A"
+                    })
+                    continue
+
                 if not matches:
                     identified_people.append({
                         "message": "Face not recognized",
