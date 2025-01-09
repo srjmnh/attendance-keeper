@@ -1,14 +1,15 @@
 import os
-from openai import OpenAI
+import requests
 from datetime import datetime
 from flask import current_app
 
 class ChatbotService:
-    """Service for handling chatbot interactions using OpenAI"""
+    """Service for handling chatbot interactions using Anthropic's Claude API"""
     
     def __init__(self):
-        """Initialize OpenAI client and system context"""
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        """Initialize Anthropic client and system context"""
+        self.api_key = os.getenv('SONNET')
+        self.api_url = "https://api.anthropic.com/v1/messages"
         
         # System context describing the attendance system
         self.system_context = """You are an AI assistant for a Facial Recognition Attendance System. Here are the key features you should know about:
@@ -51,12 +52,17 @@ Your role is to:
 When suggesting navigation, use the exact commands (e.g., "#show-register") as they trigger UI actions."""
 
     async def get_chat_response(self, user_message, conversation_history):
-        """Get response from OpenAI ChatGPT"""
+        """Get response from Anthropic's Claude API"""
         try:
-            # Prepare the messages including system context and history
-            messages = [
-                {"role": "system", "content": self.system_context}
-            ]
+            # Prepare headers with API key
+            headers = {
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            
+            # Prepare messages including system context
+            messages = [{"role": "user", "content": self.system_context}]
             
             # Add conversation history
             for msg in conversation_history:
@@ -68,22 +74,31 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
             # Add the current message
             messages.append({"role": "user", "content": user_message})
             
-            # Get response from OpenAI
-            completion = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                max_tokens=500,
-                temperature=0.7,
-                top_p=1.0,
-                frequency_penalty=0.0,
-                presence_penalty=0.0
+            # Prepare request payload
+            payload = {
+                "model": "claude-3-sonnet-20240229",
+                "max_tokens": 1024,
+                "messages": messages
+            }
+            
+            # Make request to Anthropic API
+            response = requests.post(
+                self.api_url,
+                headers=headers,
+                json=payload
             )
             
-            # Extract and return the response
-            if completion.choices:
+            # Check for errors
+            response.raise_for_status()
+            
+            # Parse response
+            data = response.json()
+            
+            if "content" in data:
+                message_content = data["content"][0]["text"]
                 return {
-                    "message": completion.choices[0].message.content,
-                    "navigation": self._extract_navigation_command(completion.choices[0].message.content)
+                    "message": message_content,
+                    "navigation": self._extract_navigation_command(message_content)
                 }
             
             return {
@@ -91,12 +106,25 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
                 "navigation": None
             }
             
-        except Exception as e:
-            current_app.logger.error(f"OpenAI API error: {str(e)}")
-            return {
-                "message": "I'm currently experiencing technical difficulties. Please try again later.",
-                "navigation": None
-            }
+        except requests.exceptions.RequestException as e:
+            error_msg = str(e)
+            current_app.logger.error(f"Anthropic API error: {error_msg}")
+            
+            if response.status_code == 429:
+                return {
+                    "message": "Too many requests. Please wait a moment and try again.",
+                    "navigation": None
+                }
+            elif response.status_code == 401:
+                return {
+                    "message": "Authentication error. Please contact the administrator.",
+                    "navigation": None
+                }
+            else:
+                return {
+                    "message": "I'm currently experiencing technical difficulties. Please try again later.",
+                    "navigation": None
+                }
     
     def _extract_navigation_command(self, message):
         """Extract navigation command from message if present"""
