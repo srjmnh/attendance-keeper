@@ -71,25 +71,26 @@ def register_face():
 
         # Clean name for external ID
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
+        external_image_id = f"{sanitized_name}_{student_id}"
+        
+        current_app.logger.info(f"Processing registration for external_image_id: {external_image_id}")
         
         # Process image
         try:
             image_data = image.split(",")[1]
             image_bytes = base64.b64decode(image_data)
-        except Exception as e:
-            return jsonify({"error": "Invalid image format. Please provide a valid base64 encoded image"}), 400
-
-        # Enhance image before indexing
-        try:
+            
+            # Enhance image before indexing
             pil_image = Image.open(io.BytesIO(image_bytes))
             enhanced_image = enhance_image(pil_image)
             buffered = io.BytesIO()
             enhanced_image.save(buffered, format="JPEG")
             enhanced_image_bytes = buffered.getvalue()
+            
+            current_app.logger.info("Image processed successfully")
         except Exception as e:
+            current_app.logger.error(f"Error processing image: {str(e)}")
             return jsonify({"error": "Failed to process image. Please try with a different image"}), 400
-
-        external_image_id = f"{sanitized_name}_{student_id}"
         
         # Check if student already exists
         existing_student = current_app.db.collection('users').where('student_id', '==', student_id).get()
@@ -108,6 +109,10 @@ def register_face():
             
             if not response.get('FaceRecords'):
                 return jsonify({"error": "No face detected in the image. Please try with a clearer photo"}), 400
+
+            current_app.logger.info(f"Indexed face with external ID: {external_image_id}")
+            current_app.logger.info(f"AWS Response: {response}")
+
         except Exception as e:
             current_app.logger.error(f"AWS Rekognition error: {str(e)}")
             return jsonify({"error": "Failed to process face. Please try with a different image"}), 500
@@ -120,15 +125,25 @@ def register_face():
             'division': student_division.upper(),
             'role': 'student',
             'created_at': datetime.utcnow().isoformat(),
-            'face_id': external_image_id,
+            'face_id': external_image_id,  # This must match the ExternalImageId used in AWS
             'rekognition_face_id': response['FaceRecords'][0]['Face']['FaceId']
         }
 
         # Add student to Firestore
         try:
-            current_app.db.collection('users').add(student_data)
+            current_app.logger.info(f"Saving student data: {student_data}")
+            doc_ref = current_app.db.collection('users').add(student_data)
+            current_app.logger.info(f"Student data saved with document ID: {doc_ref[1].id}")
         except Exception as e:
             current_app.logger.error(f"Firestore error: {str(e)}")
+            # If Firestore save fails, delete the face from Rekognition
+            try:
+                current_app.rekognition.delete_faces(
+                    CollectionId=COLLECTION_ID,
+                    FaceIds=[response['FaceRecords'][0]['Face']['FaceId']]
+                )
+            except:
+                pass
             return jsonify({"error": "Failed to save student data. Please try again"}), 500
 
         return jsonify({
@@ -137,7 +152,8 @@ def register_face():
                 "name": name,
                 "student_id": student_id,
                 "class": student_class,
-                "division": student_division
+                "division": student_division,
+                "face_id": external_image_id
             }
         }), 200
 
@@ -186,30 +202,11 @@ def recognize_face():
 
         # Process each detected face
         for idx, face in enumerate(faces):
-            # Get face bounding box
-            bbox = face['BoundingBox']
-            pil_img = Image.open(io.BytesIO(enhanced_image_bytes))
-            img_width, img_height = pil_img.size
-
-            # Calculate face coordinates
-            left = int(bbox['Left'] * img_width)
-            top = int(bbox['Top'] * img_height)
-            width = int(bbox['Width'] * img_width)
-            height = int(bbox['Height'] * img_height)
-            right = left + width
-            bottom = top + height
-
-            # Crop and process face
-            cropped_face = pil_img.crop((left, top, right, bottom))
-            buffer = io.BytesIO()
-            cropped_face.save(buffer, format="JPEG")
-            cropped_face_bytes = buffer.getvalue()
-
             try:
                 # Search for face match
                 search_response = current_app.rekognition.search_faces_by_image(
                     CollectionId=COLLECTION_ID,
-                    Image={'Bytes': cropped_face_bytes},
+                    Image={'Bytes': enhanced_image_bytes},
                     MaxFaces=1,
                     FaceMatchThreshold=60
                 )
@@ -236,6 +233,15 @@ def recognize_face():
                 current_app.logger.info(f"Found {len(student_docs)} student documents for face_id {ext_id}")
                 
                 if not student_docs:
+                    # Try searching by student ID (in case face_id field is missing)
+                    student_id = ext_id.split('_')[-1]  # Get student ID from external_image_id
+                    current_app.logger.info(f"Trying fallback search with student_id: {student_id}")
+                    student_query = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+                    student_docs = list(student_query)
+                    current_app.logger.info(f"Fallback: Found {len(student_docs)} student documents for student_id {student_id}")
+
+                if not student_docs:
+                    current_app.logger.error(f"No student found for face_id {ext_id} or student_id {student_id}")
                     identified_people.append({
                         "message": "Student data not found",
                         "confidence": confidence
@@ -245,6 +251,15 @@ def recognize_face():
                 student_doc = student_docs[0]
                 student_data = student_doc.to_dict()
                 current_app.logger.info(f"Student data: {student_data}")
+
+                # Update face_id if it's missing
+                if 'face_id' not in student_data:
+                    current_app.logger.info(f"Updating missing face_id for student {student_doc.id} to {ext_id}")
+                    current_app.db.collection('users').document(student_doc.id).update({
+                        'face_id': ext_id
+                    })
+                    current_app.logger.info(f"Updated missing face_id for student {student_doc.id}")
+
                 student_name = student_data.get('name', 'Unknown')
                 student_id = student_data.get('student_id', 'Unknown')
                 student_class = student_data.get('class', '')
@@ -260,25 +275,33 @@ def recognize_face():
 
                 # Check if attendance already exists for today
                 today = datetime.utcnow().date()
-                attendance_query = current_app.db.collection("attendance").where(
-                    'student_id', '==', student_id
-                ).where(
-                    'timestamp', '>=', today.isoformat()
-                ).where(
-                    'timestamp', '<', (today + timedelta(days=1)).isoformat()
-                ).get()
+                try:
+                    # Modified query to avoid __name__ field
+                    attendance_query = current_app.db.collection("attendance")\
+                        .where('student_id', '==', student_id)\
+                        .where('timestamp', '>=', today.isoformat())\
+                        .where('timestamp', '<', (today + timedelta(days=1)).isoformat())\
+                        .limit(1)\
+                        .get()
 
-                if not list(attendance_query):
-                    # Log attendance only if not already marked today
-                    attendance_doc = {
-                        "student_id": student_id,
-                        "name": student_name,
-                        "class": student_class,
-                        "division": student_division,
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "status": "PRESENT"
-                    }
-                    current_app.db.collection("attendance").add(attendance_doc)
+                    if not list(attendance_query):
+                        # Log attendance only if not already marked today
+                        attendance_doc = {
+                            "student_id": student_id,
+                            "name": student_name,
+                            "class": student_class,
+                            "division": student_division,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "status": "PRESENT"
+                        }
+                        current_app.db.collection("attendance").add(attendance_doc)
+                        current_app.logger.info(f"Added attendance record for student {student_id}")
+                except Exception as e:
+                    current_app.logger.error(f"Error checking/adding attendance: {str(e)}")
+                    if "The query requires an index" in str(e):
+                        current_app.logger.error("Missing Firestore index. Please create the required index.")
+                    # Continue without marking attendance
+                    pass
 
             except Exception as e:
                 identified_people.append({

@@ -30,6 +30,7 @@
                 <option value="week">This Week</option>
                 <option value="month">This Month</option>
                 <option value="custom">Custom Range</option>
+                <option value="all">Show All</option>
             </select>
         </div>
 
@@ -232,14 +233,19 @@ async function loadAttendance() {
 
         // Fetch attendance data
         const response = await fetch(url);
+        const data = await response.json();
+        
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to load attendance data');
+            if (data.admin_message && user_role === 'admin') {
+                showToast(`${data.error}\n\nAdmin: ${data.admin_message}`, 'error', 10000);
+            } else {
+                showToast(data.error || 'Failed to load attendance data', 'error');
+            }
+            return;
         }
 
-        const records = await response.json();
-        console.log('Received records:', records.length);
-        displayAttendance(records);
+        console.log('Received records:', data.length);
+        displayAttendance(data);
     } catch (error) {
         console.error('Error loading attendance:', error);
         showToast(error.message, 'error');
