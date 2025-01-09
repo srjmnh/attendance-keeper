@@ -80,15 +80,58 @@ class RekognitionService:
             current_app.logger.error(f"Error detecting faces: {str(e)}")
             raise
     
-    def search_faces(self, image_bytes):
+    def crop_face(self, image_bytes, bounding_box):
+        """Crop face from image using bounding box"""
+        try:
+            image = Image.open(BytesIO(image_bytes))
+            width, height = image.size
+            
+            left = int(bounding_box['Left'] * width)
+            top = int(bounding_box['Top'] * height)
+            right = int((bounding_box['Left'] + bounding_box['Width']) * width)
+            bottom = int((bounding_box['Top'] + bounding_box['Height']) * height)
+            
+            # Add some padding around the face
+            padding = int(min(width, height) * 0.1)  # 10% padding
+            left = max(0, left - padding)
+            top = max(0, top - padding)
+            right = min(width, right + padding)
+            bottom = min(height, bottom + padding)
+            
+            face_image = image.crop((left, top, right, bottom))
+            
+            # Convert to bytes
+            buffer = BytesIO()
+            face_image.save(buffer, format="JPEG")
+            return buffer.getvalue()
+            
+        except Exception as e:
+            current_app.logger.error(f"Error cropping face: {str(e)}")
+            raise
+    
+    def search_faces(self, image_bytes, face_index=0):
         """Search for faces in the collection"""
         try:
+            # First detect faces to get bounding boxes
+            faces = self.detect_faces(image_bytes)
+            
+            if not faces or face_index >= len(faces):
+                return []
+                
+            # Get the face we want to search for
+            face = faces[face_index]
+            
+            # Crop the face using its bounding box
+            face_bytes = self.crop_face(image_bytes, face['BoundingBox'])
+            
+            # Search for the cropped face
             response = self.client.search_faces_by_image(
                 CollectionId=self.collection_id,
-                Image={'Bytes': image_bytes},
+                Image={'Bytes': face_bytes},
                 MaxFaces=1,
-                FaceMatchThreshold=90
+                FaceMatchThreshold=80  # Increased threshold for better accuracy
             )
+            
             return response['FaceMatches']
             
         except Exception as e:

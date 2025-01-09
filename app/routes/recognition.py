@@ -203,16 +203,9 @@ def recognize_face():
         # Process each detected face
         for idx, face in enumerate(faces):
             try:
-                # Search for face match
-                search_response = current_app.rekognition.search_faces_by_image(
-                    CollectionId=COLLECTION_ID,
-                    Image={'Bytes': enhanced_image_bytes},
-                    MaxFaces=1,
-                    FaceMatchThreshold=60
-                )
-
-                current_app.logger.info(f"Face search response: {search_response}")
-                matches = search_response.get('FaceMatches', [])
+                # Search for face match using the enhanced service
+                matches = current_app.rekognition.search_faces(enhanced_image_bytes, idx)
+                
                 if not matches:
                     identified_people.append({
                         "message": "Face not recognized",
@@ -276,7 +269,6 @@ def recognize_face():
                 # Check if attendance already exists for today
                 today = datetime.utcnow().date()
                 try:
-                    # Modified query to avoid __name__ field
                     attendance_query = current_app.db.collection("attendance")\
                         .where('student_id', '==', student_id)\
                         .where('timestamp', '>=', today.isoformat())\
@@ -306,8 +298,9 @@ def recognize_face():
                     pass
 
             except Exception as e:
+                current_app.logger.error(f"Error processing face {idx+1}: {str(e)}")
                 identified_people.append({
-                    "message": f"Error searching face {idx+1}: {str(e)}",
+                    "message": f"Error processing face {idx+1}: {str(e)}",
                     "confidence": "N/A"
                 })
                 continue
