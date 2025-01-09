@@ -16,7 +16,7 @@ class RekognitionService:
             aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
             region_name=os.getenv('AWS_REGION', 'us-east-1')
         )
-        self.collection_id = os.getenv('AWS_COLLECTION_ID', 'attendance-faces')
+        self.collection_id = os.getenv('AWS_COLLECTION_ID', 'students')
     
     def decode_base64_image(self, base64_string):
         """Decode base64 image and enhance it"""
@@ -126,30 +126,44 @@ class RekognitionService:
                 # Crop the face using its bounding box
                 face_bytes = self.crop_face(image_bytes, face['BoundingBox'])
                 
-                # Search for the cropped face
-                response = self.client.search_faces_by_image(
-                    CollectionId=self.collection_id,
-                    Image={'Bytes': face_bytes},
-                    MaxFaces=1,
-                    FaceMatchThreshold=80  # Increased threshold for better accuracy
-                )
+                # Search for the cropped face using search_faces_by_image
+                try:
+                    response = self.client.search_faces_by_image(
+                        CollectionId=self.collection_id,
+                        Image={'Bytes': face_bytes},
+                        MaxFaces=1,
+                        FaceMatchThreshold=80
+                    )
+                    current_app.logger.info(f"Search response for face {face_index}: {response}")
+                    return response.get('FaceMatches', [])
+                    
+                except self.client.exceptions.InvalidParameterException as e:
+                    current_app.logger.error(f"Invalid parameters for face search: {str(e)}")
+                    return []
+                except self.client.exceptions.ResourceNotFoundException as e:
+                    current_app.logger.error(f"Collection not found: {str(e)}")
+                    return []
+                except self.client.exceptions.InvalidImageFormatException as e:
+                    current_app.logger.error(f"Invalid image format: {str(e)}")
+                    return []
+                except self.client.exceptions.ImageTooLargeException as e:
+                    current_app.logger.error(f"Image too large: {str(e)}")
+                    return []
+                except self.client.exceptions.AccessDeniedException as e:
+                    current_app.logger.error(f"Access denied to Rekognition: {str(e)}")
+                    raise
+                except self.client.exceptions.ProvisionedThroughputExceededException as e:
+                    current_app.logger.error(f"Throughput exceeded: {str(e)}")
+                    return []
+                except self.client.exceptions.ThrottlingException as e:
+                    current_app.logger.error(f"Request throttled: {str(e)}")
+                    return []
+                except Exception as e:
+                    current_app.logger.error(f"Error searching for face: {str(e)}")
+                    return []
                 
-                return response.get('FaceMatches', [])
-                
-            except self.client.exceptions.InvalidParameterException as e:
-                current_app.logger.error(f"Invalid parameters for face search: {str(e)}")
-                return []
-            except self.client.exceptions.InvalidImageFormatException as e:
-                current_app.logger.error(f"Invalid image format: {str(e)}")
-                return []
-            except self.client.exceptions.ImageTooLargeException as e:
-                current_app.logger.error(f"Image too large: {str(e)}")
-                return []
-            except self.client.exceptions.AccessDeniedException as e:
-                current_app.logger.error(f"Access denied to Rekognition: {str(e)}")
-                raise
             except Exception as e:
-                current_app.logger.error(f"Error searching for face: {str(e)}")
+                current_app.logger.error(f"Error processing cropped face: {str(e)}")
                 return []
             
         except Exception as e:
