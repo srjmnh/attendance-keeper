@@ -8,8 +8,18 @@ from PIL import Image, ImageEnhance
 import cv2
 import numpy as np
 import logging
+import boto3
+import os
 
 bp = Blueprint('recognition', __name__)
+
+# AWS Configuration
+rekognition_client = boto3.client(
+    'rekognition',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    region_name=os.getenv('AWS_REGION', 'us-east-1')
+)
 
 COLLECTION_ID = "students"  # Hardcode the collection ID to match the example code
 
@@ -232,13 +242,13 @@ def recognize_face():
 
                 try:
                     # Search for the cropped face using AWS Rekognition directly
-                    response = current_app.rekognition.client.search_faces_by_image(
+                    search_response = current_app.rekognition.search_faces_by_image(
                         CollectionId=COLLECTION_ID,
                         Image={'Bytes': face_bytes},
                         MaxFaces=1,
-                        FaceMatchThreshold=80
+                        FaceMatchThreshold=60
                     )
-                    matches = response.get('FaceMatches', [])
+                    matches = search_response.get('FaceMatches', [])
                     current_app.logger.info(f"Search response for face {idx+1}: {matches}")
                     
                 except Exception as e:
