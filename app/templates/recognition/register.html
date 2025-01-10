@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Face Recognition - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="grid gap-6">
+    <!-- Header -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-2xl">Face Recognition</h2>
+            <p class="opacity-60">Register and recognize student faces</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Register Face -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h3 class="card-title">
+                    <i class="ri-user-add-line text-xl"></i>
+                    Register New Face
+                </h3>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Student Name</span>
+                    </label>
+                    <input type="text" id="reg_name" placeholder="Enter student name" 
+                           class="input input-bordered w-full" />
+                </div>
+                
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Student ID</span>
+                    </label>
+                    <input type="text" id="reg_student_id" placeholder="Enter student ID" 
+                           class="input input-bordered w-full" />
+                </div>
+
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Class</span>
+                    </label>
+                    <select id="reg_class" class="select select-bordered w-full">
+                        <option value="">Select Class</option>
+                        {% for i in range(1, 13) %}
+                        <option value="{{ i }}">Class {{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Division</span>
+                    </label>
+                    <select id="reg_division" class="select select-bordered w-full">
+                        <option value="">Select Division</option>
+                        <option value="A">Division A</option>
+                        <option value="B">Division B</option>
+                        <option value="C">Division C</option>
+                        <option value="D">Division D</option>
+                    </select>
+                </div>
+
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Student Photo</span>
+                    </label>
+                    <input type="file" id="reg_image" accept="image/*" 
+                           class="file-input file-input-bordered w-full" 
+                           onchange="previewImage(this, 'reg_preview')" />
+                </div>
+
+                <div class="preview-container w-full aspect-video bg-base-200 rounded-lg overflow-hidden relative">
+                    <img id="reg_preview" class="w-full h-full object-contain hidden" />
+                    <div id="reg_placeholder" class="absolute inset-0 flex items-center justify-center text-base-content/50">
+                        <div class="text-center">
+                            <i class="ri-image-add-line text-4xl"></i>
+                            <p class="mt-2">Preview will appear here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="registerFace()" class="btn btn-primary w-full gap-2">
+                    <i class="ri-user-add-line"></i>
+                    Register Face
+                </button>
+
+                <div id="register_result" class="alert hidden mt-4">
+                    <i class="ri-information-line"></i>
+                    <span class="message"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recognize Face -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h3 class="card-title">
+                    <i class="ri-camera-line text-xl"></i>
+                    Recognize Face
+                </h3>
+
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Select Subject</span>
+                    </label>
+                    <select id="rec_subject_select" class="select select-bordered w-full">
+                        <option value="">Select Subject</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Photo to Recognize</span>
+                    </label>
+                    <input type="file" id="rec_image" accept="image/*" 
+                           class="file-input file-input-bordered w-full" 
+                           onchange="previewImage(this, 'rec_preview')" />
+                </div>
+
+                <div class="preview-container w-full aspect-video bg-base-200 rounded-lg overflow-hidden relative">
+                    <img id="rec_preview" class="w-full h-full object-contain hidden" />
+                    <div id="rec_placeholder" class="absolute inset-0 flex items-center justify-center text-base-content/50">
+                        <div class="text-center">
+                            <i class="ri-image-add-line text-4xl"></i>
+                            <p class="mt-2">Preview will appear here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="recognizeFace()" class="btn btn-primary w-full gap-2">
+                    <i class="ri-camera-line"></i>
+                    Recognize Face
+                </button>
+
+                <div id="recognize_result" class="alert hidden mt-4">
+                    <i class="ri-information-line"></i>
+                    <span class="message"></span>
+                </div>
+
+                <!-- Results Table -->
+                <div id="results_table" class="overflow-x-auto hidden mt-4">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Student ID</th>
+                                <th>Class</th>
+                                <th>Division</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results_body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function previewImage(input, previewId) {
+    const preview = document.getElementById(previewId);
+    const placeholder = document.getElementById(previewId.replace('preview', 'placeholder'));
+    const file = input.files[0];
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        }
+        reader.readAsDataURL(file);
+    } else {
+        preview.src = '';
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+    }
+}
+
+function getBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
+function showResult(elementId, message, type = 'info') {
+    const element = document.getElementById(elementId);
+    element.className = `alert alert-${type} mt-4`;
+    element.querySelector('.message').textContent = message;
+    element.classList.remove('hidden');
+}
+
+async function registerFace() {
+    const name = document.getElementById('reg_name').value.trim();
+    const studentId = document.getElementById('reg_student_id').value.trim();
+    const studentClass = document.getElementById('reg_class').value;
+    const division = document.getElementById('reg_division').value;
+    const file = document.getElementById('reg_image').files[0];
+    
+    if (!name || !studentId || !studentClass || !division || !file) {
+        showResult('register_result', 'Please fill in all fields', 'error');
+        return;
+    }
+    
+    try {
+        const base64Image = await getBase64(file);
+        const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                student_id: studentId,
+                class: studentClass,
+                division: division,
+                image: base64Image
+            })
+        });
+        
+        const data = await response.json();
+        showResult('register_result', data.message || data.error, response.ok ? 'success' : 'error');
+        
+        if (response.ok) {
+            // Clear form
+            document.getElementById('reg_name').value = '';
+            document.getElementById('reg_student_id').value = '';
+            document.getElementById('reg_class').value = '';
+            document.getElementById('reg_division').value = '';
+            document.getElementById('reg_image').value = '';
+            document.getElementById('reg_preview').classList.add('hidden');
+            document.getElementById('reg_placeholder').classList.remove('hidden');
+        }
+    } catch (error) {
+        showResult('register_result', 'An error occurred while registering the face', 'error');
+    }
+}
+
+async function recognizeFace() {
+    const file = document.getElementById('rec_image').files[0];
+    const subjectId = document.getElementById('rec_subject_select').value;
+    const resultsTable = document.getElementById('results_table');
+    const resultsBody = document.getElementById('results_body');
+    
+    if (!file) {
+        showResult('recognize_result', 'Please select an image', 'error');
+        return;
+    }
+    
+    try {
+        const base64Image = await getBase64(file);
+        const response = await fetch('/recognize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image: base64Image,
+                subject_id: subjectId
+            })
+        });
+        
+        const data = await response.json();
+        showResult('recognize_result', data.message, response.ok ? 'success' : 'error');
+        
+        if (response.ok && data.identified_people) {
+            resultsBody.innerHTML = '';
+            data.identified_people.forEach(person => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${person.name || 'Unknown'}</td>
+                    <td>${person.student_id || 'N/A'}</td>
+                    <td>${person.class || 'N/A'}</td>
+                    <td>${person.division || 'N/A'}</td>
+                    <td>
+                        <div class="badge ${person.confidence > 90 ? 'badge-success' : 'badge-warning'}">
+                            ${person.confidence ? Math.round(person.confidence) + '%' : 'N/A'}
+                        </div>
+                    </td>
+                `;
+                resultsBody.appendChild(row);
+            });
+            resultsTable.classList.remove('hidden');
+        } else {
+            resultsTable.classList.add('hidden');
+        }
+    } catch (error) {
+        showResult('recognize_result', 'An error occurred while recognizing faces', 'error');
+        resultsTable.classList.add('hidden');
+    }
+}
+</script>
+{% endblock %} 
