@@ -63,7 +63,19 @@ def dashboard():
         query = query.where('student_id', '==', current_user.id)
     elif current_user.role == 'teacher':
         # Teachers see attendance for their subjects
-        query = query.where('subject_id', 'in', current_user.classes)
+        teacher_classes = getattr(current_user, 'classes', []) or []
+        if teacher_classes:
+            query = query.where('subject_id', 'in', teacher_classes)
+        else:
+            # If no classes assigned, return empty result
+            return render_template('dashboard.html',
+                                subjects=subjects,
+                                total_students=total_students,
+                                total_subjects=total_subjects,
+                                today_attendance=today_attendance,
+                                attendance_trend=attendance_trend,
+                                attendance_records=[],
+                                attendance_data={'labels': [], 'values': []})
     
     query = query.order_by('timestamp', direction='DESCENDING').limit(10)
     
@@ -104,8 +116,8 @@ def dashboard():
         # Apply role-based filters
         if current_user.role == 'student':
             day_query = day_query.where('student_id', '==', current_user.id)
-        elif current_user.role == 'teacher':
-            day_query = day_query.where('subject_id', 'in', current_user.classes)
+        elif current_user.role == 'teacher' and teacher_classes:
+            day_query = day_query.where('subject_id', 'in', teacher_classes)
         
         day_records = list(day_query.stream())
         

@@ -115,20 +115,39 @@
             <div class="form-control mb-4">
                 <label class="label">
                     <span class="label-text">Password</span>
+                    <span class="label-text-alt">Minimum 6 characters</span>
                 </label>
-                <input type="password" name="password" class="input input-bordered" required />
+                <input type="password" name="password" class="input input-bordered" required minlength="6" />
             </div>
 
             <div class="form-control mb-4">
                 <label class="label">
                     <span class="label-text">Role</span>
                 </label>
-                <select name="role" class="select select-bordered" required onchange="toggleStudentFields(this.value)">
+                <select name="role" class="select select-bordered" required onchange="toggleUserFields(this.value)">
                     <option value="">Select Role</option>
                     <option value="admin">Admin</option>
                     <option value="teacher">Teacher</option>
                     <option value="student">Student</option>
                 </select>
+            </div>
+
+            <div id="teacher_fields" class="hidden">
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text">Assign Classes</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                        {% for class in range(1, 13) %}
+                            {% for division in ['A', 'B', 'C', 'D'] %}
+                            <label class="label cursor-pointer justify-start gap-2">
+                                <input type="checkbox" name="classes" value="{{ class }}-{{ division }}" class="checkbox checkbox-sm" />
+                                <span class="label-text">Class {{ class }}-{{ division }}</span>
+                            </label>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
 
             <div id="student_fields" class="hidden">
@@ -183,12 +202,30 @@
                 <label class="label">
                     <span class="label-text">Role</span>
                 </label>
-                <select name="role" class="select select-bordered" required onchange="toggleEditStudentFields(this.value)">
+                <select name="role" class="select select-bordered" required onchange="toggleEditUserFields(this.value)">
                     <option value="">Select Role</option>
                     <option value="admin">Admin</option>
                     <option value="teacher">Teacher</option>
                     <option value="student">Student</option>
                 </select>
+            </div>
+
+            <div id="edit_teacher_fields" class="hidden">
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text">Assign Classes</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                        {% for class in range(1, 13) %}
+                            {% for division in ['A', 'B', 'C', 'D'] %}
+                            <label class="label cursor-pointer justify-start gap-2">
+                                <input type="checkbox" name="edit_classes" value="{{ class }}-{{ division }}" class="checkbox checkbox-sm" />
+                                <span class="label-text">Class {{ class }}-{{ division }}</span>
+                            </label>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
 
             <div id="edit_student_fields" class="hidden">
@@ -214,6 +251,17 @@
 
 {% block extra_js %}
 <script>
+// Get CSRF token from meta tag
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+// Add CSRF token to all AJAX requests
+function addCSRFToken(headers = {}) {
+    return {
+        ...headers,
+        'X-CSRFToken': csrfToken
+    };
+}
+
 // Modal Controls
 function openAddUserModal() {
     document.getElementById('add_user_modal').showModal();
@@ -234,12 +282,45 @@ function closeEditUserModal() {
 // Toggle Student Fields
 function toggleStudentFields(role) {
     const studentFields = document.getElementById('student_fields');
+    const studentIdInput = studentFields.querySelector('input[name="student_id"]');
     studentFields.classList.toggle('hidden', role !== 'student');
+    
+    // Make student ID required only when role is student
+    if (role === 'student') {
+        studentIdInput.setAttribute('required', 'required');
+    } else {
+        studentIdInput.removeAttribute('required');
+    }
 }
 
 function toggleEditStudentFields(role) {
     const studentFields = document.getElementById('edit_student_fields');
+    const studentIdInput = studentFields.querySelector('input[name="student_id"]');
     studentFields.classList.toggle('hidden', role !== 'student');
+    
+    // Make student ID required only when role is student
+    if (role === 'student') {
+        studentIdInput.setAttribute('required', 'required');
+    } else {
+        studentIdInput.removeAttribute('required');
+    }
+}
+
+// Toggle User Fields
+function toggleUserFields(role) {
+    const studentFields = document.getElementById('student_fields');
+    const teacherFields = document.getElementById('teacher_fields');
+    const studentIdInput = studentFields.querySelector('input[name="student_id"]');
+    
+    studentFields.classList.toggle('hidden', role !== 'student');
+    teacherFields.classList.toggle('hidden', role !== 'teacher');
+    
+    // Make student ID required only when role is student
+    if (role === 'student') {
+        studentIdInput.setAttribute('required', 'required');
+    } else {
+        studentIdInput.removeAttribute('required');
+    }
 }
 
 // Add User
@@ -247,24 +328,64 @@ async function addUser(event) {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    
+    // Log the data being sent
+    console.log('Sending data:', data);
+    
+    // Validate password length
+    if (data.password.length < 6) {
+        showToast('Password must be at least 6 characters long', 'error');
+        return;
+    }
+    
+    // Prepare data based on role
+    const userData = {
+        email: data.email,
+        name: data.name,
+        password: data.password,
+        role: data.role
+    };
+    
+    // Add student_id only for student role
+    if (data.role === 'student') {
+        if (!data.student_id) {
+            showToast('Student ID is required for student accounts', 'error');
+            return;
+        }
+        userData.student_id = data.student_id;
+    }
+    
+    // Add classes for teacher role
+    if (data.role === 'teacher') {
+        const selectedClasses = Array.from(form.querySelectorAll('input[name="classes"]:checked')).map(input => input.value);
+        if (selectedClasses.length === 0) {
+            showToast('Please assign at least one class to the teacher', 'error');
+            return;
+        }
+        userData.classes = selectedClasses;
+    }
     
     try {
-        const response = await fetch('/admin/api/users', {
+        const response = await fetch('/admin/add_student', {
             method: 'POST',
-            headers: {
+            headers: addCSRFToken({
                 'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify(Object.fromEntries(formData))
+                'Accept': 'application/json'
+            }),
+            body: JSON.stringify(userData)
         });
         
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to add user');
+        const result = await response.json();
+        console.log('Server response:', result);
+        
+        if (!response.ok) throw new Error(result.error || 'Failed to add user');
         
         showToast('User added successfully', 'success');
         closeAddUserModal();
-        location.reload();
+        window.location.reload();
     } catch (error) {
+        console.error('Error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -283,11 +404,20 @@ async function editUser(userId) {
         form.name.value = user.name;
         form.role.value = user.role;
         
+        // Handle student ID for student role
         if (user.student_id) {
             form.student_id.value = user.student_id;
         }
         
-        toggleEditStudentFields(user.role);
+        // Handle classes for teacher role
+        if (user.role === 'teacher' && user.classes) {
+            const checkboxes = form.querySelectorAll('input[name="edit_classes"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = user.classes.includes(checkbox.value);
+            });
+        }
+        
+        toggleEditUserFields(user.role);
         openEditUserModal();
     } catch (error) {
         showToast(error.message, 'error');
@@ -300,24 +430,56 @@ async function updateUser(event) {
     const form = event.target;
     const formData = new FormData(form);
     const userId = formData.get('user_id');
+    const data = Object.fromEntries(formData);
+    
+    // Prepare update data
+    const updateData = {
+        email: data.email,
+        name: data.name,
+        role: data.role
+    };
+    
+    // Add password only if it's provided
+    if (data.password) {
+        updateData.password = data.password;
+    }
+    
+    // Add student_id for student role
+    if (data.role === 'student') {
+        if (!data.student_id) {
+            showToast('Student ID is required for student accounts', 'error');
+            return;
+        }
+        updateData.student_id = data.student_id;
+    }
+    
+    // Add classes for teacher role
+    if (data.role === 'teacher') {
+        const selectedClasses = Array.from(form.querySelectorAll('input[name="edit_classes"]:checked')).map(input => input.value);
+        if (selectedClasses.length === 0) {
+            showToast('Please assign at least one class to the teacher', 'error');
+            return;
+        }
+        updateData.classes = selectedClasses;
+    }
     
     try {
         const response = await fetch(`/admin/api/users/${userId}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify(Object.fromEntries(formData))
+            headers: addCSRFToken({
+                'Content-Type': 'application/json'
+            }),
+            body: JSON.stringify(updateData)
         });
         
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to update user');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to update user');
         
         showToast('User updated successfully', 'success');
         closeEditUserModal();
-        location.reload();
+        window.location.reload();
     } catch (error) {
+        console.error('Error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -329,17 +491,16 @@ async function deleteUser(userId) {
     try {
         const response = await fetch(`/admin/api/users/${userId}`, {
             method: 'DELETE',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
+            headers: addCSRFToken()
         });
         
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to delete user');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to delete user');
         
         showToast('User deleted successfully', 'success');
-        location.reload();
+        window.location.reload();
     } catch (error) {
+        console.error('Error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -357,6 +518,22 @@ function showToast(message, type = 'info') {
     setTimeout(() => {
         toast.remove();
     }, 3000);
+}
+
+function toggleEditUserFields(role) {
+    const studentFields = document.getElementById('edit_student_fields');
+    const teacherFields = document.getElementById('edit_teacher_fields');
+    const studentIdInput = studentFields.querySelector('input[name="student_id"]');
+    
+    studentFields.classList.toggle('hidden', role !== 'student');
+    teacherFields.classList.toggle('hidden', role !== 'teacher');
+    
+    // Make student ID required only when role is student
+    if (role === 'student') {
+        studentIdInput.setAttribute('required', 'required');
+    } else {
+        studentIdInput.removeAttribute('required');
+    }
 }
 </script>
 {% endblock %} 

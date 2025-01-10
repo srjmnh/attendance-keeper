@@ -215,7 +215,6 @@ def delete_attendance(doc_id):
     except Exception as e:
         current_app.logger.error(f"Error deleting attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 @attendance_bp.route('/api/attendance/template')
 @role_required(['admin', 'teacher'])
 def download_template():
@@ -334,3 +333,4 @@ def register_student():
     db_service.register_student(student_id, name, subject_id, image_url)
 
     return jsonify({'message': 'Student registered successfully.'}), 201
+

@@ -12,8 +12,10 @@ from app.utils.errors import register_error_handlers
 from app.services.cache_service import init_cache
 from app.utils.rate_limit import init_limiter
 from app.utils.monitoring import monitoring_bp
+from flask_wtf.csrf import CSRFProtect
 
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -37,6 +39,18 @@ def create_app(config_name=None):
         from app.config.development import DevelopmentConfig
         app.config.from_object(DevelopmentConfig)
     
+    # Set secret key for CSRF
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-for-development-only')
+    app.config['WTF_CSRF_SECRET_KEY'] = os.environ.get('WTF_CSRF_SECRET_KEY', 'csrf-key-for-development-only')
+    
+    # Initialize CSRF protection
+    csrf.init_app(app)
+    
+    # Add CSRF token to template context
+    @app.context_processor
+    def inject_csrf_token():
+        return dict(csrf_token=csrf._get_token)
+    
     # Initialize Firebase Admin SDK
     firebase_creds = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
     if firebase_creds:
@@ -44,9 +58,22 @@ def create_app(config_name=None):
             cred_json = base64.b64decode(firebase_creds).decode('utf-8')
             cred_dict = json.loads(cred_json)
             cred = credentials.Certificate(cred_dict)
-            firebase_app = initialize_app(cred)
+            
+            # Initialize Firebase with Auth configuration
+            firebase_app = initialize_app(cred, {
+                'projectId': cred_dict['project_id'],
+                'storageBucket': f"{cred_dict['project_id']}.appspot.com",
+                'databaseURL': f"https://{cred_dict['project_id']}.firebaseio.com",
+                'databaseAuthVariableOverride': {
+                    'uid': 'attendance-system-server'
+                }
+            })
+            
+            # Initialize Firestore
             db = firestore.client()
             app.db = db
+            
+            app.logger.info("Firebase Admin SDK initialized successfully")
         except Exception as e:
             app.logger.error(f"Failed to initialize Firebase: {str(e)}")
             raise

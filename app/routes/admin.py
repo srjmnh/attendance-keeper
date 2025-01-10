@@ -256,32 +256,96 @@ def create_student():
 @admin_bp.route('/add_student', methods=['POST'])
 @login_required
 @role_required(['admin'])
-def add_student_form():
-    data = request.form
-    email = data.get('email')
-    password = data.get('password')
-    student_id = data.get('student_id')
-
-    # Validate if student_id exists
-    db_service = DatabaseService()
-    student = db_service.get_student_by_id(student_id)
-    if not student:
-        return jsonify({'error': 'There is no such student.'}), 400
-
+def add_student():
+    """Add a new user account"""
     try:
-        # Create user in Firebase Auth
-        user = auth.create_user(
-            email=email,
-            password=password,
-            custom_claims={'role': 'student', 'student_id': student_id}
-        )
-        # Add user to Firestore without including the password
-        db_service.add_user(user.uid, email, student['name'], 'student', student_id)
-        return jsonify({'message': 'Student account created successfully.'}), 201
-    except firebase_admin.auth.EmailAlreadyExistsError:
-        return jsonify({'error': 'Email already exists.'}), 400
+        data = request.json
+        current_app.logger.info(f"Received data for add_user: {data}")
+        
+        email = data.get('email')
+        password = data.get('password')
+        name = data.get('name')
+        role = data.get('role')
+        student_id = data.get('student_id')
+        classes = data.get('classes', [])
+
+        # Log the required fields
+        current_app.logger.info(f"Required fields: email={email}, name={name}, role={role}, student_id={student_id}, classes={classes}, password={'set' if password else 'not set'}")
+
+        # Validate required fields
+        if not all([email, password, name, role]):
+            missing = [field for field, value in {'email': email, 'password': password, 'name': name, 'role': role}.items() if not value]
+            error_msg = f"Missing required fields: {', '.join(missing)}"
+            current_app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 400
+
+        # Validate student_id for student role
+        if role == 'student' and not student_id:
+            error_msg = "Student ID is required for student accounts"
+            current_app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 400
+
+        # Validate classes for teacher role
+        if role == 'teacher' and not classes:
+            error_msg = "At least one class must be assigned to teacher accounts"
+            current_app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 400
+
+        # Check if student_id exists (only for student role)
+        if role == 'student':
+            existing = current_app.db.collection('users').where('student_id', '==', student_id).get()
+            if len(list(existing)) > 0:
+                return jsonify({'error': 'Student ID already exists'}), 400
+
+        try:
+            # Create user in Firebase Auth
+            current_app.logger.info(f"Creating Firebase Auth user with email: {email}")
+            user_kwargs = {
+                'email': email,
+                'password': password,
+                'display_name': name
+            }
+            user = auth.create_user(**user_kwargs)
+            current_app.logger.info(f"Created Firebase Auth user with UID: {user.uid}")
+            
+            # Add custom claims based on role
+            claims = {'role': role}
+            if role == 'student':
+                claims['student_id'] = student_id
+            elif role == 'teacher':
+                claims['classes'] = classes
+            current_app.logger.info(f"Setting custom claims for user {user.uid}: {claims}")
+            auth.set_custom_user_claims(user.uid, claims)
+            
+            # Add user to Firestore
+            user_data = {
+                'email': email,
+                'name': name,
+                'role': role,
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            
+            # Add role-specific data
+            if role == 'student':
+                user_data['student_id'] = student_id
+            elif role == 'teacher':
+                user_data['classes'] = classes
+            
+            current_app.logger.info(f"Adding user data to Firestore: {user_data}")
+            current_app.db.collection('users').document(user.uid).set(user_data)
+            return jsonify({'message': f'{role.title()} account created successfully', 'id': user.uid}), 201
+
+        except firebase_admin.auth.EmailAlreadyExistsError:
+            current_app.logger.error(f"Email {email} already exists")
+            return jsonify({'error': 'Email already exists'}), 400
+        except Exception as e:
+            current_app.logger.error(f"Firebase error: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+            
     except Exception as e:
-        return jsonify({'error': str(e)}), 500 
+        current_app.logger.error(f"Error creating user account: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/teachers', methods=['POST'])
 @login_required
@@ -379,22 +443,60 @@ def get_user(user_id):
 def update_user(user_id):
     """Update user details"""
     try:
-        data = request.get_json()
+        data = request.json
         doc_ref = current_app.db.collection('users').document(user_id)
+        doc = doc_ref.get()
         
-        if not doc_ref.get().exists:
+        if not doc.exists:
             return jsonify({'error': 'User not found'}), 404
+        
+        # Get current user data
+        current_data = doc.to_dict()
+        
+        # Prepare update data
+        update_data = {
+            'email': data.get('email'),
+            'name': data.get('name'),
+            'role': data.get('role'),
+            'updated_at': datetime.utcnow().isoformat()
+        }
         
         # Handle password update
         if data.get('password'):
-            data['password_hash'] = generate_password_hash(data['password'])
-            del data['password']
+            update_data['password_hash'] = generate_password_hash(data['password'])
         
-        # Update timestamp
-        data['updated_at'] = datetime.utcnow().isoformat()
+        # Handle role-specific data
+        if data['role'] == 'student':
+            if not data.get('student_id'):
+                return jsonify({'error': 'Student ID is required for student accounts'}), 400
+            update_data['student_id'] = data['student_id']
+            # Remove classes if user was previously a teacher
+            update_data['classes'] = None
+        elif data['role'] == 'teacher':
+            if not data.get('classes'):
+                return jsonify({'error': 'At least one class must be assigned to teacher accounts'}), 400
+            update_data['classes'] = data['classes']
+            # Remove student_id if user was previously a student
+            update_data['student_id'] = None
+        else:
+            # For admin role, remove both student_id and classes
+            update_data['student_id'] = None
+            update_data['classes'] = None
         
-        # Update user
-        doc_ref.update(data)
+        # Update Firebase Auth custom claims
+        try:
+            claims = {'role': data['role']}
+            if data['role'] == 'student':
+                claims['student_id'] = data['student_id']
+            elif data['role'] == 'teacher':
+                claims['classes'] = data['classes']
+            auth.set_custom_user_claims(user_id, claims)
+        except Exception as e:
+            current_app.logger.error(f"Error updating Firebase Auth claims: {str(e)}")
+            return jsonify({'error': 'Failed to update user authentication'}), 500
+        
+        # Update Firestore document
+        doc_ref.update(update_data)
         
         return jsonify({'message': 'User updated successfully'})
         

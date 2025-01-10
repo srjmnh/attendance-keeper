@@ -6,7 +6,8 @@
       "fields": [
         { "fieldPath": "student_id", "order": "ASCENDING" },
         { "fieldPath": "subject_id", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ]
     },
     {

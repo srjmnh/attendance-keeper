@@ -16,11 +16,19 @@ class DatabaseService:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(DatabaseService, cls).__new__(cls)
-            # Initialize Firebase only once
+            # Initialize Firebase only if no app exists
             if not firebase_admin._apps:
                 cred_json = base64.b64decode(os.getenv('FIREBASE_ADMIN_CREDENTIALS_BASE64')).decode('utf-8')
-                cred = credentials.Certificate(json.loads(cred_json))
-                firebase_admin.initialize_app(cred)
+                cred_dict = json.loads(cred_json)
+                cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred, {
+                    'projectId': cred_dict['project_id'],
+                    'storageBucket': f"{cred_dict['project_id']}.appspot.com",
+                    'databaseURL': f"https://{cred_dict['project_id']}.firebaseio.com",
+                    'databaseAuthVariableOverride': {
+                        'uid': 'attendance-system-server'
+                    }
+                })
             cls._db = firestore.client()
         return cls._instance
     
