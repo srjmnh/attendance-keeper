@@ -1,15 +1,23 @@
 from flask_login import UserMixin
+from werkzeug.security import check_password_hash
 
 class User(UserMixin):
     """User model for Flask-Login"""
     
-    def __init__(self, id, email, name, role, classes=None, student_id=None):
+    def __init__(self, id, email, name, role, password_hash=None, classes=None, student_id=None):
         self.id = id
         self.email = email
         self.name = name
         self.role = role
+        self.password_hash = password_hash
         self.classes = classes or []
         self.student_id = student_id
+    
+    def check_password(self, password):
+        """Check if the provided password matches the hash"""
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, password)
     
     def get_id(self):
         return str(self.id)
@@ -73,6 +81,7 @@ class User(UserMixin):
             email=data.get('email'),
             name=data.get('name'),
             role=data.get('role'),
+            password_hash=data.get('password_hash'),
             classes=data.get('classes'),
             student_id=data.get('student_id')
         ) 

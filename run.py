@@ -1,13 +1,9 @@
 from flask import Flask
 from flask_login import LoginManager
 from app.services.db_service import DatabaseService
-from app.routes import admin, auth, main, ai, attendance, recognition
+from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp
 import os
 import boto3
-from app.routes.admin import bp as admin_bp
-from app.routes.attendance import bp as attendance_bp
-from app.blueprints.main.routes import main_bp
-from app.routes.auth import bp as auth_bp  # Import the auth blueprint
 
 COLLECTION_ID = "students"  # Hardcode the collection ID to match the example code
 
@@ -53,10 +49,13 @@ def create_app():
         return db.get_user_by_id(user_id)
     
     # Register Blueprints
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(attendance_bp)
-    app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(main_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(ai_bp)
+    app.register_blueprint(recognition_bp)
+    app.register_blueprint(attendance_bp)
+    app.register_blueprint(chat_bp)
     
     return app
 

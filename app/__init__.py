@@ -8,6 +8,10 @@ from app.services.db_service import DatabaseService
 from datetime import timedelta
 import logging
 from logging.handlers import RotatingFileHandler
+from app.utils.errors import register_error_handlers
+from app.services.cache_service import init_cache
+from app.utils.rate_limit import init_limiter
+from app.utils.monitoring import monitoring_bp
 
 login_manager = LoginManager()
 
@@ -18,48 +22,6 @@ def load_user(user_id):
         g.db_service = DatabaseService()
     return g.db_service.get_user_by_id(user_id)
 
-class Config:
-    """Base configuration."""
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev')
-    DEBUG = False
-    TESTING = False
-    
-    # Firebase configuration
-    FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
-    
-    # AWS configuration
-    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-    AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-    
-    # Email configuration
-    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
-    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')
-
-class DevelopmentConfig(Config):
-    """Development configuration."""
-    DEBUG = True
-
-class ProductionConfig(Config):
-    """Production configuration."""
-    DEBUG = False
-
-class TestingConfig(Config):
-    """Testing configuration."""
-    TESTING = True
-    DEBUG = True
-
-config = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-    'testing': TestingConfig,
-    'default': DevelopmentConfig
-}
-
 def create_app(config_name=None):
     """Create and configure the Flask application."""
     app = Flask(__name__)
@@ -67,7 +29,13 @@ def create_app(config_name=None):
     # Load configuration
     if config_name is None:
         config_name = os.environ.get('FLASK_CONFIG', 'default')
-    app.config.from_object(config[config_name])
+    
+    if config_name == 'production':
+        from app.config.production import ProductionConfig
+        app.config.from_object(ProductionConfig)
+    else:
+        from app.config.development import DevelopmentConfig
+        app.config.from_object(DevelopmentConfig)
     
     # Initialize Firebase Admin SDK
     firebase_creds = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')
@@ -88,16 +56,25 @@ def create_app(config_name=None):
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
     
+    # Initialize caching
+    init_cache(app)
+    
+    # Initialize rate limiting
+    init_limiter(app)
+    
     # Register blueprints
-    with app.app_context():
-        from app.routes import auth, main, admin, ai, recognition, attendance, chat
-        app.register_blueprint(auth.bp)
-        app.register_blueprint(main.bp)
-        app.register_blueprint(admin.bp)
-        app.register_blueprint(ai.bp)
-        app.register_blueprint(recognition.bp)
-        app.register_blueprint(attendance.bp)
-        app.register_blueprint(chat.bp)
+    from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(main_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(ai_bp)
+    app.register_blueprint(recognition_bp)
+    app.register_blueprint(attendance_bp)
+    app.register_blueprint(chat_bp)
+    app.register_blueprint(monitoring_bp, url_prefix='/monitoring')
+    
+    # Register error handlers
+    register_error_handlers(app)
     
     @app.before_request
     def before_request():
@@ -105,15 +82,38 @@ def create_app(config_name=None):
         if not hasattr(g, 'db_service'):
             g.db_service = DatabaseService()
     
-    if not app.debug:
-        file_handler = RotatingFileHandler('logs/attendanceai.log', maxBytes=10240, backupCount=10)
+    # Set up logging
+    if not app.debug and not app.testing:
+        # Ensure logs directory exists
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+        
+        # Set up file handler
+        file_handler = RotatingFileHandler(
+            app.config.get('LOG_FILE', 'logs/attendanceai.log'),
+            maxBytes=app.config.get('LOG_MAX_BYTES', 10240),
+            backupCount=app.config.get('LOG_BACKUP_COUNT', 10)
+        )
+        
         file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+            app.config.get(
+                'LOG_FORMAT',
+                '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+            )
         ))
-        file_handler.setLevel(logging.INFO)
+        
+        file_handler.setLevel(app.config.get('LOG_LEVEL', logging.INFO))
         app.logger.addHandler(file_handler)
-
-        app.logger.setLevel(logging.INFO)
+        
+        app.logger.setLevel(app.config.get('LOG_LEVEL', logging.INFO))
         app.logger.info('AttendanceAI startup')
+    
+    # Add security headers
+    @app.after_request
+    def add_security_headers(response):
+        """Add security headers to response"""
+        for header, value in app.config.get('SECURITY_HEADERS', {}).items():
+            response.headers[header] = value
+        return response
     
     return app 

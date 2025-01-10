@@ -50,11 +50,14 @@ class DatabaseService:
             doc = self.db.collection('users').document(user_id).get()
             if doc.exists:
                 user_data = doc.to_dict()
+                # Keep password_hash but remove plain password if it exists
+                user_data.pop('password', None)
                 return User(
                     id=doc.id,
                     email=user_data.get('email'),
                     name=user_data.get('name'),
                     role=user_data.get('role'),
+                    password_hash=user_data.get('password_hash'),
                     classes=user_data.get('classes'),
                     student_id=user_data.get('student_id')
                 )
@@ -69,13 +72,14 @@ class DatabaseService:
             query = self.db.collection('users').where('email', '==', email).limit(1).stream()
             for doc in query:
                 user_data = doc.to_dict()
-                # Debug logging
-                print(f"User data from DB: {user_data}")
+                # Keep password_hash but remove plain password if it exists
+                user_data.pop('password', None)
                 return User(
                     id=doc.id,
                     email=user_data.get('email'),
                     name=user_data.get('name'),
                     role=user_data.get('role'),
+                    password_hash=user_data.get('password_hash'),
                     classes=user_data.get('classes'),
                     student_id=user_data.get('student_id')
                 )

@@ -2,191 +2,216 @@
 
 A modern web-based attendance management system using facial recognition technology. Built with Flask, AWS Rekognition, and Firebase.
 
-## Features
+## Architecture Overview
 
-### Core Features
-- 🎯 Face Recognition-based Attendance
-  - Real-time face detection and recognition
-  - Support for multiple faces in one image
-  - Enhanced image processing for better accuracy
-  - Confidence score for each recognition
-
-### Attendance Management
-- 📊 Comprehensive Attendance Dashboard
-  - Real-time attendance tracking
-  - Detailed attendance records with timestamps
-  - Inline editing of attendance records
-  - Bulk attendance updates
-  - Export to Excel functionality
-
-### Filtering & Search
-- 🔍 Advanced Filtering Options
-  - Date range filters (Today, Week, Month, Custom)
-  - Subject-wise filtering
-  - Status-based filtering (Present/Absent)
-  - Search by student name or ID
-  - Combined filters support
-
-### User Management
-- 👥 Role-based Access Control
-  - Admin: Full system access
-  - Teacher: Class-specific access
-  - Student: Personal attendance view
-- 📱 Responsive Design for all devices
-
-## Tech Stack
-
-- **Backend**: Python Flask
-- **Database**: Firebase Firestore
-- **Face Recognition**: AWS Rekognition
-- **Frontend**: 
-  - HTML, JavaScript
-  - TailwindCSS
-  - DaisyUI for components
-- **Authentication**: Firebase Auth
-- **File Storage**: AWS S3
-
-## File Structure
-
+### Component Structure
 ```
 attendance-keeper/
 ├── app/
-│   ├── routes/
-│   │   ├── admin.py        # Admin panel routes
-│   │   ├── attendance.py   # Attendance management
-│   │   ├── auth.py        # Authentication routes
-│   │   ├── main.py        # Dashboard routes
-│   │   └── recognition.py # Face recognition endpoints
-│   ├── services/
-│   │   ├── db_service.py      # Database operations
-│   │   ├── rekognition_service.py # AWS Rekognition
-│   │   └── gemini_service.py  # AI Assistant
-│   ├── templates/
-│   │   ├── admin/
-│   │   │   ├── dashboard.html # Admin dashboard
-│   │   │   ├── students.html  # Student management
-│   │   │   └── subjects.html  # Subject management
-│   │   ├── attendance/
-│   │   │   ├── manage.html    # Take attendance
-│   │   │   └── view.html      # View/edit attendance
-│   │   ├── auth/
-│   │   │   ├── login.html     # Login page
-│   │   │   └── register.html  # Registration
-│   │   ├── base.html          # Base template
-│   │   └── dashboard.html     # Main dashboard
-│   ├── static/
-│   │   ├── css/
-│   │   │   └── main.css       # Custom styles
-│   │   └── js/
-│   │       └── main.js        # Common JavaScript
-│   └── __init__.py           # App initialization
-├── requirements.txt          # Python dependencies
-└── run.py                   # Application entry point
+│   ├── blueprints/          # Route blueprints
+│   │   ├── admin/          # Admin functionality
+│   │   ├── attendance/     # Attendance management
+│   │   ├── auth/          # Authentication
+│   │   └── main/          # Core functionality
+│   ├── config/            # Configuration files
+│   │   ├── __init__.py
+│   │   ├── development.py
+│   │   └── production.py
+│   ├── models/            # Data models
+│   │   ├── __init__.py
+│   │   └── user.py
+│   ├── services/          # Business logic
+│   │   ├── db_service.py
+│   │   ├── rekognition_service.py
+│   │   ├── firebase_service.py
+│   │   ├── chatbot_service.py
+│   │   ├── storage_service.py
+│   │   └── email_service.py
+│   ├── static/           # Static assets
+│   ├── templates/        # Jinja2 templates
+│   ├── utils/           # Helper functions
+│   └── __init__.py      # App factory
+├── tests/              # Test suite
+├── requirements.txt    # Dependencies
+└── run.py             # Entry point
 ```
 
-## API Endpoints
+### Key Components
 
-### Authentication
-- `POST /auth/login` - User login
-- `POST /auth/register` - User registration
-- `GET /auth/logout` - User logout
+1. **Application Factory (`app/__init__.py`)**
+   - Creates and configures Flask application
+   - Initializes extensions
+   - Registers blueprints
+   - Sets up error handlers
+   - Configures logging
 
-### Face Recognition
-- `POST /recognition/register` - Register a new face
-- `POST /recognize` - Recognize faces in image
+2. **Service Layer**
+   - Implements business logic
+   - Manages external service interactions
+   - Follows singleton pattern for resource management
+   - Handles caching and optimization
 
-### Attendance Management
-- `GET /attendance/view` - View attendance records
-- `GET /api/attendance` - Get filtered attendance records
-- `POST /api/attendance/update` - Update attendance records
-- `DELETE /api/attendance/<id>` - Delete attendance record
-- `GET /api/attendance/export` - Export attendance to Excel
-- `POST /api/attendance/upload` - Upload attendance from Excel
+3. **Models**
+   - Defines data structures
+   - Implements business rules
+   - Handles validation
+   - Manages relationships
 
-### Student Management
-- `GET /admin/students` - View all students
-- `POST /admin/students` - Add new student
-- `PUT /admin/students/<id>` - Update student
-- `DELETE /admin/students/<id>` - Delete student
+4. **Blueprints**
+   - Organizes routes by feature
+   - Implements view logic
+   - Handles request/response cycle
+   - Manages permissions
 
-## Prerequisites
+### Authentication Flow
 
-1. Python 3.8+
-2. AWS Account with Rekognition access
-3. Firebase Project
-4. Node.js and npm (for development)
+```mermaid
+sequenceDiagram
+    Client->>Auth Blueprint: Login Request
+    Auth Blueprint->>DB Service: Get User
+    DB Service->>Firebase: Query User
+    Firebase-->>DB Service: User Data
+    DB Service-->>Auth Blueprint: User Object
+    Auth Blueprint->>Flask-Login: Login User
+    Flask-Login-->>Client: Session Cookie
+```
 
-## Environment Variables
+### Development Guidelines
 
-Create a `.env` file in the root directory with:
+1. **Adding New Features**
+   ```bash
+   # 1. Create new blueprint
+   mkdir app/blueprints/feature_name
+   touch app/blueprints/feature_name/{__init__,routes,forms}.py
 
+   # 2. Create service (if needed)
+   touch app/services/feature_service.py
+
+   # 3. Register blueprint in app/__init__.py
+   ```
+
+2. **Service Implementation**
+   ```python
+   class NewService:
+       _instance = None
+       
+       def __new__(cls):
+           if cls._instance is None:
+               cls._instance = super().__new__(cls)
+           return cls._instance
+           
+       def __init__(self):
+           if not hasattr(self, 'initialized'):
+               # Initialize service
+               self.initialized = True
+   ```
+
+3. **Error Handling**
+   - Use custom exceptions
+   - Implement error handlers in blueprints
+   - Log errors appropriately
+   - Return consistent error responses
+
+4. **Testing**
+   ```bash
+   # Run tests
+   python -m pytest tests/
+   
+   # Run with coverage
+   coverage run -m pytest
+   coverage report
+   ```
+
+### Environment Setup
+
+1. **Required Environment Variables**
 ```env
-FLASK_APP=app
+FLASK_APP=run.py
 FLASK_ENV=development
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-AWS_REGION=your_aws_region
-FIREBASE_CREDENTIALS=path_to_firebase_credentials.json
+SECRET_KEY=your-secret-key
+FIREBASE_ADMIN_CREDENTIALS_BASE64=base64-encoded-credentials
+AWS_ACCESS_KEY_ID=your-aws-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret
+AWS_REGION=your-aws-region
 ```
 
-## Installation
+2. **Firebase Setup**
+   - Create Firebase project
+   - Enable Authentication
+   - Set up Firestore
+   - Download service account key
+   - Base64 encode the key file
 
-1. Clone the repository:
+3. **AWS Setup**
+   - Create IAM user
+   - Attach Rekognition policies
+   - Configure environment variables
+
+### Deployment
+
+1. **Development**
    ```bash
-   git clone https://github.com/yourusername/attendance-keeper.git
-   cd attendance-keeper
+   flask run --debug
    ```
 
-2. Create virtual environment:
+2. **Production**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   venv\Scripts\activate     # Windows
+   gunicorn "app:create_app()"
    ```
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Common Tasks
 
-4. Run the application:
-   ```bash
-   flask run
-   ```
+1. **Adding a New Model**
+   - Create model file in `app/models/`
+   - Implement Firebase serialization
+   - Add service methods
+   - Create migration if needed
 
-## User Roles
+2. **Implementing New API Endpoint**
+   - Add route to appropriate blueprint
+   - Implement service logic
+   - Add error handling
+   - Document in README
 
-1. **Admin**
-   - Manage students and teachers
-   - View and edit all attendance records
-   - Generate reports
-   - Register faces
-   - Delete records
-
-2. **Teacher**
-   - Take attendance using face recognition
-   - View and edit class attendance
-   - Register student faces
-   - Download reports
-
-3. **Student**
-   - View personal attendance
-   - Check attendance history
-   - Download personal reports
+3. **Adding New Service**
+   - Create service class
+   - Implement singleton pattern
+   - Add error handling
+   - Update service registry
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/name`)
+3. Follow coding standards:
+   - Use type hints
+   - Add docstrings
+   - Write tests
+4. Submit pull request
+
+## Troubleshooting
+
+1. **Common Issues**
+   - Firebase initialization errors
+   - AWS credential issues
+   - Blueprint registration problems
+   - Circular import errors
+
+2. **Solutions**
+   - Check environment variables
+   - Verify Firebase credentials
+   - Review import order
+   - Check service initialization
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file
 
 ## Support
 
-For support, email your.email@example.com or open an issue in the repository.
+For support:
+1. Check documentation
+2. Review issues
+3. Contact maintainers
+4. Join community chat
 
