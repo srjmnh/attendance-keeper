@@ -2,10 +2,10 @@ from flask import Blueprint, render_template, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 
-bp = Blueprint('main', __name__)
+main_bp = Blueprint('main', __name__)
 
-@bp.route('/')
-@bp.route('/dashboard')
+@main_bp.route('/')
+@main_bp.route('/dashboard')
 @login_required
 def dashboard():
     """Dashboard view"""

@@ -3,10 +3,10 @@ from flask_login import login_required
 from app.services.chatbot_service import ChatbotService
 import asyncio
 
-bp = Blueprint('ai', __name__)
+ai_bp = Blueprint('ai', __name__, url_prefix='/ai')
 chatbot_service = ChatbotService()
 
-@bp.route('/api/ai/chat', methods=['POST'])
+@ai_bp.route('/api/ai/chat', methods=['POST'])
 @login_required
 def chat():
     """Chat with AI assistant"""

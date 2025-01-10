@@ -11,7 +11,7 @@ import logging
 import boto3
 import os
 
-bp = Blueprint('recognition', __name__)
+recognition_bp = Blueprint('recognition', __name__, url_prefix='/recognition')
 
 # AWS Configuration
 rekognition_client = boto3.client(
@@ -40,7 +40,7 @@ def enhance_image(pil_image):
     enhanced_pil_image = Image.fromarray(cv2.cvtColor(enhanced_cv_image, cv2.COLOR_BGR2RGB))
     return enhanced_pil_image
 
-@bp.route('/register', methods=['POST'])
+@recognition_bp.route('/register', methods=['POST'])
 @role_required(['admin', 'teacher'])
 def register_face():
     """Register a new face"""
@@ -171,7 +171,7 @@ def register_face():
         current_app.logger.error(f"Error registering face: {str(e)}")
         return jsonify({"error": "An unexpected error occurred. Please try again"}), 500
 
-@bp.route('/recognize', methods=['POST'])
+@recognition_bp.route('/recognize', methods=['POST'])
 @login_required
 def recognize_face():
     """Recognize faces in an image"""

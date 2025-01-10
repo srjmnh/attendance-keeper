@@ -7,9 +7,9 @@ from app.utils.decorators import role_required
 from app.services.db_service import DatabaseService
 from app.services.rekognition_service import RekognitionService
 
-bp = Blueprint('attendance', __name__, url_prefix='/attendance')
+attendance_bp = Blueprint('attendance', __name__, url_prefix='/attendance')
 
-@bp.route('/')
+@attendance_bp.route('/')
 @login_required
 def index():
     """Attendance management view"""
@@ -24,7 +24,7 @@ def index():
     
     return render_template('attendance/manage.html', subjects=subjects)
 
-@bp.route('/api/attendance')
+@attendance_bp.route('/api/attendance')
 @login_required
 def get_attendance():
     """Get attendance records with filters"""
@@ -148,7 +148,7 @@ def get_attendance():
         current_app.logger.error(f"Error getting attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/attendance/update', methods=['POST'])
+@attendance_bp.route('/api/attendance/update', methods=['POST'])
 @role_required(['admin', 'teacher'])
 def update_attendance():
     """Update attendance record"""
@@ -186,7 +186,7 @@ def update_attendance():
         current_app.logger.error(f"Error updating attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/attendance/<doc_id>', methods=['DELETE'])
+@attendance_bp.route('/api/attendance/<doc_id>', methods=['DELETE'])
 @role_required(['admin'])
 def delete_attendance(doc_id):
     """Delete an attendance record"""
@@ -198,7 +198,7 @@ def delete_attendance(doc_id):
         current_app.logger.error(f"Error deleting attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/attendance/template')
+@attendance_bp.route('/api/attendance/template')
 @role_required(['admin', 'teacher'])
 def download_template():
     """Download Excel template for attendance upload"""
@@ -224,7 +224,7 @@ def download_template():
         download_name='attendance_template.xlsx'
     )
 
-@bp.route('/api/attendance/export')
+@attendance_bp.route('/api/attendance/export')
 @login_required
 def export_attendance():
     """Export attendance records to Excel"""
@@ -251,7 +251,7 @@ def export_attendance():
         download_name='attendance_export.xlsx'
     )
 
-@bp.route('/api/attendance/upload', methods=['POST'])
+@attendance_bp.route('/api/attendance/upload', methods=['POST'])
 @role_required(['admin', 'teacher'])
 def upload_attendance():
     """Upload attendance records from Excel"""
@@ -286,7 +286,7 @@ def upload_attendance():
         current_app.logger.error(f"Error uploading attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500 
 
-@bp.route('/view')
+@attendance_bp.route('/view')
 @login_required
 @role_required(['student', 'admin', 'teacher'])
 def view_attendance():
@@ -306,7 +306,7 @@ def view_attendance():
     
     return render_template('attendance/view.html', records=records, user_role=user.role)
 
-@bp.route('/register_student', methods=['POST'])
+@attendance_bp.route('/register_student', methods=['POST'])
 @login_required
 @role_required(['teacher'])
 def register_student():

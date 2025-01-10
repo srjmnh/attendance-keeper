@@ -2,13 +2,14 @@ from flask import Blueprint, jsonify, request, current_app
 from app.services.chatbot_service import ChatbotService
 import asyncio
 
-bp = Blueprint('api', __name__, url_prefix='/api')
+chat_bp = Blueprint('chat', __name__, url_prefix='/chat')
+chatbot_service = ChatbotService()
 
 # Initialize conversation memory
 MAX_MEMORY = 20
 conversation_memory = []
 
-@bp.route('/ai/chat', methods=['POST'])
+@chat_bp.route('/ai/chat', methods=['POST'])
 async def chat():
     """Handle chat messages"""
     try:

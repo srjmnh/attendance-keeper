@@ -10,15 +10,15 @@ import io
 import firebase_admin
 from firebase_admin import auth
 
-bp = Blueprint('admin', __name__, url_prefix='/admin')
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-@bp.route('/')
+@admin_bp.route('/')
 @login_required
 @role_required(['admin'])
 def admin_dashboard():
     return render_template('admin/dashboard.html')
 
-@bp.route('/users')
+@admin_bp.route('/users')
 @login_required
 @role_required(['admin'])
 def manage_users():
@@ -26,7 +26,7 @@ def manage_users():
     users = db.get_all_users()
     return render_template('admin/users.html', users=users)
 
-@bp.route('/manage_subjects', methods=['GET', 'POST'])
+@admin_bp.route('/manage_subjects', methods=['GET', 'POST'])
 @login_required
 @role_required(['admin'])
 def manage_subjects():
@@ -70,7 +70,7 @@ def manage_subjects():
         } for doc in subjects_ref]
         return render_template('admin/manage_subjects.html', subjects=subjects)
 
-@bp.route('/manage_subjects/<subject_id>', methods=['DELETE'])
+@admin_bp.route('/manage_subjects/<subject_id>', methods=['DELETE'])
 @login_required
 @role_required(['admin'])
 def delete_subject(subject_id):
@@ -81,7 +81,7 @@ def delete_subject(subject_id):
     except Exception as e:
         return {'error': str(e)}, 500
 
-@bp.route('/students', methods=['GET'])
+@admin_bp.route('/students', methods=['GET'])
 @login_required
 @role_required(['admin'])
 def manage_students():
@@ -113,7 +113,7 @@ def manage_students():
         flash('Failed to load students. Please try again.', 'error')
         return render_template('admin/students.html', students=[])
 
-@bp.route('/api/students/<student_id>', methods=['PUT'])
+@admin_bp.route('/api/students/<student_id>', methods=['PUT'])
 @login_required
 @role_required(['admin'])
 def update_student(student_id):
@@ -170,7 +170,7 @@ def update_student(student_id):
         current_app.logger.error(f"Error updating student: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/students', methods=['POST'])
+@admin_bp.route('/api/students', methods=['POST'])
 @login_required
 @role_required(['admin'])
 def create_student():
@@ -227,7 +227,7 @@ def create_student():
         current_app.logger.error(f"Error creating student: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/add_student', methods=['POST'])
+@admin_bp.route('/add_student', methods=['POST'])
 @login_required
 @role_required(['admin'])
 def add_student_form():
@@ -257,7 +257,7 @@ def add_student_form():
     except Exception as e:
         return jsonify({'error': str(e)}), 500 
 
-@bp.route('/teachers', methods=['POST'])
+@admin_bp.route('/teachers', methods=['POST'])
 @login_required
 @role_required(['admin'])
 def add_teacher():
