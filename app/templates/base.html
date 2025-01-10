@@ -46,14 +46,20 @@
         <div class="drawer-content flex flex-col">
             <!-- Top Navigation Bar -->
             <div class="navbar bg-base-100 shadow-sm lg:hidden">
-                <div class="flex-none">
-                    <label for="drawer-toggle" class="btn btn-square btn-ghost">
-                        <i class="ri-menu-line text-xl"></i>
-                    </label>
-                </div>
-                <div class="flex-1">
-                    <h1 class="text-xl font-semibold">{% block page_title %}Dashboard{% endblock %}</h1>
-                </div>
+                {% if current_user.is_authenticated %}
+                    <div class="flex-none">
+                        <label for="drawer-toggle" class="btn btn-square btn-ghost">
+                            <i class="ri-menu-line text-xl"></i>
+                        </label>
+                    </div>
+                    <div class="flex-1">
+                        <h1 class="text-xl font-semibold">{% block page_title %}Dashboard{% endblock %}</h1>
+                    </div>
+                {% else %}
+                    <div class="flex-1">
+                        <h1 class="text-xl font-semibold">AttendanceAI</h1>
+                    </div>
+                {% endif %}
             </div>
             
             <!-- Main Content Area -->
@@ -105,48 +111,50 @@
                 <!-- Navigation -->
                 <div class="p-4">
                     <nav class="space-y-2">
-                        <a href="{{ url_for('main.dashboard') }}" 
-                           class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content{% endif %}">
-                            <i class="ri-dashboard-line text-xl"></i>
-                            <span class="font-medium">Dashboard</span>
-                        </a>
-                        
-                        {% if current_user.role in ['admin', 'teacher'] %}
-                            <div class="divider my-4"></div>
-                            
-                            <a href="{{ url_for('recognition.register') }}"
-                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'recognition.register' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-camera-line text-xl"></i>
-                                <span class="font-medium">Face Recognition</span>
+                        {% if current_user.is_authenticated %}
+                            <a href="{{ url_for('main.dashboard') }}" 
+                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-dashboard-line text-xl"></i>
+                                <span class="font-medium">Dashboard</span>
                             </a>
                             
-                            <a href="{{ url_for('attendance.view') }}"
-                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-calendar-check-line text-xl"></i>
-                                <span class="font-medium">View Attendance</span>
-                            </a>
+                            {% if current_user.role in ['admin', 'teacher'] %}
+                                <div class="divider my-4"></div>
+                                
+                                <a href="{{ url_for('recognition.register') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'recognition.register' %}bg-primary text-primary-content{% endif %}">
+                                    <i class="ri-camera-line text-xl"></i>
+                                    <span class="font-medium">Face Recognition</span>
+                                </a>
+                                
+                                <a href="{{ url_for('attendance.view') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
+                                    <i class="ri-calendar-check-line text-xl"></i>
+                                    <span class="font-medium">View Attendance</span>
+                                </a>
+                                
+                                <div class="divider my-4"></div>
+                                
+                                <a href="{{ url_for('admin.manage_subjects') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content{% endif %}">
+                                    <i class="ri-book-line text-xl"></i>
+                                    <span class="font-medium">Manage Subjects</span>
+                                </a>
+                                
+                                <a href="{{ url_for('admin.manage_students') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content{% endif %}">
+                                    <i class="ri-user-line text-xl"></i>
+                                    <span class="font-medium">Manage Students</span>
+                                </a>
+                            {% endif %}
                             
-                            <div class="divider my-4"></div>
-                            
-                            <a href="{{ url_for('admin.manage_subjects') }}"
-                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-book-line text-xl"></i>
-                                <span class="font-medium">Manage Subjects</span>
-                            </a>
-                            
-                            <a href="{{ url_for('admin.manage_students') }}"
-                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-user-line text-xl"></i>
-                                <span class="font-medium">Manage Students</span>
-                            </a>
-                        {% endif %}
-                        
-                        {% if current_user.role == 'student' %}
-                            <a href="{{ url_for('attendance.view') }}"
-                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-calendar-check-line text-xl"></i>
-                                <span class="font-medium">My Attendance</span>
-                            </a>
+                            {% if current_user.role == 'student' %}
+                                <a href="{{ url_for('attendance.view') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
+                                    <i class="ri-calendar-check-line text-xl"></i>
+                                    <span class="font-medium">My Attendance</span>
+                                </a>
+                            {% endif %}
                         {% endif %}
                     </nav>
                 </div>
@@ -154,31 +162,59 @@
                 <!-- User Profile -->
                 <div class="absolute bottom-0 left-0 right-0 border-t">
                     <div class="p-4">
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="avatar placeholder">
-                                <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
-                                    <span>{{ current_user.email[0].upper() }}</span>
+                        {% if current_user.is_authenticated %}
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="avatar placeholder">
+                                    <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
+                                        <span>{{ current_user.email[0].upper() }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium truncate">{{ current_user.email }}</p>
+                                    <p class="text-sm opacity-60">{{ current_user.role.title() }}</p>
                                 </div>
                             </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="font-medium truncate">{{ current_user.email }}</p>
-                                <p class="text-sm opacity-60">{{ current_user.role.title() }}</p>
+                            
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="flex items-center gap-2 text-sm">
+                                    <i class="ri-moon-line"></i>
+                                    Dark Mode
+                                </span>
+                                <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
                             </div>
-                        </div>
-                        
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="flex items-center gap-2 text-sm">
-                                <i class="ri-moon-line"></i>
-                                Dark Mode
-                            </span>
-                            <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
-                        </div>
-                        
-                        <a href="{{ url_for('auth.logout') }}" 
-                           class="btn btn-error btn-outline w-full gap-2">
-                            <i class="ri-logout-box-line"></i>
-                            Sign Out
-                        </a>
+                            
+                            <a href="{{ url_for('auth.logout') }}" 
+                               class="btn btn-error btn-outline w-full gap-2">
+                                <i class="ri-logout-box-line"></i>
+                                Sign Out
+                            </a>
+                        {% else %}
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="avatar placeholder">
+                                    <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
+                                        <span>G</span>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium truncate">Guest</p>
+                                    <p class="text-sm opacity-60">Not logged in</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="flex items-center gap-2 text-sm">
+                                    <i class="ri-moon-line"></i>
+                                    Dark Mode
+                                </span>
+                                <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
+                            </div>
+                            
+                            <a href="{{ url_for('auth.login') }}" 
+                               class="btn btn-primary w-full gap-2">
+                                <i class="ri-login-box-line"></i>
+                                Sign In
+                            </a>
+                        {% endif %}
                     </div>
                 </div>
             </aside>
