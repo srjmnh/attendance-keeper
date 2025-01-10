@@ -40,11 +40,22 @@
                     <label class="label">
                         <span class="label-text">Class</span>
                     </label>
-                    <select id="reg_class" class="select select-bordered w-full">
+                    <select id="reg_class" class="select select-bordered w-full" onchange="updateDivisions()">
                         <option value="">Select Class</option>
-                        {% for i in range(1, 13) %}
-                        <option value="{{ i }}">Class {{ i }}</option>
-                        {% endfor %}
+                        {% if current_user.role == 'admin' %}
+                            {% for i in range(1, 13) %}
+                                <option value="{{ i }}">Class {{ i }}</option>
+                            {% endfor %}
+                        {% else %}
+                            {% set unique_classes = [] %}
+                            {% for class_div in assigned_classes %}
+                                {% set class = class_div.split('-')[0] %}
+                                {% if class not in unique_classes %}
+                                    {% set _ = unique_classes.append(class) %}
+                                    <option value="{{ class }}">Class {{ class }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
 
@@ -54,10 +65,11 @@
                     </label>
                     <select id="reg_division" class="select select-bordered w-full">
                         <option value="">Select Division</option>
-                        <option value="A">Division A</option>
-                        <option value="B">Division B</option>
-                        <option value="C">Division C</option>
-                        <option value="D">Division D</option>
+                        {% if current_user.role == 'admin' %}
+                            {% for div in ['A', 'B', 'C', 'D'] %}
+                                <option value="{{ div }}">Division {{ div }}</option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
 
@@ -80,13 +92,12 @@
                     </div>
                 </div>
 
-                <button onclick="registerFace()" class="btn btn-primary w-full gap-2">
+                <button onclick="registerFace()" class="btn btn-primary gap-2">
                     <i class="ri-user-add-line"></i>
                     Register Face
                 </button>
 
-                <div id="register_result" class="alert hidden mt-4">
-                    <i class="ri-information-line"></i>
+                <div id="register_result" class="alert hidden">
                     <span class="message"></span>
                 </div>
             </div>
@@ -107,7 +118,7 @@
                     <select id="rec_subject_select" class="select select-bordered w-full">
                         <option value="">Select Subject</option>
                         {% for subject in subjects %}
-                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                            <option value="{{ subject.id }}">{{ subject.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -131,13 +142,12 @@
                     </div>
                 </div>
 
-                <button onclick="recognizeFace()" class="btn btn-primary w-full gap-2">
+                <button onclick="recognizeFace()" class="btn btn-primary gap-2">
                     <i class="ri-camera-line"></i>
                     Recognize Face
                 </button>
 
-                <div id="recognize_result" class="alert hidden mt-4">
-                    <i class="ri-information-line"></i>
+                <div id="recognize_result" class="alert hidden">
                     <span class="message"></span>
                 </div>
 
@@ -296,5 +306,51 @@ async function recognizeFace() {
         resultsTable.classList.add('hidden');
     }
 }
+
+function updateDivisions() {
+    var classSelect = document.getElementById('reg_class');
+    var divisionSelect = document.getElementById('reg_division');
+    var selectedClass = classSelect.value;
+    
+    // Clear current options
+    divisionSelect.innerHTML = '<option value="">Select Division</option>';
+    
+    if (!selectedClass) return;
+    
+    var isAdmin = {% if current_user.role == 'admin' %}true{% else %}false{% endif %};
+    var assignedClasses = {{ assigned_classes | tojson | safe }};
+    
+    if (isAdmin) {
+        // For admin, show all divisions
+        var divisions = ['A', 'B', 'C', 'D'];
+        for (var i = 0; i < divisions.length; i++) {
+            var div = divisions[i];
+            var option = document.createElement('option');
+            option.value = div;
+            option.textContent = 'Division ' + div;
+            divisionSelect.appendChild(option);
+        }
+    } else {
+        // For teachers, only show assigned divisions for the selected class
+        var availableDivisions = [];
+        for (var i = 0; i < assignedClasses.length; i++) {
+            var cls = assignedClasses[i];
+            if (cls.startsWith(selectedClass + '-')) {
+                availableDivisions.push(cls.split('-')[1]);
+            }
+        }
+        
+        for (var i = 0; i < availableDivisions.length; i++) {
+            var div = availableDivisions[i];
+            var option = document.createElement('option');
+            option.value = div;
+            option.textContent = 'Division ' + div;
+            divisionSelect.appendChild(option);
+        }
+    }
+}
+
+// Initialize divisions when the page loads
+document.addEventListener('DOMContentLoaded', updateDivisions);
 </script>
 {% endblock %} 

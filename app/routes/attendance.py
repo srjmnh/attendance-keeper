@@ -11,36 +11,146 @@ attendance_bp = Blueprint('attendance', __name__, url_prefix='/attendance')
 
 @attendance_bp.route('/view')
 @login_required
-def view():
-    """View attendance records"""
-    user = current_user
-    db_service = DatabaseService()
+def view_attendance():
+    try:
+        # Get filter parameters
+        date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        subject_id = request.args.get('subject_id')
+        status = request.args.get('status')
+        
+        # Base query
+        query = current_app.db.collection('attendance')
+        
+        # Apply date filter
+        query = query.where('date', '==', date)
+        
+        # For teachers, only show their assigned classes
+        if current_user.role == 'teacher':
+            if not current_user.classes:
+                return render_template('attendance/view.html', records=[], subjects=[], date=date,
+                                    error="No classes assigned to your account.")
+            query = query.where('subject_id', 'in', current_user.classes)
+        
+        # Apply additional filters if provided
+        if subject_id:
+            query = query.where('subject_id', '==', subject_id)
+        if status:
+            query = query.where('status', '==', status)
+            
+        # Execute query
+        records = []
+        for doc in query.stream():
+            record = doc.to_dict()
+            record['id'] = doc.id
+            records.append(record)
+            
+        # Get available subjects for filtering
+        subjects = []
+        if current_user.role == 'admin':
+            # Admin can see all subjects
+            subjects_ref = current_app.db.collection('subjects').stream()
+            subjects = [{'id': doc.id, 'name': doc.to_dict()['name']} for doc in subjects_ref]
+        else:
+            # Teachers can only see their assigned subjects
+            for class_id in current_user.classes:
+                subject_doc = current_app.db.collection('subjects').document(class_id).get()
+                if subject_doc.exists:
+                    subject_data = subject_doc.to_dict()
+                    subjects.append({
+                        'id': subject_doc.id,
+                        'name': subject_data.get('name', '')
+                    })
+        
+        return render_template('attendance/view.html', records=records, subjects=subjects, date=date)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error viewing attendance: {str(e)}")
+        return render_template('attendance/view.html', records=[], subjects=[], date=date,
+                             error="An error occurred while fetching attendance records.")
 
-    if user.role == 'student':
-        # Get current day's date range
-        today = datetime.utcnow().date()
-        start = datetime.combine(today, datetime.min.time())
-        end = datetime.combine(today, datetime.max.time())
-        records = db_service.get_attendance_records(student_id=user.student_id, start_date=start, end_date=end)
-    elif user.role in ['admin', 'teacher']:
-        # Get all records for admins and teachers
-        records = db_service.get_all_attendance_records()
-    
-    # Get subjects for filtering
-    subjects = []
-    if user.role == 'admin':
-        # Admin can see all subjects
-        subjects_ref = db_service.db.collection('subjects')
-        for doc in subjects_ref.stream():
-            subjects.append({'id': doc.id, 'name': doc.to_dict().get('name')})
-    elif user.role == 'teacher':
-        # Teacher can only see assigned subjects
-        for subject_id in user.classes:
-            doc = db_service.db.collection('subjects').document(subject_id).get()
-            if doc.exists:
-                subjects.append({'id': doc.id, 'name': doc.to_dict().get('name')})
-    
-    return render_template('attendance/view.html', records=records, subjects=subjects, user_role=user.role)
+@attendance_bp.route('/mark', methods=['POST'])
+@login_required
+@role_required(['admin', 'teacher'])
+def mark_attendance():
+    try:
+        data = request.json
+        student_id = data.get('student_id')
+        subject_id = data.get('subject_id')
+        status = data.get('status', 'PRESENT')
+        
+        if not all([student_id, subject_id]):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # For teachers, validate they have access to this class
+        if current_user.role == 'teacher' and subject_id not in current_user.classes:
+            return jsonify({'error': 'You are not authorized to mark attendance for this class'}), 403
+            
+        # Check if student exists
+        student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+        if not student_ref:
+            return jsonify({'error': 'Student not found'}), 404
+            
+        student_data = student_ref[0].to_dict()
+        
+        # Create attendance record
+        attendance_data = {
+            'student_id': student_id,
+            'student_name': student_data.get('name', ''),
+            'subject_id': subject_id,
+            'status': status,
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'time': datetime.now().strftime('%H:%M:%S'),
+            'marked_by': current_user.email
+        }
+        
+        # Add to database
+        doc_ref = current_app.db.collection('attendance').add(attendance_data)
+        
+        return jsonify({
+            'message': 'Attendance marked successfully',
+            'id': doc_ref[1].id
+        }), 201
+        
+    except Exception as e:
+        current_app.logger.error(f"Error marking attendance: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@attendance_bp.route('/update/<record_id>', methods=['PUT'])
+@login_required
+@role_required(['admin', 'teacher'])
+def update_attendance(record_id):
+    try:
+        data = request.json
+        status = data.get('status')
+        
+        if not status:
+            return jsonify({'error': 'Status is required'}), 400
+            
+        # Get the attendance record
+        record_ref = current_app.db.collection('attendance').document(record_id)
+        record = record_ref.get()
+        
+        if not record.exists:
+            return jsonify({'error': 'Attendance record not found'}), 404
+            
+        record_data = record.to_dict()
+        
+        # For teachers, validate they have access to this class
+        if current_user.role == 'teacher' and record_data['subject_id'] not in current_user.classes:
+            return jsonify({'error': 'You are not authorized to update attendance for this class'}), 403
+            
+        # Update the record
+        record_ref.update({
+            'status': status,
+            'updated_at': datetime.now().isoformat(),
+            'updated_by': current_user.email
+        })
+        
+        return jsonify({'message': 'Attendance updated successfully'}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating attendance: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @attendance_bp.route('/api/attendance')
 @login_required
@@ -168,7 +278,7 @@ def get_attendance():
 
 @attendance_bp.route('/api/attendance/update', methods=['POST'])
 @role_required(['admin', 'teacher'])
-def update_attendance():
+def bulk_update_attendance():
     """Update attendance record"""
     try:
         data = request.get_json()

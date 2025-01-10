@@ -51,9 +51,15 @@
             </label>
             <select id="subjectFilter" class="select select-bordered">
                 <option value="">All Subjects</option>
-                {% for subject in subjects %}
-                <option value="{{ subject.id }}">{{ subject.name }}</option>
-                {% endfor %}
+                {% if current_user.role == 'admin' %}
+                    {% for subject in subjects %}
+                    <option value="{{ subject.id }}">{{ subject.name }}</option>
+                    {% endfor %}
+                {% else %}
+                    {% for class_id in current_user.classes|sort %}
+                    <option value="{{ class_id }}">Class {{ class_id }}</option>
+                    {% endfor %}
+                {% endif %}
             </select>
         </div>
 

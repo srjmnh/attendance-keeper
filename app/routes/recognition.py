@@ -10,6 +10,7 @@ import numpy as np
 import logging
 import boto3
 import os
+import time
 
 recognition_bp = Blueprint('recognition', __name__)
 
@@ -45,7 +46,15 @@ def enhance_image(pil_image):
 @role_required(['admin', 'teacher'])
 def register():
     """Face registration page"""
-    return render_template('recognition/register.html')
+    assigned_classes = []
+    if current_user.role == 'teacher':
+        assigned_classes = current_user.classes
+    elif current_user.role == 'admin':
+        # For admin, create a list of all possible class-division combinations
+        for class_num in range(1, 13):
+            for division in ['A', 'B', 'C', 'D']:
+                assigned_classes.append(f"{class_num}-{division}")
+    return render_template('recognition/register.html', assigned_classes=assigned_classes)
 
 @recognition_bp.route('/register', methods=['POST'])
 @login_required
@@ -83,9 +92,15 @@ def register_face():
                 return jsonify({"error": "Class must be between 1 and 12"}), 400
         except (ValueError, TypeError):
             return jsonify({"error": "Invalid class format. Must be a number between 1 and 12"}), 400
-            
+
         if student_division not in ['A', 'B', 'C', 'D']:
             return jsonify({"error": "Division must be A, B, C, or D"}), 400
+
+        # For teachers, validate that they can register students for this class
+        if current_user.role == 'teacher':
+            class_division = f"{student_class}-{student_division}"
+            if class_division not in current_user.classes:
+                return jsonify({"error": "You are not authorized to register students for this class"}), 403
 
         # Clean name for external ID
         sanitized_name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)

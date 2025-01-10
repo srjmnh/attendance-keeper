@@ -13,6 +13,7 @@ from app.services.cache_service import init_cache
 from app.utils.rate_limit import init_limiter
 from app.utils.monitoring import monitoring_bp
 from flask_wtf.csrf import CSRFProtect
+from app.utils.filters import init_filters
 
 login_manager = LoginManager()
 csrf = CSRFProtect()
@@ -88,6 +89,9 @@ def create_app(config_name=None):
     
     # Initialize rate limiting
     init_limiter(app)
+    
+    # Initialize custom Jinja2 filters
+    init_filters(app)
     
     # Register blueprints
     from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp

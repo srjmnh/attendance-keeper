@@ -32,15 +32,35 @@
         <div class="join">
             <select id="classFilter" class="select select-bordered join-item" onchange="filterStudents()">
                 <option value="">All Classes</option>
-                {% for class in range(1, 13) %}
-                    <option value="{{ class }}">Class {{ class }}</option>
-                {% endfor %}
+                {% if current_user.role == 'admin' %}
+                    {% for class in range(1, 13) %}
+                        <option value="{{ class }}">Class {{ class }}</option>
+                    {% endfor %}
+                {% else %}
+                    {% set unique_classes = [] %}
+                    {% for class_id in current_user.classes %}
+                        {% set class_num = class_id.split('-')[0] %}
+                        {% if class_num not in unique_classes %}
+                            {% set _ = unique_classes.append(class_num) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for class in unique_classes|sort %}
+                        <option value="{{ class }}">Class {{ class }}</option>
+                    {% endfor %}
+                {% endif %}
             </select>
             <select id="divisionFilter" class="select select-bordered join-item" onchange="filterStudents()">
                 <option value="">All Divisions</option>
-                {% for div in ['A', 'B', 'C', 'D'] %}
-                    <option value="{{ div }}">Division {{ div }}</option>
-                {% endfor %}
+                {% if current_user.role == 'admin' %}
+                    {% for div in ['A', 'B', 'C', 'D'] %}
+                        <option value="{{ div }}">Division {{ div }}</option>
+                    {% endfor %}
+                {% else %}
+                    {% for class_id in current_user.classes %}
+                        {% set division = class_id.split('-')[1] %}
+                        <option value="{{ division }}">Division {{ division }}</option>
+                    {% endfor %}
+                {% endif %}
             </select>
         </div>
     </div>
@@ -180,7 +200,6 @@
         </div>
     </div>
 </dialog>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -211,7 +230,6 @@ function filterStudents() {
 }
 
 function editStudent(student) {
-    console.log('Editing student:', student);  // Debug log
     document.getElementById('modalTitle').textContent = 'Edit Student';
     document.getElementById('studentId').value = student.id;
     document.getElementById('studentName').value = student.name || '';
@@ -225,7 +243,6 @@ function editStudent(student) {
 
 async function handleStudentSubmit(event) {
     event.preventDefault();
-    console.log('Handling student submit');  // Debug log
     
     const studentId = document.getElementById('studentId').value;
     const data = {
@@ -235,12 +252,9 @@ async function handleStudentSubmit(event) {
         division: document.getElementById('studentDivision').value
     };
     
-    console.log('Submitting data:', data);  // Debug log
-    
     try {
         const url = studentId ? `/admin/api/students/${studentId}` : '/admin/api/students';
         const method = studentId ? 'PUT' : 'POST';
-        console.log(`Making ${method} request to ${url}`);  // Debug log
         
         const response = await fetch(url, {
             method: method,
@@ -251,9 +265,7 @@ async function handleStudentSubmit(event) {
             body: JSON.stringify(data)
         });
         
-        console.log('Response status:', response.status);  // Debug log
         const result = await response.json();
-        console.log('Response data:', result);  // Debug log
         
         if (!response.ok) {
             throw new Error(result.error || 'Failed to save student');
@@ -338,4 +350,4 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 </script>
-{% endblock %} 
+{% endblock %}

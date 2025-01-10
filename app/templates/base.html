@@ -122,14 +122,8 @@
                             {% if current_user.role in ['admin', 'teacher'] %}
                                 <div class="divider my-4"></div>
                                 
-                                <a href="{{ url_for('recognition.register') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'recognition.register' %}bg-primary text-primary-content{% endif %}">
-                                    <i class="ri-camera-line text-xl"></i>
-                                    <span class="font-medium">Face Recognition</span>
-                                </a>
-                                
-                                <a href="{{ url_for('attendance.view') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
+                                <a href="{{ url_for('attendance.view_attendance') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content{% endif %}">
                                     <i class="ri-calendar-check-line text-xl"></i>
                                     <span class="font-medium">View Attendance</span>
                                 </a>
@@ -158,8 +152,8 @@
                             {% endif %}
                             
                             {% if current_user.role == 'student' %}
-                                <a href="{{ url_for('attendance.view') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
+                                <a href="{{ url_for('attendance.view_attendance') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content{% endif %}">
                                     <i class="ri-calendar-check-line text-xl"></i>
                                     <span class="font-medium">My Attendance</span>
                                 </a>

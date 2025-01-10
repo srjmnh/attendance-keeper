@@ -21,7 +21,7 @@ def admin_dashboard():
 
 @admin_bp.route('/manage/students')
 @login_required
-@role_required(['admin'])
+@role_required(['admin', 'teacher'])
 def manage_students():
     """Display student management page"""
     try:
@@ -30,18 +30,45 @@ def manage_students():
         
         # Get students collection with role filter
         students_ref = current_app.db.collection('users').where('role', '==', 'student')
-        docs = students_ref.get()
         
-        for doc in docs:
-            data = doc.to_dict()
-            student_data = {
-                'id': doc.id,
-                'name': str(data.get('name', '')),
-                'student_id': str(data.get('student_id', '')),
-                'class': int(data.get('class', 0)) or '',
-                'division': str(data.get('division', '')).upper()
-            }
-            students.append(student_data)
+        # For teachers, filter students based on their assigned classes
+        if current_user.role == 'teacher':
+            assigned_classes = current_user.classes
+            assigned_class_numbers = list(set(class_div.split('-')[0] for class_div in assigned_classes))
+            assigned_divisions = list(set(class_div.split('-')[1] for class_div in assigned_classes))
+            
+            # Get students in assigned classes and divisions
+            docs = students_ref.get()
+            for doc in docs:
+                data = doc.to_dict()
+                class_str = str(data.get('class', ''))
+                division = str(data.get('division', '')).upper()
+                
+                # Check if student's class and division match teacher's assignments
+                if (class_str in assigned_class_numbers and 
+                    division in assigned_divisions and 
+                    f"{class_str}-{division}" in assigned_classes):
+                    student_data = {
+                        'id': doc.id,
+                        'name': str(data.get('name', '')),
+                        'student_id': str(data.get('student_id', '')),
+                        'class': int(data.get('class', 0)) or '',
+                        'division': division
+                    }
+                    students.append(student_data)
+        else:
+            # For admin, get all students
+            docs = students_ref.get()
+            for doc in docs:
+                data = doc.to_dict()
+                student_data = {
+                    'id': doc.id,
+                    'name': str(data.get('name', '')),
+                    'student_id': str(data.get('student_id', '')),
+                    'class': int(data.get('class', 0)) or '',
+                    'division': str(data.get('division', '')).upper()
+                }
+                students.append(student_data)
             
         current_app.logger.info(f"Found {len(students)} students")
         return render_template('admin/students.html', students=students)
@@ -141,7 +168,7 @@ def delete_subject(subject_id):
 
 @admin_bp.route('/api/students/<student_id>', methods=['PUT'])
 @login_required
-@role_required(['admin'])
+@role_required(['admin', 'teacher'])
 def update_student(student_id):
     """Update student details"""
     try:
@@ -173,8 +200,22 @@ def update_student(student_id):
             
         # Check if student exists
         student_ref = current_app.db.collection('users').document(student_id)
-        if not student_ref.get().exists:
+        student_doc = student_ref.get()
+        if not student_doc.exists:
             return jsonify({'error': 'Student not found'}), 404
+            
+        # For teachers, validate that they can manage this class
+        if current_user.role == 'teacher':
+            # Check if teacher can manage the current class
+            student_data = student_doc.to_dict()
+            current_class = f"{student_data.get('class')}-{student_data.get('division')}"
+            if current_class not in current_user.classes:
+                return jsonify({'error': 'You are not authorized to manage this student'}), 403
+                
+            # Check if teacher can manage the new class
+            new_class = f"{class_num}-{division}"
+            if new_class not in current_user.classes:
+                return jsonify({'error': 'You are not authorized to move students to this class'}), 403
             
         # Check if new student ID conflicts with existing one (excluding current student)
         if student_id_new != data.get('student_id'):
@@ -198,7 +239,7 @@ def update_student(student_id):
 
 @admin_bp.route('/api/students', methods=['POST'])
 @login_required
-@role_required(['admin'])
+@role_required(['admin', 'teacher'])
 def create_student():
     """Create a new student"""
     try:
@@ -227,6 +268,12 @@ def create_student():
         division = str(data['division']).strip().upper()
         if division not in ['A', 'B', 'C', 'D']:
             return jsonify({'error': 'Division must be A, B, C, or D'}), 400
+            
+        # For teachers, validate that they can manage this class
+        if current_user.role == 'teacher':
+            class_division = f"{class_num}-{division}"
+            if class_division not in current_user.classes:
+                return jsonify({'error': 'You are not authorized to manage students in this class'}), 403
             
         # Check if student ID already exists
         existing = current_app.db.collection('users').where('student_id', '==', student_id).get()
@@ -522,4 +569,35 @@ def delete_user(user_id):
         
     except Exception as e:
         current_app.logger.error(f"Error deleting user: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
+
+@admin_bp.route('/api/subjects')
+@login_required
+@role_required(['admin', 'teacher'])
+def get_subjects():
+    """Get all subjects or teacher-specific subjects"""
+    try:
+        subjects = []
+        subjects_ref = current_app.db.collection('subjects')
+        
+        if current_user.role == 'admin':
+            # Admin sees all subjects
+            docs = subjects_ref.stream()
+            subjects = [{
+                'id': doc.id,
+                'name': doc.to_dict().get('name', '')
+            } for doc in docs]
+        else:
+            # Teachers see only their assigned subjects
+            for class_id in current_user.classes:
+                doc = subjects_ref.document(class_id).get()
+                if doc.exists:
+                    subjects.append({
+                        'id': doc.id,
+                        'name': doc.to_dict().get('name', '')
+                    })
+        
+        return jsonify({'subjects': subjects})
+    except Exception as e:
+        current_app.logger.error(f"Error getting subjects: {str(e)}")
         return jsonify({'error': str(e)}), 500 

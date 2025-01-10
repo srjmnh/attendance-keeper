@@ -11,12 +11,22 @@ def dashboard():
     """Dashboard view"""
     # Get subjects for teachers and admins
     subjects = []
-    if current_user.role in ['admin', 'teacher']:
+    if current_user.role == 'admin':
         subjects_ref = current_app.db.collection('subjects').stream()
         subjects = [{
             'id': doc.id,
             'name': doc.to_dict().get('name', '')
         } for doc in subjects_ref]
+    elif current_user.role == 'teacher':
+        # Get subjects assigned to the teacher
+        for class_id in current_user.classes:
+            subject_doc = current_app.db.collection('subjects').document(class_id).get()
+            if subject_doc.exists:
+                subject_data = subject_doc.to_dict()
+                subjects.append({
+                    'id': subject_doc.id,
+                    'name': subject_data.get('name', '')
+                })
     
     # Get total students
     students_ref = current_app.db.collection('users').where('role', '==', 'student').stream()
@@ -53,7 +63,7 @@ def dashboard():
     else:
         today_attendance = 0
         attendance_trend = "No attendance recorded today"
-
+    
     # Get recent attendance records
     attendance_records = []
     query = attendance_ref
@@ -98,7 +108,7 @@ def dashboard():
             'subject_name': str(record.get('subject_name', '')),
             'status': str(record.get('status', ''))
         })
-
+    
     # Get attendance data for chart
     attendance_data = {
         'labels': [],
