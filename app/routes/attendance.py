@@ -9,20 +9,24 @@ from app.services.rekognition_service import RekognitionService
 
 attendance_bp = Blueprint('attendance', __name__, url_prefix='/attendance')
 
-@attendance_bp.route('/')
+@attendance_bp.route('/view')
 @login_required
-def index():
-    """Attendance management view"""
-    # Get subjects for teachers and admins
-    subjects = []
-    if current_user.role in ['admin', 'teacher']:
-        subjects_ref = current_app.db.collection('subjects').stream()
-        subjects = [{
-            'id': doc.id,
-            'name': doc.to_dict().get('name', '')
-        } for doc in subjects_ref]
+def view():
+    """View attendance records"""
+    user = current_user
+    db_service = DatabaseService()
+
+    if user.role == 'student':
+        # Get current day's date range
+        today = datetime.utcnow().date()
+        start = datetime.combine(today, datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+        records = db_service.get_attendance_records(student_id=user.student_id, start_date=start, end_date=end)
+    elif user.role in ['admin', 'teacher']:
+        # Implement existing logic for admins and teachers
+        records = db_service.get_all_attendance_records()
     
-    return render_template('attendance/manage.html', subjects=subjects)
+    return render_template('attendance/view.html', records=records, user_role=user.role)
 
 @attendance_bp.route('/api/attendance')
 @login_required
@@ -285,26 +289,6 @@ def upload_attendance():
     except Exception as e:
         current_app.logger.error(f"Error uploading attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500 
-
-@attendance_bp.route('/view')
-@login_required
-@role_required(['student', 'admin', 'teacher'])
-def view_attendance():
-    """View attendance records"""
-    user = current_user
-    db_service = DatabaseService()
-
-    if user.role == 'student':
-        # Get current day's date range
-        today = datetime.utcnow().date()
-        start = datetime.combine(today, datetime.min.time())
-        end = datetime.combine(today, datetime.max.time())
-        records = db_service.get_attendance_records(student_id=user.student_id, start_date=start, end_date=end)
-    elif user.role in ['admin', 'teacher']:
-        # Implement existing logic for admins and teachers
-        records = db_service.get_all_attendance_records()
-    
-    return render_template('attendance/view.html', records=records, user_role=user.role)
 
 @attendance_bp.route('/register_student', methods=['POST'])
 @login_required

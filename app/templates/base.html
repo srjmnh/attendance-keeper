@@ -112,28 +112,36 @@
                         </a>
                         
                         {% if current_user.role in ['admin', 'teacher'] %}
-                            <a href="{{ url_for('attendance.index') }}"
-                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.index' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-calendar-check-line text-lg"></i>
-                                <span>Take Attendance</span>
+                            <a href="{{ url_for('recognition.register') }}"
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'recognition.register' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-camera-line text-lg"></i>
+                                <span>Face Recognition</span>
                             </a>
                             
-                            <a href="{{ url_for('attendance.view_attendance') }}"
-                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-file-list-line text-lg"></i>
+                            <a href="{{ url_for('attendance.view') }}"
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-calendar-check-line text-lg"></i>
                                 <span>View Attendance</span>
                             </a>
                             
                             <a href="{{ url_for('admin.manage_subjects') }}"
                                class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content{% endif %}">
                                 <i class="ri-book-line text-lg"></i>
-                                <span>Subjects</span>
+                                <span>Manage Subjects</span>
                             </a>
                             
                             <a href="{{ url_for('admin.manage_students') }}"
                                class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content{% endif %}">
                                 <i class="ri-user-line text-lg"></i>
-                                <span>Students</span>
+                                <span>Manage Students</span>
+                            </a>
+                        {% endif %}
+                        
+                        {% if current_user.role == 'student' %}
+                            <a href="{{ url_for('attendance.view') }}"
+                               class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view' %}bg-primary text-primary-content{% endif %}">
+                                <i class="ri-calendar-check-line text-lg"></i>
+                                <span>My Attendance</span>
                             </a>
                         {% endif %}
                         
@@ -141,7 +149,7 @@
                             <a href="{{ url_for('admin.admin_dashboard') }}"
                                class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.admin_dashboard' %}bg-primary text-primary-content{% endif %}">
                                 <i class="ri-settings-5-line text-lg"></i>
-                                <span>Admin</span>
+                                <span>Admin Settings</span>
                             </a>
                         {% endif %}
                     {% endif %}

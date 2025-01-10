@@ -16,17 +16,42 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 @login_required
 @role_required(['admin'])
 def admin_dashboard():
+    """Admin dashboard view"""
     return render_template('admin/dashboard.html')
 
-@admin_bp.route('/users')
+@admin_bp.route('/manage/students')
 @login_required
 @role_required(['admin'])
-def manage_users():
-    db = DatabaseService()
-    users = db.get_all_users()
-    return render_template('admin/users.html', users=users)
+def manage_students():
+    """Display student management page"""
+    try:
+        current_app.logger.info("Fetching students for management page")
+        students = []
+        
+        # Get students collection with role filter
+        students_ref = current_app.db.collection('users').where('role', '==', 'student')
+        docs = students_ref.get()
+        
+        for doc in docs:
+            data = doc.to_dict()
+            student_data = {
+                'id': doc.id,
+                'name': str(data.get('name', '')),
+                'student_id': str(data.get('student_id', '')),
+                'class': int(data.get('class', 0)) or '',
+                'division': str(data.get('division', '')).upper()
+            }
+            students.append(student_data)
+            
+        current_app.logger.info(f"Found {len(students)} students")
+        return render_template('admin/students.html', students=students)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading students page: {str(e)}")
+        flash('Failed to load students. Please try again.', 'error')
+        return render_template('admin/students.html', students=[])
 
-@admin_bp.route('/manage_subjects', methods=['GET', 'POST'])
+@admin_bp.route('/manage/subjects', methods=['GET', 'POST'])
 @login_required
 @role_required(['admin'])
 def manage_subjects():
@@ -62,13 +87,21 @@ def manage_subjects():
         
         return redirect(url_for('admin.manage_subjects'))
     else:
-        # Handle GET request if needed
+        # Handle GET request
         subjects_ref = current_app.db.collection('subjects').stream()
         subjects = [{
             'id': doc.id,
             'name': doc.to_dict().get('name', '')
         } for doc in subjects_ref]
-        return render_template('admin/manage_subjects.html', subjects=subjects)
+        return render_template('admin/subjects.html', subjects=subjects)
+
+@admin_bp.route('/users')
+@login_required
+@role_required(['admin'])
+def manage_users():
+    db = DatabaseService()
+    users = db.get_all_users()
+    return render_template('admin/users.html', users=users)
 
 @admin_bp.route('/manage_subjects/<subject_id>', methods=['DELETE'])
 @login_required
@@ -80,38 +113,6 @@ def delete_subject(subject_id):
         return {'message': 'Subject deleted successfully'}, 200
     except Exception as e:
         return {'error': str(e)}, 500
-
-@admin_bp.route('/students', methods=['GET'])
-@login_required
-@role_required(['admin'])
-def manage_students():
-    """Display student management page"""
-    try:
-        current_app.logger.info("Fetching students for management page")
-        students = []
-        
-        # Get students collection with role filter
-        students_ref = current_app.db.collection('users').where('role', '==', 'student')
-        docs = students_ref.get()
-        
-        for doc in docs:
-            data = doc.to_dict()
-            student_data = {
-                'id': doc.id,
-                'name': str(data.get('name', '')),
-                'student_id': str(data.get('student_id', '')),
-                'class': int(data.get('class', 0)) or '',
-                'division': str(data.get('division', '')).upper()
-            }
-            students.append(student_data)
-            
-        current_app.logger.info(f"Found {len(students)} students")
-        return render_template('admin/students.html', students=students)
-        
-    except Exception as e:
-        current_app.logger.error(f"Error loading students page: {str(e)}")
-        flash('Failed to load students. Please try again.', 'error')
-        return render_template('admin/students.html', students=[])
 
 @admin_bp.route('/api/students/<student_id>', methods=['PUT'])
 @login_required

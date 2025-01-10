@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, render_template
 from flask_login import login_required, current_user
 from app.utils.decorators import role_required
 from datetime import datetime, timedelta
@@ -11,7 +11,7 @@ import logging
 import boto3
 import os
 
-recognition_bp = Blueprint('recognition', __name__, url_prefix='/recognition')
+recognition_bp = Blueprint('recognition', __name__)
 
 # AWS Configuration
 rekognition_client = boto3.client(
@@ -40,7 +40,15 @@ def enhance_image(pil_image):
     enhanced_pil_image = Image.fromarray(cv2.cvtColor(enhanced_cv_image, cv2.COLOR_BGR2RGB))
     return enhanced_pil_image
 
+@recognition_bp.route('/register', methods=['GET'])
+@login_required
+@role_required(['admin', 'teacher'])
+def register():
+    """Face registration page"""
+    return render_template('recognition/register.html')
+
 @recognition_bp.route('/register', methods=['POST'])
+@login_required
 @role_required(['admin', 'teacher'])
 def register_face():
     """Register a new face"""
@@ -87,7 +95,7 @@ def register_face():
         
         # Process image
         try:
-            image_data = image.split(",")[1]
+            image_data = image.split(",")[1] if "," in image else image
             image_bytes = base64.b64decode(image_data)
             
             # Enhance image before indexing
@@ -101,7 +109,7 @@ def register_face():
         except Exception as e:
             current_app.logger.error(f"Error processing image: {str(e)}")
             return jsonify({"error": "Failed to process image. Please try with a different image"}), 400
-        
+
         # Check if student already exists
         existing_student = current_app.db.collection('users').where('student_id', '==', student_id).get()
         if len(list(existing_student)) > 0:
@@ -175,15 +183,16 @@ def register_face():
 @login_required
 def recognize_face():
     """Recognize faces in an image"""
-    data = request.get_json()
-    image_str = data.get('image')
-    
-    if not image_str:
-        return jsonify({"error": "No image provided"}), 400
-
     try:
+        data = request.get_json()
+        image = data.get('image', '')
+        subject_id = data.get('subject_id', '')
+        
+        if not image:
+            return jsonify({"error": "No image provided"}), 400
+
         # Process image
-        image_data = image_str.split(",")[1]
+        image_data = image.split(",")[1] if "," in image else image
         image_bytes = base64.b64decode(image_data)
 
         # Enhance image before detection
@@ -208,6 +217,13 @@ def recognize_face():
                 "total_faces": face_count,
                 "identified_people": identified_people
             }), 200
+
+        # Get subject details if provided
+        subject_name = ""
+        if subject_id:
+            subject_doc = current_app.db.collection('subjects').document(subject_id).get()
+            if subject_doc.exists:
+                subject_name = subject_doc.to_dict().get('name', '')
 
         # Process each detected face
         for idx, face in enumerate(faces):
@@ -249,7 +265,6 @@ def recognize_face():
                         FaceMatchThreshold=60
                     )
                     matches = search_response.get('FaceMatches', [])
-                    current_app.logger.info(f"Search response for face {idx+1}: {matches}")
                     
                 except Exception as e:
                     current_app.logger.error(f"Error searching face {idx+1}: {str(e)}")
@@ -276,7 +291,6 @@ def recognize_face():
                 # Get student details from Firestore
                 student_query = current_app.db.collection('users').where('face_id', '==', ext_id).limit(1).get()
                 student_docs = list(student_query)
-                current_app.logger.info(f"Found {len(student_docs)} student documents for face_id {ext_id}")
                 
                 if not student_docs:
                     # Try searching by student ID (in case face_id field is missing)
@@ -319,36 +333,27 @@ def recognize_face():
                     "division": student_division
                 })
 
-                # Check if attendance already exists for today
-                today = datetime.utcnow().date()
-                try:
-                    attendance_query = current_app.db.collection("attendance")\
+                # Mark attendance if subject is specified
+                if subject_id:
+                    # Check if attendance already exists for today
+                    today = datetime.utcnow().date()
+                    attendance_query = current_app.db.collection('attendance')\
                         .where('student_id', '==', student_id)\
+                        .where('subject_id', '==', subject_id)\
                         .where('timestamp', '>=', today.isoformat())\
                         .where('timestamp', '<', (today + timedelta(days=1)).isoformat())\
                         .limit(1)\
                         .get()
-
+                    
                     if not list(attendance_query):
-                        # Log attendance only if not already marked today
-                        attendance_doc = {
+                        current_app.db.collection('attendance').add({
                             "student_id": student_id,
                             "name": student_name,
-                            "class": student_class,
-                            "division": student_division,
+                            "subject_id": subject_id,
+                            "subject_name": subject_name,
                             "timestamp": datetime.utcnow().isoformat(),
                             "status": "PRESENT"
-                        }
-                        current_app.db.collection("attendance").add(attendance_doc)
-                        current_app.logger.info(f"Added attendance record for student {student_id}")
-                    else:
-                        current_app.logger.info(f"Student {student_id} already has attendance for today")
-                except Exception as e:
-                    current_app.logger.error(f"Error checking/adding attendance: {str(e)}")
-                    if "The query requires an index" in str(e):
-                        current_app.logger.error("Missing Firestore index. Please create the required index.")
-                    # Continue without marking attendance
-                    pass
+                        })
 
             except Exception as e:
                 current_app.logger.error(f"Error processing face {idx+1}: {str(e)}")
@@ -363,7 +368,7 @@ def recognize_face():
             "total_faces": face_count,
             "identified_people": identified_people
         }), 200
-
+        
     except Exception as e:
-        current_app.logger.error(f"Error recognizing faces: {str(e)}")
-        return jsonify({"error": f"Failed to recognize faces: {str(e)}"}), 500 
+        current_app.logger.error(f"Error in face recognition: {str(e)}")
+        return jsonify({"error": f"Face recognition failed: {str(e)}"}), 500 
