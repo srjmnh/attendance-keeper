@@ -7,6 +7,7 @@ import boto3
 from app.routes.admin import bp as admin_bp
 from app.routes.attendance import bp as attendance_bp
 from app.blueprints.main.routes import main_bp
+from app.routes.auth import bp as auth_bp  # Import the auth blueprint
 
 COLLECTION_ID = "students"  # Hardcode the collection ID to match the example code
 
@@ -55,6 +56,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(attendance_bp)
     app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp)
     
     return app
 

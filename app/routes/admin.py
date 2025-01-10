@@ -249,7 +249,7 @@ def add_student_form():
             password=password,
             custom_claims={'role': 'student', 'student_id': student_id}
         )
-        # Optionally, add user to Firestore
+        # Add user to Firestore without including the password
         db_service.add_user(user.uid, email, student['name'], 'student', student_id)
         return jsonify({'message': 'Student account created successfully.'}), 201
     except firebase_admin.auth.EmailAlreadyExistsError:

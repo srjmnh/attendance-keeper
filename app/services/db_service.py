@@ -55,7 +55,8 @@ class DatabaseService:
                     email=user_data.get('email'),
                     name=user_data.get('name'),
                     role=user_data.get('role'),
-                    password=user_data.get('password_hash')
+                    classes=user_data.get('classes'),
+                    student_id=user_data.get('student_id')
                 )
             return None
         except Exception as e:
@@ -75,7 +76,8 @@ class DatabaseService:
                     email=user_data.get('email'),
                     name=user_data.get('name'),
                     role=user_data.get('role'),
-                    password=user_data.get('password_hash')
+                    classes=user_data.get('classes'),
+                    student_id=user_data.get('student_id')
                 )
             return None
         except Exception as e:
