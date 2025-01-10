@@ -2,6 +2,7 @@ from flask import Flask
 from flask_login import LoginManager
 from app.services.db_service import DatabaseService
 from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp
+from app.utils.errors import register_error_handlers
 import os
 import boto3
 
@@ -23,6 +24,8 @@ def create_app():
                 static_folder='app/static')
     
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
+    app.config['WTF_CSRF_SECRET_KEY'] = os.getenv('WTF_CSRF_SECRET_KEY', 'your-csrf-secret-key')
+    app.config['WTF_CSRF_ENABLED'] = True
     
     # Initialize Firebase Admin
     db = DatabaseService()
@@ -47,6 +50,9 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         return db.get_user_by_id(user_id)
+    
+    # Register error handlers
+    register_error_handlers(app)
     
     # Register Blueprints
     app.register_blueprint(auth_bp)
