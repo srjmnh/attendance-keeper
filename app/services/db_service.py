@@ -122,3 +122,48 @@ class DatabaseService:
         except Exception as e:
             current_app.logger.error(f"Error creating user: {str(e)}")
             raise 
+    
+    def get_all_attendance_records(self):
+        """Get all attendance records"""
+        try:
+            records = []
+            query = self.db.collection('attendance').order_by('timestamp', direction='DESCENDING')
+            docs = query.stream()
+            
+            for doc in docs:
+                record = doc.to_dict()
+                record['id'] = doc.id
+                records.append(record)
+            
+            return records
+        except Exception as e:
+            current_app.logger.error(f"Error getting all attendance records: {str(e)}")
+            return []
+    
+    def get_attendance_records(self, student_id=None, start_date=None, end_date=None):
+        """Get attendance records with filters"""
+        try:
+            records = []
+            query = self.db.collection('attendance')
+            
+            if student_id:
+                query = query.where('student_id', '==', student_id)
+            
+            if start_date:
+                query = query.where('timestamp', '>=', start_date.isoformat())
+            
+            if end_date:
+                query = query.where('timestamp', '<=', end_date.isoformat())
+            
+            query = query.order_by('timestamp', direction='DESCENDING')
+            docs = query.stream()
+            
+            for doc in docs:
+                record = doc.to_dict()
+                record['id'] = doc.id
+                records.append(record)
+            
+            return records
+        except Exception as e:
+            current_app.logger.error(f"Error getting attendance records: {str(e)}")
+            return [] 

@@ -23,10 +23,24 @@ def view():
         end = datetime.combine(today, datetime.max.time())
         records = db_service.get_attendance_records(student_id=user.student_id, start_date=start, end_date=end)
     elif user.role in ['admin', 'teacher']:
-        # Implement existing logic for admins and teachers
+        # Get all records for admins and teachers
         records = db_service.get_all_attendance_records()
     
-    return render_template('attendance/view.html', records=records, user_role=user.role)
+    # Get subjects for filtering
+    subjects = []
+    if user.role == 'admin':
+        # Admin can see all subjects
+        subjects_ref = db_service.db.collection('subjects')
+        for doc in subjects_ref.stream():
+            subjects.append({'id': doc.id, 'name': doc.to_dict().get('name')})
+    elif user.role == 'teacher':
+        # Teacher can only see assigned subjects
+        for subject_id in user.classes:
+            doc = db_service.db.collection('subjects').document(subject_id).get()
+            if doc.exists:
+                subjects.append({'id': doc.id, 'name': doc.to_dict().get('name')})
+    
+    return render_template('attendance/view.html', records=records, subjects=subjects, user_role=user.role)
 
 @attendance_bp.route('/api/attendance')
 @login_required
