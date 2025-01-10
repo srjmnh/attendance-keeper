@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import flash, redirect, url_for
+from flask import flash, redirect, url_for, jsonify
 from flask_login import current_user
 
 def role_required(roles):

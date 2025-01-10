@@ -3,12 +3,13 @@ from flask_login import UserMixin
 class User(UserMixin):
     """User model for Flask-Login"""
     
-    def __init__(self, id=None, email=None, name=None, role=None, password=None):
+    def __init__(self, id, email, name, role, classes=None, student_id=None):
         self.id = id
         self.email = email
         self.name = name
         self.role = role
-        self.password = password  # This is the hashed password
+        self.classes = classes or []
+        self.student_id = student_id
     
     def get_id(self):
         return str(self.id)
@@ -59,7 +60,9 @@ class User(UserMixin):
             'id': self.id,
             'email': self.email,
             'name': self.name,
-            'role': self.role
+            'role': self.role,
+            'classes': self.classes,
+            'student_id': self.student_id
         }
     
     @staticmethod
@@ -70,5 +73,6 @@ class User(UserMixin):
             email=data.get('email'),
             name=data.get('name'),
             role=data.get('role'),
-            password=data.get('password')
+            classes=data.get('classes'),
+            student_id=data.get('student_id')
         ) 

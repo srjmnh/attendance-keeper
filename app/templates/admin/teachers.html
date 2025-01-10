@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Head content -->
+</head>
+<body>
+    <!-- Existing admin dashboard content -->
+
+    <!-- Add Teacher Form -->
+    <div id="addTeacherModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Add New Teacher</h3>
+            <form id="addTeacherForm">
+                <div class="form-control">
+                    <label class="label">Name</label>
+                    <input type="text" id="teacherName" required class="input input-bordered">
+                </div>
+                <div class="form-control">
+                    <label class="label">Email</label>
+                    <input type="email" id="teacherEmail" required class="input input-bordered">
+                </div>
+                <div class="form-control">
+                    <label class="label">Password</label>
+                    <input type="password" id="teacherPassword" required class="input input-bordered">
+                </div>
+                <div class="form-control">
+                    <label class="label">Assigned Classes</label>
+                    <select id="teacherClasses" multiple required class="select select-bordered">
+                        <!-- Options will be populated dynamically based on admin's classes -->
+                    </select>
+                </div>
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Add Teacher</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddTeacherModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        async function populateTeacherClasses() {
+            try {
+                const response = await fetch('/admin/api/get_classes');
+                const classes = await response.json();
+                const select = document.getElementById('teacherClasses');
+                classes.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls.id;
+                    option.textContent = cls.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching classes:', error);
+                showToast('Failed to load classes.', 'error');
+            }
+        }
+
+        document.getElementById('addTeacherForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('teacherName').value.trim();
+            const email = document.getElementById('teacherEmail').value.trim();
+            const password = document.getElementById('teacherPassword').value;
+            const classes = Array.from(document.getElementById('teacherClasses').selectedOptions).map(option => option.value);
+
+            try {
+                const response = await fetch('/admin/teachers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password, classes })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showToast(result.message, 'success');
+                    closeAddTeacherModal();
+                    // Optionally, refresh the teacher list
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error adding teacher:', error);
+                showToast('An error occurred while adding the teacher.', 'error');
+            }
+        });
+
+        function closeAddTeacherModal() {
+            document.getElementById('addTeacherModal').close();
+        }
+
+        // Initialize modal with class data
+        populateTeacherClasses();
+    </script>
+</body>
+</html> 

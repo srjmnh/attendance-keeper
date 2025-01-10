@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import io
 from app.utils.decorators import role_required
+from app.services.db_service import DatabaseService
+from app.services.rekognition_service import RekognitionService
 
 bp = Blueprint('attendance', __name__, url_prefix='/attendance')
 
@@ -286,17 +288,51 @@ def upload_attendance():
 
 @bp.route('/view')
 @login_required
+@role_required(['student', 'admin', 'teacher'])
 def view_attendance():
     """View attendance records"""
-    # Get subjects for teachers and admins
-    subjects = []
-    if current_user.role in ['admin', 'teacher']:
-        subjects_ref = current_app.db.collection('subjects').stream()
-        subjects = [{
-            'id': doc.id,
-            'name': doc.to_dict().get('name', '')
-        } for doc in subjects_ref]
+    user = current_user
+    db_service = DatabaseService()
+
+    if user.role == 'student':
+        # Get current day's date range
+        today = datetime.utcnow().date()
+        start = datetime.combine(today, datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+        records = db_service.get_attendance_records(student_id=user.student_id, start_date=start, end_date=end)
+    elif user.role in ['admin', 'teacher']:
+        # Implement existing logic for admins and teachers
+        records = db_service.get_all_attendance_records()
     
-    return render_template('attendance/view.html', 
-                         subjects=subjects,
-                         user_role=current_user.role)
+    return render_template('attendance/view.html', records=records, user_role=user.role)
+
+@bp.route('/register_student', methods=['POST'])
+@login_required
+@role_required(['teacher'])
+def register_student():
+    data = request.form
+    student_id = data.get('student_id')
+    name = data.get('name')
+    subject_id = data.get('subject_id')
+    image = request.files.get('image')
+
+    # Validate subject assignment
+    user_classes = current_user.classes
+    if subject_id not in user_classes:
+        return jsonify({'error': 'Unauthorized to register students for this class.'}), 403
+
+    # Proceed with registration logic
+    db_service = DatabaseService()
+    student = db_service.get_student_by_id(student_id)
+    if not student:
+        return jsonify({'error': 'Student does not exist.'}), 400
+
+    # Upload image to AWS S3 and register with AWS Rekognition
+    rekognition_service = RekognitionService()
+    image_url = rekognition_service.upload_image_to_s3(image, student_id)
+    rekognition_service.register_face(student_id, image_url)
+
+    # Update Firestore
+    db_service.register_student(student_id, name, subject_id, image_url)
+
+    return jsonify({'message': 'Student registered successfully.'}), 201

@@ -6,6 +6,8 @@ import base64
 import json
 from app.services.db_service import DatabaseService
 from datetime import timedelta
+import logging
+from logging.handlers import RotatingFileHandler
 
 login_manager = LoginManager()
 
@@ -102,5 +104,16 @@ def create_app(config_name=None):
         """Set up request context"""
         if not hasattr(g, 'db_service'):
             g.db_service = DatabaseService()
+    
+    if not app.debug:
+        file_handler = RotatingFileHandler('logs/attendanceai.log', maxBytes=10240, backupCount=10)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('AttendanceAI startup')
     
     return app 

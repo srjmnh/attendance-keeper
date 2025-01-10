@@ -7,6 +7,8 @@ from werkzeug.security import generate_password_hash
 from datetime import datetime
 import pandas as pd
 import io
+import firebase_admin
+from firebase_admin import auth
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -480,3 +482,73 @@ def create_student():
     except Exception as e:
         current_app.logger.error(f"Error creating student: {str(e)}")
         return jsonify({'error': str(e)}), 500 
+
+@bp.route('/students', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def add_student():
+    data = request.form
+    email = data.get('email')
+    password = data.get('password')
+    student_id = data.get('student_id')
+
+    # Validate if student_id exists
+    db_service = DatabaseService()
+    student = db_service.get_student_by_id(student_id)
+    if not student:
+        return jsonify({'error': 'There is no such student.'}), 400
+
+    try:
+        # Create user in Firebase Auth
+        user = auth.create_user(
+            email=email,
+            password=password,
+            custom_claims={'role': 'student', 'student_id': student_id}
+        )
+        # Optionally, add user to Firestore
+        db_service.add_user(user.uid, email, student['name'], 'student', student_id)
+        return jsonify({'message': 'Student account created successfully.'}), 201
+    except firebase_admin.auth.EmailAlreadyExistsError:
+        return jsonify({'error': 'Email already exists.'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
+
+@bp.route('/teachers', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def add_teacher():
+    data = request.form
+    email = data.get('email')
+    password = data.get('password')
+    classes = data.getlist('classes')  # Assuming multiple classes can be assigned
+
+    # Validate if classes exist
+    db_service = DatabaseService()
+    valid_classes = db_service.get_all_classes()
+    for cls in classes:
+        if cls not in valid_classes:
+            return jsonify({'error': f'Class {cls} does not exist.'}), 400
+
+    try:
+        # Create user in Firebase Auth
+        user = auth.create_user(
+            email=email,
+            password=password,
+            custom_claims={'role': 'teacher', 'classes': classes}
+        )
+        # Optionally, add user to Firestore
+        db_service.add_user(user.uid, email, data.get('name'), 'teacher', classes=classes)
+        return jsonify({'message': 'Teacher account created successfully.'}), 201
+    except firebase_admin.auth.EmailAlreadyExistsError:
+        return jsonify({'error': 'Email already exists.'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
+
+@bp.route('/api/get_teacher_classes')
+@login_required
+@role_required(['teacher'])
+def get_teacher_classes():
+    user = current_user
+    db_service = DatabaseService()
+    classes = db_service.get_classes_by_teacher(user.id)
+    return jsonify([{'id': cls.id, 'name': cls.name} for cls in classes]) 
