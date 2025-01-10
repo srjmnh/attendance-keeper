@@ -95,13 +95,38 @@ def manage_subjects():
         } for doc in subjects_ref]
         return render_template('admin/subjects.html', subjects=subjects)
 
-@admin_bp.route('/users')
+@admin_bp.route('/manage/users')
 @login_required
 @role_required(['admin'])
 def manage_users():
-    db = DatabaseService()
-    users = db.get_all_users()
-    return render_template('admin/users.html', users=users)
+    """Display user management page"""
+    try:
+        current_app.logger.info("Fetching users for management page")
+        users = []
+        
+        # Get all users
+        users_ref = current_app.db.collection('users')
+        docs = users_ref.get()
+        
+        for doc in docs:
+            data = doc.to_dict()
+            user_data = {
+                'id': doc.id,
+                'email': str(data.get('email', '')),
+                'name': str(data.get('name', '')),
+                'role': str(data.get('role', '')),
+                'classes': data.get('classes', []),
+                'student_id': str(data.get('student_id', ''))
+            }
+            users.append(user_data)
+            
+        current_app.logger.info(f"Found {len(users)} users")
+        return render_template('admin/users.html', users=users)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading users page: {str(e)}")
+        flash('Failed to load users. Please try again.', 'error')
+        return render_template('admin/users.html', users=[])
 
 @admin_bp.route('/manage_subjects/<subject_id>', methods=['DELETE'])
 @login_required
@@ -287,4 +312,112 @@ def add_teacher():
     except firebase_admin.auth.EmailAlreadyExistsError:
         return jsonify({'error': 'Email already exists.'}), 400
     except Exception as e:
+        return jsonify({'error': str(e)}), 500 
+
+@admin_bp.route('/api/users', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def create_user():
+    """Create a new user"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['email', 'name', 'password', 'role']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Check if user already exists
+        existing_user = current_app.db.collection('users').where('email', '==', data['email']).limit(1).get()
+        if len(list(existing_user)) > 0:
+            return jsonify({'error': 'User with this email already exists'}), 400
+        
+        # Hash password
+        data['password_hash'] = generate_password_hash(data['password'])
+        del data['password']
+        
+        # Add timestamps
+        data['created_at'] = datetime.utcnow().isoformat()
+        data['updated_at'] = data['created_at']
+        
+        # Create user
+        doc_ref = current_app.db.collection('users').document()
+        doc_ref.set(data)
+        
+        return jsonify({'message': 'User created successfully', 'id': doc_ref.id}), 201
+        
+    except Exception as e:
+        current_app.logger.error(f"Error creating user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/users/<user_id>', methods=['GET'])
+@login_required
+@role_required(['admin'])
+def get_user(user_id):
+    """Get user details"""
+    try:
+        doc = current_app.db.collection('users').document(user_id).get()
+        if not doc.exists:
+            return jsonify({'error': 'User not found'}), 404
+            
+        user_data = doc.to_dict()
+        user_data['id'] = doc.id
+        
+        # Remove sensitive data
+        user_data.pop('password_hash', None)
+        user_data.pop('password', None)
+        
+        return jsonify(user_data)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/users/<user_id>', methods=['PUT'])
+@login_required
+@role_required(['admin'])
+def update_user(user_id):
+    """Update user details"""
+    try:
+        data = request.get_json()
+        doc_ref = current_app.db.collection('users').document(user_id)
+        
+        if not doc_ref.get().exists:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Handle password update
+        if data.get('password'):
+            data['password_hash'] = generate_password_hash(data['password'])
+            del data['password']
+        
+        # Update timestamp
+        data['updated_at'] = datetime.utcnow().isoformat()
+        
+        # Update user
+        doc_ref.update(data)
+        
+        return jsonify({'message': 'User updated successfully'})
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/users/<user_id>', methods=['DELETE'])
+@login_required
+@role_required(['admin'])
+def delete_user(user_id):
+    """Delete user"""
+    try:
+        doc_ref = current_app.db.collection('users').document(user_id)
+        
+        if not doc_ref.get().exists:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Delete user
+        doc_ref.delete()
+        
+        return jsonify({'message': 'User deleted successfully'})
+        
+    except Exception as e:
+        current_app.logger.error(f"Error deleting user: {str(e)}")
         return jsonify({'error': str(e)}), 500 

@@ -135,6 +135,14 @@
                                 
                                 <div class="divider my-4"></div>
                                 
+                                {% if current_user.role == 'admin' %}
+                                    <a href="{{ url_for('admin.manage_users') }}"
+                                       class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_users' %}bg-primary text-primary-content{% endif %}">
+                                        <i class="ri-user-settings-line text-xl"></i>
+                                        <span class="font-medium">Manage Users</span>
+                                    </a>
+                                {% endif %}
+                                
                                 <a href="{{ url_for('admin.manage_subjects') }}"
                                    class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content{% endif %}">
                                     <i class="ri-book-line text-xl"></i>
