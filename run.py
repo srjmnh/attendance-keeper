@@ -4,6 +4,9 @@ from app.services.db_service import DatabaseService
 from app.routes import admin, auth, main, ai, attendance, recognition
 import os
 import boto3
+from app.routes.admin import bp as admin_bp
+from app.routes.attendance import bp as attendance_bp
+from app.blueprints.main.routes import main_bp
 
 COLLECTION_ID = "students"  # Hardcode the collection ID to match the example code
 
@@ -48,13 +51,10 @@ def create_app():
     def load_user(user_id):
         return db.get_user_by_id(user_id)
     
-    # Register blueprints
-    app.register_blueprint(admin.bp)
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(main.bp)
-    app.register_blueprint(ai.bp)
-    app.register_blueprint(attendance.bp)
-    app.register_blueprint(recognition.bp)
+    # Register Blueprints
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(attendance_bp)
+    app.register_blueprint(main_bp)
     
     return app
 
