@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, current_app, render_template
+from flask import Blueprint, jsonify, request, current_app, render_template, flash, redirect, url_for
 from flask_login import login_required, current_user
 from app.utils.decorators import role_required
 from datetime import datetime, timedelta
@@ -130,6 +130,30 @@ def register_face():
         existing_student = current_app.db.collection('users').where('student_id', '==', student_id).get()
         if len(list(existing_student)) > 0:
             return jsonify({"error": "Student ID already exists"}), 400
+            
+        # Check if face already exists in the collection
+        try:
+            rekognition_service = RekognitionService()
+            faces = rekognition_service.detect_faces(enhanced_image_bytes)
+            if not faces:
+                return jsonify({"error": "No face detected in the image. Please try with a clearer photo"}), 400
+                
+            # Search for similar faces
+            face = faces[0]
+            match = rekognition_service.search_face(face, enhanced_image_bytes)
+            if match:
+                # Get the matched student's details
+                matched_student_ref = current_app.db.collection('users').where('student_id', '==', match['student_id']).limit(1).get()
+                if matched_student_ref:
+                    matched_student = matched_student_ref[0].to_dict()
+                    return jsonify({
+                        "error": f"This face is already registered for student {matched_student.get('name')} (ID: {matched_student.get('student_id')}) in class {matched_student.get('class')}-{matched_student.get('division')}"
+                    }), 400
+                else:
+                    return jsonify({"error": "This face is already registered in the system"}), 400
+        except Exception as e:
+            current_app.logger.error(f"Error checking for existing face: {str(e)}")
+            return jsonify({"error": "Failed to check for existing face. Please try again"}), 500
         
         # Index face in AWS Rekognition
         try:
@@ -329,4 +353,126 @@ def recognize():
         
     except Exception as e:
         current_app.logger.error(f"Recognition error: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
+
+@recognition_bp.route('/take_attendance')
+@login_required
+def take_attendance():
+    """Take attendance using face recognition"""
+    if current_user.role != 'student':
+        flash('Only students can use this feature', 'error')
+        return redirect(url_for('main.dashboard'))
+        
+    return render_template('recognition/take_attendance.html') 
+
+@recognition_bp.route('/verify_attendance', methods=['POST'])
+@login_required
+def verify_attendance():
+    """Verify student attendance using multiple face photos"""
+    if current_user.role != 'student':
+        return jsonify({'error': 'Only students can use this feature'}), 403
+        
+    try:
+        # Get all photos from the request
+        photos = []
+        for i in range(1, 6):  # We expect 5 photos
+            photo_data = request.form.get(f'photo{i}')
+            if not photo_data:
+                return jsonify({'error': 'Missing required photos'}), 400
+                
+            # Clean base64 image data
+            if 'base64,' in photo_data:
+                photo_data = photo_data.split('base64,')[1]
+                
+            # Decode base64 image
+            photo_bytes = base64.b64decode(photo_data)
+            photos.append(photo_bytes)
+            
+        # Initialize Rekognition service
+        rekognition_service = RekognitionService()
+        
+        # Process each photo
+        matches = []
+        for photo in photos:
+            faces = rekognition_service.detect_faces(photo)
+            if not faces:
+                continue
+                
+            # We only expect one face in the photo
+            face = faces[0]
+            match = rekognition_service.search_face(face, photo)
+            if match:
+                matches.append(match)
+        
+        if not matches:
+            return jsonify({'error': 'No matching face found in any of the photos'}), 400
+            
+        # Verify that all matches are for the same student
+        student_ids = set(match['student_id'] for match in matches)
+        if len(student_ids) > 1:
+            return jsonify({'error': 'Inconsistent face matches detected'}), 400
+            
+        # Verify that the matched student is the current user
+        student_id = list(student_ids)[0]
+        student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+        
+        if not student_ref:
+            return jsonify({'error': 'Student not found in database'}), 404
+            
+        student_doc = student_ref[0]
+        student_data = student_doc.to_dict()
+        
+        if student_data.get('email') != current_user.email:
+            return jsonify({'error': 'Face match does not correspond to logged in user'}), 403
+            
+        # Calculate average confidence
+        avg_confidence = sum(match['confidence'] for match in matches) / len(matches)
+        
+        # Mark attendance
+        attendance_data = {
+            'student_id': student_id,
+            'student_name': student_data.get('name', ''),
+            'class': student_data.get('class', ''),
+            'division': student_data.get('division', ''),
+            'class_id': f"{student_data.get('class')}-{student_data.get('division')}",
+            'status': 'PRESENT',
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'timestamp': datetime.now().isoformat(),
+            'marked_by': 'self',
+            'confidence': avg_confidence,
+            'photos_matched': len(matches)
+        }
+        
+        # Check if attendance already exists for today
+        today = datetime.now().strftime('%Y-%m-%d')
+        existing_attendance = current_app.db.collection('attendance').where(
+            'student_id', '==', student_id
+        ).where('date', '==', today).get()
+        
+        if existing_attendance:
+            # Update existing attendance
+            doc = existing_attendance[0]
+            doc.reference.update({
+                'status': 'PRESENT',
+                'timestamp': datetime.now().isoformat(),
+                'marked_by': 'self',
+                'confidence': avg_confidence,
+                'photos_matched': len(matches)
+            })
+            current_app.logger.info(f"Updated attendance for student {student_id}")
+        else:
+            # Add new attendance record
+            doc_ref = current_app.db.collection('attendance').add(attendance_data)
+            current_app.logger.info(f"Created new attendance record for student {student_id}")
+            
+        return jsonify({
+            'message': 'Attendance marked successfully',
+            'data': {
+                'confidence': avg_confidence,
+                'photos_matched': len(matches)
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error verifying attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500 

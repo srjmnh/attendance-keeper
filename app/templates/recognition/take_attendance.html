@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Take Attendance - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Take Attendance</h1>
+            <p class="text-base-content/60">Use your camera to mark your attendance</p>
+        </div>
+    </div>
+
+    <!-- Camera Feed and Controls -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Camera Feed -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Camera Feed</h2>
+                <div class="space-y-4">
+                    <!-- Camera Feed -->
+                    <div class="relative aspect-video bg-base-300 rounded-lg overflow-hidden">
+                        <video id="cameraFeed" class="w-full h-full object-cover" autoplay playsinline></video>
+                        
+                        <!-- Face Detection Overlay -->
+                        <div id="faceOverlay" class="absolute inset-0 pointer-events-none">
+                            <!-- Face detection box will be drawn here -->
+                        </div>
+                        
+                        <!-- Status Indicator -->
+                        <div class="absolute bottom-4 left-4 right-4">
+                            <div id="statusIndicator" class="alert alert-info">
+                                <i class="ri-information-line"></i>
+                                <span>Position your face in the center and ensure good lighting</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Photo Progress -->
+                    <div class="w-full bg-base-200 rounded-full h-2.5">
+                        <div id="progressBar" class="bg-primary h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center text-sm text-base-content/60">
+                        <span id="photoCount">0</span>/5 photos captured
+                    </div>
+                    
+                    <!-- Camera Controls -->
+                    <div class="flex justify-between items-center">
+                        <button id="switchCameraBtn" class="btn btn-circle btn-outline">
+                            <i class="ri-camera-switch-line"></i>
+                        </button>
+                        
+                        <button id="captureBtn" class="btn btn-primary gap-2">
+                            <i class="ri-camera-line"></i>
+                            Capture Photo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions and Status -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Instructions</h2>
+                <div class="space-y-4">
+                    <div class="alert alert-info">
+                        <i class="ri-information-line"></i>
+                        <div>
+                            <h3 class="font-bold">How to mark your attendance:</h3>
+                            <ul class="list-disc list-inside mt-2">
+                                <li>Ensure you are in a well-lit area</li>
+                                <li>Position your face clearly in the camera</li>
+                                <li>Look directly at the camera</li>
+                                <li>Capture 5 photos from slightly different angles</li>
+                                <li>Stay still while photos are being processed</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div id="photoPreview" class="grid grid-cols-5 gap-2">
+                        <!-- Photo previews will be shown here -->
+                    </div>
+                    
+                    <div id="attendanceStatus">
+                        <!-- Status will be shown here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let stream = null;
+let processing = false;
+let capturedPhotos = [];
+const REQUIRED_PHOTOS = 5;
+
+async function initCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            } 
+        });
+        document.getElementById('cameraFeed').srcObject = stream;
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        showToast('Error accessing camera. Please ensure camera permissions are granted.', 'error');
+    }
+}
+
+async function switchCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+    
+    try {
+        const currentFacingMode = stream?.getVideoTracks()[0]?.getSettings()?.facingMode;
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: currentFacingMode === 'user' ? 'environment' : 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        });
+        document.getElementById('cameraFeed').srcObject = stream;
+    } catch (error) {
+        console.error('Error switching camera:', error);
+        showToast('Error switching camera', 'error');
+    }
+}
+
+async function capturePhoto() {
+    if (processing || capturedPhotos.length >= REQUIRED_PHOTOS) return;
+    
+    const captureBtn = document.getElementById('captureBtn');
+    const statusIndicator = document.getElementById('statusIndicator');
+    
+    try {
+        processing = true;
+        captureBtn.disabled = true;
+        
+        // Capture photo
+        const video = document.getElementById('cameraFeed');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Convert to base64
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        capturedPhotos.push(photoData);
+        
+        // Update UI
+        updatePhotoProgress();
+        addPhotoPreview(photoData);
+        
+        if (capturedPhotos.length === REQUIRED_PHOTOS) {
+            captureBtn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i>Processing...';
+            statusIndicator.className = 'alert alert-warning';
+            statusIndicator.innerHTML = '<i class="ri-loader-4-line animate-spin"></i><span>Processing your attendance...</span>';
+            
+            // Send all photos to server
+            await markAttendance();
+        }
+    } catch (error) {
+        console.error('Error capturing photo:', error);
+        showToast(error.message, 'error');
+    } finally {
+        processing = false;
+        captureBtn.disabled = false;
+        
+        if (capturedPhotos.length < REQUIRED_PHOTOS) {
+            captureBtn.innerHTML = '<i class="ri-camera-line"></i>Capture Photo';
+        }
+    }
+}
+
+function updatePhotoProgress() {
+    const progress = (capturedPhotos.length / REQUIRED_PHOTOS) * 100;
+    document.getElementById('progressBar').style.width = `${progress}%`;
+    document.getElementById('photoCount').textContent = capturedPhotos.length;
+}
+
+function addPhotoPreview(photoData) {
+    const previewContainer = document.getElementById('photoPreview');
+    const preview = document.createElement('div');
+    preview.className = 'aspect-square rounded bg-base-300 overflow-hidden';
+    preview.innerHTML = `<img src="${photoData}" class="w-full h-full object-cover">`;
+    previewContainer.appendChild(preview);
+}
+
+async function markAttendance() {
+    try {
+        const formData = new FormData();
+        capturedPhotos.forEach((photo, index) => {
+            formData.append(`photo${index + 1}`, photo);
+        });
+        
+        const response = await fetch('/recognition/verify_attendance', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showToast('Attendance marked successfully!', 'success');
+            const statusIndicator = document.getElementById('statusIndicator');
+            statusIndicator.className = 'alert alert-success';
+            statusIndicator.innerHTML = '<i class="ri-checkbox-circle-line"></i><span>Attendance marked successfully!</span>';
+            
+            // Show attendance details
+            const attendanceStatus = document.getElementById('attendanceStatus');
+            attendanceStatus.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="ri-checkbox-circle-line"></i>
+                    <div>
+                        <h3 class="font-bold">Attendance Recorded</h3>
+                        <p class="text-sm">Time: ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                </div>
+            `;
+            
+            // Disable capture button
+            const captureBtn = document.getElementById('captureBtn');
+            captureBtn.disabled = true;
+            captureBtn.innerHTML = '<i class="ri-checkbox-circle-line"></i>Completed';
+        } else {
+            throw new Error(result.error || 'Failed to mark attendance');
+        }
+    } catch (error) {
+        console.error('Error marking attendance:', error);
+        showToast(error.message, 'error');
+        const statusIndicator = document.getElementById('statusIndicator');
+        statusIndicator.className = 'alert alert-error';
+        statusIndicator.innerHTML = `<i class="ri-error-warning-line"></i><span>${error.message}</span>`;
+        
+        // Reset captured photos to allow retry
+        capturedPhotos = [];
+        updatePhotoProgress();
+        document.getElementById('photoPreview').innerHTML = '';
+        const captureBtn = document.getElementById('captureBtn');
+        captureBtn.disabled = false;
+        captureBtn.innerHTML = '<i class="ri-camera-line"></i>Capture Photo';
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : 
+                     type === 'error' ? 'error-warning' : 
+                     'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    initCamera();
+    document.getElementById('switchCameraBtn').addEventListener('click', switchCamera);
+    document.getElementById('captureBtn').addEventListener('click', capturePhoto);
+});
+</script>
+{% endblock %} 

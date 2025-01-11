@@ -196,6 +196,12 @@
                                     <i class="ri-calendar-check-line text-xl"></i>
                                     <span class="font-medium">My Attendance</span>
                                 </a>
+                                
+                                <a href="{{ url_for('recognition.take_attendance') }}"
+                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'recognition.take_attendance' %}bg-primary text-primary-content{% endif %}">
+                                    <i class="ri-camera-line text-xl"></i>
+                                    <span class="font-medium">Take Attendance</span>
+                                </a>
                             {% endif %}
                         {% endif %}
                     </nav>
