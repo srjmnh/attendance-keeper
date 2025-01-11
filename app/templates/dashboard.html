@@ -724,36 +724,64 @@ function selectClass(classId, classNum, division) {
     document.getElementById('studentDivision').value = division;
 }
 
-// Load subjects when the page loads
-document.addEventListener('DOMContentLoaded', function() {
-    loadSubjects();
-});
-
 // Function to load subjects
 async function loadSubjects() {
     try {
+        console.log('Fetching subjects...');
         const response = await fetch('/admin/api/subjects');
         const data = await response.json();
         
         if (data.error) {
+            console.error('Error loading subjects:', data.error);
             showToast(data.error, 'error');
             return;
         }
         
         const subjectSelect = document.getElementById('subjectSelect');
+        if (!subjectSelect) {
+            console.error('Subject select element not found');
+            return;
+        }
+        
         subjectSelect.innerHTML = '<option value="">Select Subject</option>';
         
-        data.subjects.forEach(subject => {
-            const option = document.createElement('option');
-            option.value = subject.id;
-            option.setAttribute('data-name', subject.name);
-            option.textContent = subject.name;
-            subjectSelect.appendChild(option);
-        });
+        if (data.subjects && Array.isArray(data.subjects)) {
+            // Sort subjects by class_id and then by name
+            data.subjects.sort((a, b) => {
+                if (a.class_id === b.class_id) {
+                    return a.name.localeCompare(b.name);
+                }
+                return a.class_id.localeCompare(b.class_id);
+            });
+            
+            data.subjects.forEach(subject => {
+                const option = document.createElement('option');
+                option.value = subject.id;
+                option.textContent = `${subject.name} (Class ${subject.class_id})`;
+                option.dataset.classId = subject.class_id;
+                subjectSelect.appendChild(option);
+            });
+            
+            if (data.subjects.length === 0) {
+                console.warn('No subjects available');
+                showToast('No subjects available for your classes', 'warning');
+            } else {
+                console.log(`Loaded ${data.subjects.length} subjects`);
+            }
+        } else {
+            console.error('Invalid subject data:', data);
+            showToast('Invalid subject data received', 'error');
+        }
     } catch (error) {
         console.error('Error loading subjects:', error);
         showToast('Failed to load subjects', 'error');
     }
 }
+
+// Load subjects when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing dashboard...');
+    loadSubjects();
+});
 </script>
 {% endblock %} 

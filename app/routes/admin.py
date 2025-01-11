@@ -83,44 +83,34 @@ def manage_students():
 @role_required(['admin'])
 def manage_subjects():
     """Manage subjects (add, edit, view)"""
-    if request.method == "POST":
-        # Handle form submission for adding or updating a subject
-        subject_id = request.form.get("subject_id")
-        subject_name = request.form.get("subject_name")
-        subject_details = request.form.get("subject_details")
-
-        if not subject_name:
-            flash("Subject name is required.", "error")
-            return redirect(url_for('admin.manage_subjects'))
-
+    if request.method == 'POST':
         try:
-            if subject_id:
-                # Update existing subject
-                subject_ref = current_app.db.collection("subjects").document(subject_id)
-                subject_ref.update({
-                    "name": subject_name,
-                    "details": subject_details
-                })
-                flash("Subject updated successfully.", "success")
-            else:
-                # Add new subject
-                current_app.db.collection("subjects").add({
-                    "name": subject_name,
-                    "details": subject_details
-                })
-                flash("Subject added successfully.", "success")
+            data = request.json
+            name = data.get('name')
+            class_id = data.get('class_id')  # Format: "1-A", "2-B", etc.
+            
+            if not name or not class_id:
+                return jsonify({'error': 'Subject name and class are required'}), 400
+                
+            # Add subject to database
+            subject_data = {
+                'name': name,
+                'class_id': class_id,
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+            doc_ref = current_app.db.collection('subjects').add(subject_data)
+            return jsonify({
+                'message': 'Subject added successfully',
+                'id': doc_ref[1].id
+            }), 201
+            
         except Exception as e:
-            flash(f"Error managing subject: {str(e)}", "error")
-        
-        return redirect(url_for('admin.manage_subjects'))
-    else:
-        # Handle GET request
-        subjects_ref = current_app.db.collection('subjects').stream()
-        subjects = [{
-            'id': doc.id,
-            'name': doc.to_dict().get('name', '')
-        } for doc in subjects_ref]
-        return render_template('admin/subjects.html', subjects=subjects)
+            current_app.logger.error(f"Error adding subject: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+            
+    # GET request - return template
+    return render_template('admin/subjects.html')
 
 @admin_bp.route('/manage/users')
 @login_required
@@ -571,11 +561,31 @@ def delete_user(user_id):
         current_app.logger.error(f"Error deleting user: {str(e)}")
         return jsonify({'error': str(e)}), 500 
 
-@admin_bp.route('/api/subjects')
+@admin_bp.route('/api/subjects/list', methods=['GET'])
 @login_required
-@role_required(['admin', 'teacher'])
+def list_subjects():
+    """List all subjects with their class associations"""
+    try:
+        subjects_ref = current_app.db.collection('subjects')
+        subjects = []
+        
+        for doc in subjects_ref.stream():
+            subject_data = doc.to_dict()
+            subjects.append({
+                'id': doc.id,
+                'name': subject_data.get('name', ''),
+                'class_id': subject_data.get('class_id', '')
+            })
+        
+        return jsonify(subjects)
+    except Exception as e:
+        current_app.logger.error(f"Error listing subjects: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/subjects', methods=['GET'])
+@login_required
 def get_subjects():
-    """Get all subjects or teacher-specific subjects"""
+    """Get subjects based on user role"""
     try:
         subjects = []
         subjects_ref = current_app.db.collection('subjects')
@@ -585,19 +595,73 @@ def get_subjects():
             docs = subjects_ref.stream()
             subjects = [{
                 'id': doc.id,
-                'name': doc.to_dict().get('name', '')
+                'name': doc.to_dict().get('name', ''),
+                'class_id': doc.to_dict().get('class_id', '')
             } for doc in docs]
         else:
-            # Teachers see only their assigned subjects
-            for class_id in current_user.classes:
-                doc = subjects_ref.document(class_id).get()
-                if doc.exists:
+            # Teachers see subjects for their assigned classes
+            teacher_classes = getattr(current_user, 'classes', []) or []
+            docs = subjects_ref.stream()
+            
+            for doc in docs:
+                subject_data = doc.to_dict()
+                class_id = subject_data.get('class_id', '')
+                
+                # Check if the subject's class matches any of teacher's assigned classes
+                if class_id in teacher_classes:
                     subjects.append({
                         'id': doc.id,
-                        'name': doc.to_dict().get('name', '')
+                        'name': subject_data.get('name', ''),
+                        'class_id': class_id
                     })
         
+        current_app.logger.info(f"Found {len(subjects)} subjects for user {current_user.email}")
         return jsonify({'subjects': subjects})
     except Exception as e:
         current_app.logger.error(f"Error getting subjects: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/subjects', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def create_subject():
+    """Create a new subject"""
+    try:
+        data = request.json
+        name = data.get('name')
+        class_id = data.get('class_id')  # Format: "1-A", "2-B", etc.
+        
+        if not name or not class_id:
+            return jsonify({'error': 'Subject name and class are required'}), 400
+        
+        # Validate class_id format
+        try:
+            class_num, division = class_id.split('-')
+            if not (1 <= int(class_num) <= 12 and division in ['A', 'B', 'C', 'D']):
+                return jsonify({'error': 'Invalid class format. Must be like "1-A", "2-B", etc.'}), 400
+        except (ValueError, AttributeError):
+            return jsonify({'error': 'Invalid class format. Must be like "1-A", "2-B", etc.'}), 400
+        
+        # Add subject to database
+        subject_data = {
+            'name': name,
+            'class_id': class_id,
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        doc_ref = current_app.db.collection('subjects').add(subject_data)
+        
+        return jsonify({
+            'message': 'Subject added successfully',
+            'id': doc_ref[1].id,
+            'subject': {
+                'id': doc_ref[1].id,
+                'name': name,
+                'class_id': class_id
+            }
+        }), 201
+        
+    except Exception as e:
+        current_app.logger.error(f"Error creating subject: {str(e)}")
         return jsonify({'error': str(e)}), 500 
