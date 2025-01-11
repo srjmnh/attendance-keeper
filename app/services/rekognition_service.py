@@ -169,3 +169,37 @@ class RekognitionService:
         except Exception as e:
             current_app.logger.error(f"Error in face detection: {str(e)}")
             raise 
+    
+    def search_face(self, face, image_bytes):
+        """Search for a single face in the collection"""
+        try:
+            # Crop the face using its bounding box
+            face_bytes = self.crop_face(image_bytes, face['BoundingBox'])
+            
+            # Search for the cropped face
+            response = self.client.search_faces_by_image(
+                CollectionId=self.collection_id,
+                Image={'Bytes': face_bytes},
+                MaxFaces=1,
+                FaceMatchThreshold=80
+            )
+            
+            # Process matches
+            if 'FaceMatches' in response and response['FaceMatches']:
+                match = response['FaceMatches'][0]
+                external_id = match['Face']['ExternalImageId']
+                confidence = match['Similarity']
+                
+                # Extract student_id from external_id (format: name_studentId)
+                student_id = external_id.split('_')[-1]
+                
+                return {
+                    'student_id': student_id,
+                    'confidence': confidence
+                }
+            
+            return None
+            
+        except Exception as e:
+            current_app.logger.error(f"Error searching face: {str(e)}")
+            return None 

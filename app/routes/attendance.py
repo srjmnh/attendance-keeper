@@ -75,41 +75,60 @@ def mark_attendance():
     try:
         data = request.json
         student_id = data.get('student_id')
-        subject_id = data.get('subject_id')
         status = data.get('status', 'PRESENT')
         
-        if not all([student_id, subject_id]):
-            return jsonify({'error': 'Missing required fields'}), 400
+        if not student_id:
+            return jsonify({'error': 'Student ID is required'}), 400
             
-        # For teachers, validate they have access to this class
-        if current_user.role == 'teacher' and subject_id not in current_user.classes:
-            return jsonify({'error': 'You are not authorized to mark attendance for this class'}), 403
+        # For teachers, validate they have access to this student's class
+        if current_user.role == 'teacher':
+            student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+            if not student_ref:
+                return jsonify({'error': 'Student not found'}), 404
+                
+            student_data = student_ref[0].to_dict()
+            student_class = f"{student_data.get('class')}-{student_data.get('division')}"
             
-        # Check if student exists
-        student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
-        if not student_ref:
-            return jsonify({'error': 'Student not found'}), 404
+            if student_class not in current_user.classes:
+                return jsonify({'error': 'You are not authorized to mark attendance for this student'}), 403
             
-        student_data = student_ref[0].to_dict()
-        
         # Create attendance record
         attendance_data = {
             'student_id': student_id,
             'student_name': student_data.get('name', ''),
-            'subject_id': subject_id,
+            'class': student_data.get('class', ''),
+            'division': student_data.get('division', ''),
             'status': status,
             'date': datetime.now().strftime('%Y-%m-%d'),
-            'time': datetime.now().strftime('%H:%M:%S'),
+            'timestamp': datetime.now().isoformat(),
             'marked_by': current_user.email
         }
         
-        # Add to database
-        doc_ref = current_app.db.collection('attendance').add(attendance_data)
+        # Check if attendance already exists for today
+        today = datetime.now().strftime('%Y-%m-%d')
+        existing_attendance = current_app.db.collection('attendance').where(
+            'student_id', '==', student_id
+        ).where('date', '==', today).get()
         
-        return jsonify({
-            'message': 'Attendance marked successfully',
-            'id': doc_ref[1].id
-        }), 201
+        if existing_attendance:
+            # Update existing attendance
+            doc = existing_attendance[0]
+            doc.reference.update({
+                'status': status,
+                'timestamp': datetime.now().isoformat(),
+                'marked_by': current_user.email
+            })
+            return jsonify({
+                'message': 'Attendance updated successfully',
+                'id': doc.id
+            }), 200
+        else:
+            # Add new attendance record
+            doc_ref = current_app.db.collection('attendance').add(attendance_data)
+            return jsonify({
+                'message': 'Attendance marked successfully',
+                'id': doc_ref[1].id
+            }), 201
         
     except Exception as e:
         current_app.logger.error(f"Error marking attendance: {str(e)}")

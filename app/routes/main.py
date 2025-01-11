@@ -8,143 +8,167 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
-    """Dashboard view"""
-    # Get subjects for teachers and admins
-    subjects = []
-    if current_user.role == 'admin':
-        subjects_ref = current_app.db.collection('subjects').stream()
-        subjects = [{
-            'id': doc.id,
-            'name': doc.to_dict().get('name', '')
-        } for doc in subjects_ref]
-    elif current_user.role == 'teacher':
-        # Get subjects assigned to the teacher
-        for class_id in current_user.classes:
-            subject_doc = current_app.db.collection('subjects').document(class_id).get()
-            if subject_doc.exists:
-                subject_data = subject_doc.to_dict()
-                subjects.append({
-                    'id': subject_doc.id,
-                    'name': subject_data.get('name', '')
-                })
-    
-    # Get total students
-    students_ref = current_app.db.collection('users').where('role', '==', 'student').stream()
-    total_students = len(list(students_ref))
-    
-    # Get total subjects
-    total_subjects = len(subjects)
-    
-    # Calculate today's attendance
-    today = datetime.now().date()
-    attendance_ref = current_app.db.collection('attendance')
-    
-    # Get today's attendance records
-    today_query = attendance_ref.where('timestamp', '>=', today.isoformat())
-    today_records = list(today_query.stream())
-    
-    # Calculate attendance percentage
-    if today_records:
-        present_count = len([r for r in today_records if r.to_dict().get('status') == 'PRESENT'])
-        today_attendance = round((present_count / len(today_records)) * 100)
+    try:
+        # Initialize stats and data
+        stats = {
+            'total_students': 0,
+            'total_subjects': 0,
+            'today_attendance': 0,
+            'attendance_trend': 'No change'
+        }
         
-        # Calculate trend
-        yesterday = today - timedelta(days=1)
-        yesterday_query = attendance_ref.where('timestamp', '>=', yesterday.isoformat()).where('timestamp', '<', today.isoformat())
-        yesterday_records = list(yesterday_query.stream())
+        attendance_data = {
+            'labels': [],
+            'values': []
+        }
         
-        if yesterday_records:
-            yesterday_present = len([r for r in yesterday_records if r.to_dict().get('status') == 'PRESENT'])
-            yesterday_percentage = (yesterday_present / len(yesterday_records)) * 100
-            trend_diff = today_attendance - yesterday_percentage
-            attendance_trend = f"{'↑' if trend_diff > 0 else '↓'} {abs(round(trend_diff))}% vs yesterday"
+        # Get date range for attendance data
+        today = datetime.now().date()
+        start_date = today - timedelta(days=7)  # Last 7 days
+        today_str = today.strftime('%Y-%m-%d')
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        
+        # Get total students count
+        students_query = current_app.db.collection('users').where('role', '==', 'student')
+        
+        # For teachers, we need to filter by their assigned classes
+        teacher_classes = []
+        if current_user.role == 'teacher':
+            if not hasattr(current_user, 'classes') or not current_user.classes:
+                return render_template('dashboard.html',
+                                    stats=stats,
+                                    attendance_data=attendance_data,
+                                    attendance_records=[],
+                                    error="No classes assigned to your account.")
+            teacher_classes = current_user.classes
+            # For teachers, we'll filter after getting the documents
+            students = list(students_query.stream())
+            stats['total_students'] = sum(1 for doc in students 
+                if f"{doc.get('class')}-{doc.get('division')}" in teacher_classes)
         else:
-            attendance_trend = "No data for yesterday"
-    else:
-        today_attendance = 0
-        attendance_trend = "No attendance recorded today"
-    
-    # Get recent attendance records
-    attendance_records = []
-    query = attendance_ref
-    
-    if current_user.role == 'student':
-        # Students see only their own attendance
-        query = query.where('student_id', '==', current_user.id)
-    elif current_user.role == 'teacher':
-        # Teachers see attendance for their subjects
-        teacher_classes = getattr(current_user, 'classes', []) or []
-        if teacher_classes:
-            query = query.where('subject_id', 'in', teacher_classes)
-        else:
-            # If no classes assigned, return empty result
-            return render_template('dashboard.html',
-                                subjects=subjects,
-                                total_students=total_students,
-                                total_subjects=total_subjects,
-                                today_attendance=today_attendance,
-                                attendance_trend=attendance_trend,
-                                attendance_records=[],
-                                attendance_data={'labels': [], 'values': []})
-    
-    query = query.order_by('timestamp', direction='DESCENDING').limit(10)
-    
-    for doc in query.stream():
-        record = doc.to_dict()
-        # Format timestamp for display
-        timestamp = record.get('timestamp', '')
-        if timestamp:
-            try:
-                dt = datetime.fromisoformat(timestamp)
-                formatted_timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
-            except (ValueError, TypeError):
-                formatted_timestamp = timestamp
-        else:
-            formatted_timestamp = ''
-            
-        attendance_records.append({
-            'timestamp': formatted_timestamp,
-            'name': str(record.get('name', '')),
-            'subject_name': str(record.get('subject_name', '')),
-            'status': str(record.get('status', ''))
-        })
-    
-    # Get attendance data for chart
-    attendance_data = {
-        'labels': [],
-        'values': []
-    }
-
-    # Get last 7 days attendance
-    for i in range(6, -1, -1):
-        date = today - timedelta(days=i)
-        next_date = date + timedelta(days=1)
+            stats['total_students'] = len(list(students_query.stream()))
         
-        # Query attendance for this day
-        day_query = attendance_ref.where('timestamp', '>=', date.isoformat()).where('timestamp', '<', next_date.isoformat())
+        # Get total subjects count
+        subjects_query = current_app.db.collection('subjects')
+        if current_user.role == 'teacher':
+            # For teachers, only count subjects they teach
+            stats['total_subjects'] = len([s for s in subjects_query.stream() 
+                if s.get('class_id') in teacher_classes])
+        else:
+            stats['total_subjects'] = len(list(subjects_query.stream()))
         
-        # Apply role-based filters
+        # Initialize query for attendance
+        attendance_query = current_app.db.collection('attendance')
+        
+        # Add date range filters
+        attendance_query = attendance_query.where('date', '>=', start_date_str)
+        attendance_query = attendance_query.where('date', '<=', today_str)
+        
+        # For students, only show their own attendance
         if current_user.role == 'student':
-            day_query = day_query.where('student_id', '==', current_user.id)
-        elif current_user.role == 'teacher' and teacher_classes:
-            day_query = day_query.where('subject_id', 'in', teacher_classes)
+            attendance_query = attendance_query.where('student_id', '==', current_user.id)
         
-        day_records = list(day_query.stream())
+        # Execute query
+        attendance_docs = list(attendance_query.stream())
         
-        if day_records:
-            present_count = len([r for r in day_records if r.to_dict().get('status') == 'PRESENT'])
-            percentage = round((present_count / len(day_records)) * 100)
-        else:
-            percentage = 0
+        # Process attendance records
+        daily_attendance = {}
+        total_students = {}
         
-        attendance_data['labels'].append(date.strftime('%b %d'))
-        attendance_data['values'].append(percentage)
-
-    return render_template('dashboard.html',
-                         subjects=subjects,
-                         total_students=total_students,
-                         total_subjects=total_subjects,
-                         today_attendance=today_attendance,
-                         attendance_trend=attendance_trend,
-                         attendance_records=attendance_records,
-                         attendance_data=attendance_data) 
+        for doc in attendance_docs:
+            record = doc.to_dict()
+            date = record.get('date')
+            status = record.get('status')
+            
+            # Skip if date is missing
+            if not date:
+                continue
+            
+            # For teachers, filter by their assigned classes
+            if current_user.role == 'teacher':
+                student_class = f"{record.get('class')}-{record.get('division')}"
+                if student_class not in teacher_classes:
+                    continue
+            
+            # Initialize counters for this date
+            if date not in daily_attendance:
+                daily_attendance[date] = {'present': 0, 'total': 0}
+            if date not in total_students:
+                total_students[date] = set()
+            
+            # Count attendance
+            student_id = record.get('student_id')
+            if student_id:
+                total_students[date].add(student_id)
+                if status == 'PRESENT':
+                    daily_attendance[date]['present'] += 1
+        
+        # Calculate today's attendance percentage
+        if today_str in daily_attendance and total_students.get(today_str):
+            total = len(total_students[today_str])
+            present = daily_attendance[today_str]['present']
+            stats['today_attendance'] = round((present / total * 100) if total > 0 else 0)
+        
+        # Calculate attendance trend
+        if len(daily_attendance) >= 2:
+            dates = sorted(daily_attendance.keys())
+            today_percent = (daily_attendance[dates[-1]]['present'] / len(total_students[dates[-1]])) * 100 if dates[-1] in total_students and len(total_students[dates[-1]]) > 0 else 0
+            yesterday_percent = (daily_attendance[dates[-2]]['present'] / len(total_students[dates[-2]])) * 100 if dates[-2] in total_students and len(total_students[dates[-2]]) > 0 else 0
+            diff = today_percent - yesterday_percent
+            if diff > 0:
+                stats['attendance_trend'] = f"↑ {abs(round(diff))}% increase"
+            elif diff < 0:
+                stats['attendance_trend'] = f"↓ {abs(round(diff))}% decrease"
+        
+        # Calculate attendance percentage for each day
+        for date in sorted(daily_attendance.keys()):
+            attendance_data['labels'].append(str(date))
+            total = len(total_students[date])
+            present = daily_attendance[date]['present']
+            percentage = round((present / total * 100) if total > 0 else 0, 2)
+            attendance_data['values'].append(float(percentage))
+        
+        # Get recent attendance records
+        recent_query = current_app.db.collection('attendance').order_by('timestamp', direction='DESCENDING').limit(5)
+        recent_records = []
+        
+        for doc in recent_query.stream():
+            record = doc.to_dict()
+            
+            # For teachers, filter by their assigned classes
+            if current_user.role == 'teacher':
+                student_class = f"{record.get('class')}-{record.get('division')}"
+                if student_class not in teacher_classes:
+                    continue
+            
+            # Ensure name is a string and not None
+            name = record.get('student_name', '')
+            if not name:
+                name = record.get('name', 'Unknown')
+            
+            # Convert record values to JSON serializable types
+            recent_records.append({
+                'name': str(name),
+                'class': str(record.get('class', '')),
+                'division': str(record.get('division', '')),
+                'timestamp': str(record.get('timestamp', '')),
+                'status': str(record.get('status', 'UNKNOWN')),
+                'subject_name': str(record.get('subject_name', ''))
+            })
+        
+        return render_template('dashboard.html',
+                             stats=stats,
+                             attendance_data=attendance_data,
+                             attendance_records=recent_records)
+                             
+    except Exception as e:
+        current_app.logger.error(f"Error loading dashboard: {str(e)}")
+        return render_template('dashboard.html',
+                             stats={
+                                 'total_students': 0,
+                                 'total_subjects': 0,
+                                 'today_attendance': 0,
+                                 'attendance_trend': 'No data'
+                             },
+                             attendance_data={'labels': [], 'values': []},
+                             attendance_records=[]) 

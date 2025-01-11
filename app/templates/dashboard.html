@@ -92,16 +92,6 @@
                 
                 <!-- Controls Section -->
                 <div class="space-y-4">
-                    <!-- Subject Selection -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text">Subject</span>
-                        </label>
-                        <select id="subjectSelect" class="select select-bordered w-full">
-                            <option value="">Select Subject</option>
-                        </select>
-                    </div>
-                    
                     <!-- Camera Controls -->
                     <div class="flex flex-col gap-2 mt-4">
                         <button onclick="captureAndRecognize()" class="btn btn-primary btn-sm gap-2">
@@ -210,15 +200,14 @@
                     <div class="flex items-start gap-3">
                         <div class="avatar placeholder">
                             <div class="w-8 h-8 rounded-lg bg-primary text-primary-content">
-                                <span>{{ record.name[0].upper() }}</span>
+                                <span>{{ record.name[0].upper() if record.name else 'U' }}</span>
                             </div>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="font-medium">{{ record.name }}</p>
+                            <p class="font-medium">{{ record.name or 'Unknown' }}</p>
                             <p class="text-sm opacity-60">{{ record.subject_name }}</p>
-                            <p class="text-xs opacity-50">{{ record.timestamp }}</p>
                         </div>
-                        <div class="badge badge-{{ record.status|lower }}">
+                        <div class="badge badge-{{ 'success' if record.status == 'PRESENT' else 'error' }}">
                             {{ record.status }}
                         </div>
                     </div>
@@ -338,15 +327,6 @@ function stopCamera() {
 }
 
 async function captureAndRecognize() {
-    const subjectSelect = document.getElementById('subjectSelect');
-    const subjectId = subjectSelect.value;
-    const subjectName = subjectSelect.selectedOptions[0]?.dataset?.name;
-    
-    if (!subjectId) {
-        alert('Please select a subject first');
-        return;
-    }
-    
     if (!stream) {
         alert('Please start the camera first');
         return;
@@ -360,7 +340,7 @@ async function captureAndRecognize() {
         
         // Convert to base64
         const imageData = canvas.toDataURL('image/jpeg', 0.9);
-        await recognizeFaces(imageData, subjectId, subjectName);
+        await recognizeFaces(imageData);
     } catch (error) {
         console.error('Recognition failed:', error);
         showToast(error.message, 'error');
@@ -450,7 +430,7 @@ async function registerFace(imageData, name, studentId, studentClass, division) 
 }
 
 // Function to handle face recognition
-async function recognizeFaces(imageData, subjectId, subjectName) {
+async function recognizeFaces(imageData) {
     try {
         recognitionModal.showModal();
         updateRecognitionProgress(0, 'Starting face recognition...');
@@ -464,9 +444,7 @@ async function recognizeFaces(imageData, subjectId, subjectName) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                image: base64Image,
-                subject_id: subjectId,
-                subject_name: subjectName
+                image: base64Image
             })
         });
 
@@ -569,18 +547,9 @@ function switchMode(mode) {
 async function handleRecognitionUpload() {
     const file = document.getElementById('recognitionFile').files[0];
     if (file) {
-        const subjectSelect = document.getElementById('subjectSelect');
-        const subjectId = subjectSelect.value;
-        const subjectName = subjectSelect.selectedOptions[0]?.dataset?.name;
-        
-        if (!subjectId) {
-            alert('Please select a subject first');
-            return;
-        }
-        
         try {
             const imageData = await fileToBase64(file);
-            await recognizeFaces(imageData, subjectId, subjectName);
+            await recognizeFaces(imageData);
         } catch (error) {
             console.error('Recognition failed:', error);
             showToast(error.message, 'error');

@@ -11,6 +11,7 @@ import logging
 import boto3
 import os
 import time
+from app.services.rekognition_service import RekognitionService
 
 recognition_bp = Blueprint('recognition', __name__)
 
@@ -196,194 +197,114 @@ def register_face():
 
 @recognition_bp.route('/recognize', methods=['POST'])
 @login_required
-def recognize_face():
-    """Recognize faces in an image"""
+@role_required(['admin', 'teacher'])
+def recognize():
+    """Recognize faces in an image and mark attendance"""
     try:
-        data = request.get_json()
-        image = data.get('image', '')
-        subject_id = data.get('subject_id', '')
+        data = request.json
+        image_data = data.get('image')
         
-        if not image:
-            return jsonify({"error": "No image provided"}), 400
-
-        # Process image
-        image_data = image.split(",")[1] if "," in image else image
+        if not image_data:
+            return jsonify({'error': 'No image data provided'}), 400
+            
+        # Clean base64 image data
+        if 'base64,' in image_data:
+            image_data = image_data.split('base64,')[1]
+            
+        # Decode base64 image
         image_bytes = base64.b64decode(image_data)
-
-        # Enhance image before detection
-        pil_image = Image.open(io.BytesIO(image_bytes))
-        enhanced_image = enhance_image(pil_image)
-        buffered = io.BytesIO()
-        enhanced_image.save(buffered, format="JPEG")
-        enhanced_image_bytes = buffered.getvalue()
-
-        # Detect faces
-        detect_response = current_app.rekognition.detect_faces(
-            Image={'Bytes': enhanced_image_bytes},
-            Attributes=['ALL']
-        )
-        faces = detect_response.get('FaceDetails', [])
-        face_count = len(faces)
-        identified_people = []
-
-        if face_count == 0:
+        
+        # Use AWS Rekognition to detect faces
+        rekognition_service = RekognitionService()
+        faces = rekognition_service.detect_faces(image_bytes)
+        
+        if not faces:
             return jsonify({
-                "message": "No faces detected in the image.",
-                "total_faces": face_count,
-                "identified_people": identified_people
-            }), 200
-
-        # Get subject details if provided
-        subject_name = ""
-        if subject_id:
-            subject_doc = current_app.db.collection('subjects').document(subject_id).get()
-            if subject_doc.exists:
-                subject_name = subject_doc.to_dict().get('name', '')
-
-        # Process each detected face
-        for idx, face in enumerate(faces):
+                'message': 'No faces detected in the image',
+                'total_faces': 0,
+                'identified_people': []
+            })
+            
+        # Search for each face in the collection
+        identified_people = []
+        for face in faces:
             try:
-                # Get the bounding box for this face
-                bbox = face.get('BoundingBox')
-                if not bbox:
-                    current_app.logger.error(f"No bounding box found for face {idx+1}")
-                    continue
-
-                # Crop the face using the bounding box
-                image = Image.open(io.BytesIO(enhanced_image_bytes))
-                width, height = image.size
-                left = int(bbox['Left'] * width)
-                top = int(bbox['Top'] * height)
-                right = int((bbox['Left'] + bbox['Width']) * width)
-                bottom = int((bbox['Top'] + bbox['Height']) * height)
-
-                # Add padding
-                padding = int(min(width, height) * 0.1)
-                left = max(0, left - padding)
-                top = max(0, top - padding)
-                right = min(width, right + padding)
-                bottom = min(height, bottom + padding)
-
-                face_image = image.crop((left, top, right, bottom))
-                
-                # Convert cropped face to bytes
-                buffered = io.BytesIO()
-                face_image.save(buffered, format="JPEG")
-                face_bytes = buffered.getvalue()
-
-                try:
-                    # Search for the cropped face using AWS Rekognition directly
-                    search_response = current_app.rekognition.search_faces_by_image(
-                        CollectionId=COLLECTION_ID,
-                        Image={'Bytes': face_bytes},
-                        MaxFaces=1,
-                        FaceMatchThreshold=60
-                    )
-                    matches = search_response.get('FaceMatches', [])
+                match = rekognition_service.search_face(face, image_bytes)
+                if match:
+                    student_id = match['student_id']
+                    confidence = match['confidence']
                     
-                except Exception as e:
-                    current_app.logger.error(f"Error searching face {idx+1}: {str(e)}")
-                    identified_people.append({
-                        "message": "Face not recognized",
-                        "confidence": "N/A"
-                    })
-                    continue
-
-                if not matches:
-                    identified_people.append({
-                        "message": "Face not recognized",
-                        "confidence": "N/A"
-                    })
-                    continue
-
-                # Process match
-                match = matches[0]
-                ext_id = match['Face']['ExternalImageId']
-                confidence = match['Face']['Confidence']
-
-                current_app.logger.info(f"Found match with external ID: {ext_id} and confidence: {confidence}")
-
-                # Get student details from Firestore
-                student_query = current_app.db.collection('users').where('face_id', '==', ext_id).limit(1).get()
-                student_docs = list(student_query)
-                
-                if not student_docs:
-                    # Try searching by student ID (in case face_id field is missing)
-                    student_id = ext_id.split('_')[-1]  # Get student ID from external_image_id
-                    current_app.logger.info(f"Trying fallback search with student_id: {student_id}")
-                    student_query = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
-                    student_docs = list(student_query)
-                    current_app.logger.info(f"Fallback: Found {len(student_docs)} student documents for student_id {student_id}")
-
-                if not student_docs:
-                    current_app.logger.error(f"No student found for face_id {ext_id} or student_id {student_id}")
-                    identified_people.append({
-                        "message": "Student data not found",
-                        "confidence": confidence
-                    })
-                    continue
-
-                student_doc = student_docs[0]
-                student_data = student_doc.to_dict()
-                current_app.logger.info(f"Student data: {student_data}")
-
-                # Update face_id if it's missing
-                if 'face_id' not in student_data:
-                    current_app.logger.info(f"Updating missing face_id for student {student_doc.id} to {ext_id}")
-                    current_app.db.collection('users').document(student_doc.id).update({
-                        'face_id': ext_id
-                    })
-                    current_app.logger.info(f"Updated missing face_id for student {student_doc.id}")
-
-                student_name = student_data.get('name', 'Unknown')
-                student_id = student_data.get('student_id', 'Unknown')
-                student_class = student_data.get('class', '')
-                student_division = student_data.get('division', '')
-
-                identified_people.append({
-                    "name": student_name,
-                    "student_id": student_id,
-                    "confidence": confidence,
-                    "class": student_class,
-                    "division": student_division
-                })
-
-                # Mark attendance if subject is specified
-                if subject_id:
-                    # Check if attendance already exists for today
-                    today = datetime.utcnow().date()
-                    attendance_query = current_app.db.collection('attendance')\
-                        .where('student_id', '==', student_id)\
-                        .where('subject_id', '==', subject_id)\
-                        .where('timestamp', '>=', today.isoformat())\
-                        .where('timestamp', '<', (today + timedelta(days=1)).isoformat())\
-                        .limit(1)\
-                        .get()
-                    
-                    if not list(attendance_query):
-                        current_app.db.collection('attendance').add({
-                            "student_id": student_id,
-                            "name": student_name,
-                            "subject_id": subject_id,
-                            "subject_name": subject_name,
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "status": "PRESENT"
+                    # Get student details
+                    student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+                    if student_ref:
+                        student_data = student_ref[0].to_dict()
+                        student_class = f"{student_data.get('class')}-{student_data.get('division')}"
+                        
+                        # For teachers, check if they can mark attendance for this student
+                        if current_user.role == 'teacher' and student_class not in current_user.classes:
+                            identified_people.append({
+                                'message': f'Not authorized to mark attendance for student {student_id}'
+                            })
+                            continue
+                        
+                        # Mark attendance
+                        attendance_data = {
+                            'student_id': student_id,
+                            'student_name': student_data.get('name', ''),
+                            'class': student_data.get('class', ''),
+                            'division': student_data.get('division', ''),
+                            'status': 'PRESENT',
+                            'date': datetime.now().strftime('%Y-%m-%d'),
+                            'timestamp': datetime.now().isoformat(),
+                            'marked_by': current_user.email,
+                            'confidence': confidence
+                        }
+                        
+                        # Check if attendance already exists for today
+                        today = datetime.now().strftime('%Y-%m-%d')
+                        existing_attendance = current_app.db.collection('attendance')\
+                            .where('student_id', '==', student_id)\
+                            .where('date', '==', today)\
+                            .get()
+                        
+                        if existing_attendance:
+                            # Update existing attendance
+                            doc = existing_attendance[0]
+                            doc.reference.update({
+                                'status': 'PRESENT',
+                                'timestamp': datetime.now().isoformat(),
+                                'marked_by': current_user.email,
+                                'confidence': confidence
+                            })
+                        else:
+                            # Add new attendance record
+                            current_app.db.collection('attendance').add(attendance_data)
+                        
+                        identified_people.append({
+                            'student_id': student_id,
+                            'name': student_data.get('name', ''),
+                            'confidence': confidence
                         })
-
+                    else:
+                        identified_people.append({
+                            'message': f'Student {student_id} not found in database'
+                        })
+                else:
+                    identified_people.append({
+                        'message': 'Face not registered in the system'
+                    })
             except Exception as e:
-                current_app.logger.error(f"Error processing face {idx+1}: {str(e)}")
+                current_app.logger.error(f"Error processing face: {str(e)}")
                 identified_people.append({
-                    "message": f"Error processing face {idx+1}: {str(e)}",
-                    "confidence": "N/A"
+                    'message': f'Error processing face: {str(e)}'
                 })
-                continue
-
+        
         return jsonify({
-            "message": f"{face_count} face(s) detected in the photo.",
-            "total_faces": face_count,
-            "identified_people": identified_people
-        }), 200
+            'message': 'Recognition completed',
+            'total_faces': len(faces),
+            'identified_people': identified_people
+        })
         
     except Exception as e:
-        current_app.logger.error(f"Error in face recognition: {str(e)}")
-        return jsonify({"error": f"Face recognition failed: {str(e)}"}), 500 
+        current_app.logger.error(f"Recognition error: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
