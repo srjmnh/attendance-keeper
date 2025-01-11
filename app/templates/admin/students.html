@@ -80,7 +80,7 @@
             </thead>
             <tbody id="studentsTableBody">
                 {% for student in students %}
-                <tr class="student-row {% if student.has_portal %}bg-success/10{% else %}bg-warning/10{% endif %}" 
+                <tr class="student-row {% if student.has_portal %}bg-success/20{% else %}bg-error/20{% endif %}" 
                     data-name="{{ student.name|lower }}"
                     data-id="{{ student.student_id|lower }}"
                     data-class="{{ student.class }}"
@@ -97,9 +97,9 @@
                             </div>
                         {% else %}
                             <div class="flex items-center gap-2">
-                                <span class="badge badge-warning">Pending</span>
+                                <span class="badge badge-error">No Access</span>
                                 <button onclick="createPortalAccount('{{ student.doc_id }}', '{{ student.name }}', '{{ student.student_id }}')" 
-                                        class="btn btn-sm btn-warning">
+                                        class="btn btn-sm btn-error">
                                     Create Portal Account
                                 </button>
                             </div>

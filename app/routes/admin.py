@@ -30,14 +30,15 @@ def manage_students():
         
     try:
         current_app.logger.info("Fetching students from users collection")
-        # Get all students from users collection where role is student
-        students_ref = current_app.db.collection('users').where('role', '==', 'student').get()
         students = []
+        
+        # Get all students from users collection
+        students_ref = current_app.db.collection('users').where('role', '==', 'student').get()
         
         for doc in students_ref:
             student_data = doc.to_dict()
             student_data['doc_id'] = doc.id
-            student_data['has_portal'] = True  # Since we're getting from users collection, they all have portal accounts
+            student_data['has_portal'] = True if student_data.get('email') else False
             student_data['email'] = student_data.get('email', '')
             students.append(student_data)
             
@@ -166,16 +167,16 @@ def update_student(student_id):
         if division not in ['A', 'B', 'C', 'D']:
             return jsonify({'error': 'Division must be A, B, C, or D'}), 400
             
-        # Get student document directly by document ID
+        # Get student document
         student_ref = current_app.db.collection('users').document(student_id)
         student_doc = student_ref.get()
         
         if not student_doc.exists:
-            current_app.logger.error(f"Student not found with document ID: {student_id}")
+            current_app.logger.error(f"Student not found with ID: {student_id}")
             return jsonify({'error': 'Student not found'}), 404
             
         student_data = student_doc.to_dict()
-            
+        
         # For teachers, validate that they can manage this class
         if current_user.role == 'teacher':
             # Check if teacher can manage the current class
@@ -277,6 +278,7 @@ def create_student():
 @admin_bp.route('/add_student', methods=['POST'])
 @login_required
 def add_student():
+    """Create a student portal account"""
     if not current_user.role == 'admin':
         return jsonify({'error': 'Unauthorized'}), 403
         
@@ -284,7 +286,7 @@ def add_student():
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['email', 'password', 'name', 'role', 'student_id']
+        required_fields = ['email', 'password', 'name', 'student_id']
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
             
@@ -293,44 +295,26 @@ def add_student():
         if len(list(user_ref)) > 0:
             return jsonify({'error': 'Email already exists'}), 400
             
-        # Create user in Firebase Auth
-        user = auth.create_user(
-            email=data['email'],
-            password=data['password'],
-            display_name=data['name']
-        )
-        
         # Get the student document
-        student_ref = current_app.db.collection('students').where('student_id', '==', data['student_id']).get()
+        student_ref = current_app.db.collection('users').where('student_id', '==', data['student_id']).where('role', '==', 'student').get()
         if not student_ref:
             return jsonify({'error': 'Student not found'}), 404
             
         student_doc = list(student_ref)[0]
         student_data = student_doc.to_dict()
         
-        # Create user document in Firestore
-        user_data = {
-            'uid': user.uid,
+        # Update student document with email and password
+        update_data = {
             'email': data['email'],
-            'name': data['name'],
-            'role': 'student',
-            'student_id': data['student_id'],
-            'class': student_data.get('class'),
-            'division': student_data.get('division'),
-            'created_at': firestore.SERVER_TIMESTAMP
+            'password_hash': generate_password_hash(data['password']),
+            'updated_at': datetime.utcnow().isoformat()
         }
         
-        # Update student document with email
-        student_doc.reference.update({
-            'email': data['email']
-        })
-        
-        # Save user data
-        current_app.db.collection('users').document(user.uid).set(user_data)
+        student_doc.reference.update(update_data)
         
         return jsonify({
             'message': 'Student portal account created successfully',
-            'uid': user.uid
+            'id': student_doc.id
         })
         
     except Exception as e:
