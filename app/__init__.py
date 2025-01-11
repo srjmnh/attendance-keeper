@@ -5,7 +5,7 @@ from firebase_admin import credentials, initialize_app, firestore
 import base64
 import json
 from app.services.db_service import DatabaseService
-from datetime import timedelta
+from datetime import timedelta, datetime
 import logging
 from logging.handlers import RotatingFileHandler
 from app.utils.errors import register_error_handlers
@@ -91,7 +91,7 @@ def create_app(config_name=None):
     init_limiter(app)
     
     # Initialize custom Jinja2 filters
-    init_filters(app)
+    app = init_filters(app)
     
     # Register blueprints
     from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp

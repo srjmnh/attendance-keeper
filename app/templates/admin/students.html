@@ -12,6 +12,10 @@
         </div>
         
         <div class="flex gap-2">
+            <a href="{{ url_for('admin.register_face') }}" class="btn btn-primary gap-2">
+                <i class="ri-camera-line"></i>
+                Register New Student
+            </a>
             <button onclick="document.getElementById('uploadModal').showModal()" class="btn btn-outline gap-2">
                 <i class="ri-upload-line"></i>
                 Upload Excel

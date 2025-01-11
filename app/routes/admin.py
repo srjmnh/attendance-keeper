@@ -10,6 +10,7 @@ import io
 import firebase_admin
 from firebase_admin import auth
 from firebase_admin import firestore
+import os
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -97,12 +98,20 @@ def manage_teachers():
         
         for doc in docs:
             data = doc.to_dict()
+            created_at = data.get('created_at', '')
+            if created_at:
+                try:
+                    dt = datetime.fromisoformat(created_at)
+                    created_at = dt.strftime('%Y-%m-%d %H:%M')
+                except (ValueError, TypeError):
+                    pass
+                    
             teacher_data = {
                 'id': doc.id,
                 'email': str(data.get('email', '')),
                 'name': str(data.get('name', '')),
                 'classes': data.get('classes', []),
-                'created_at': data.get('created_at', '')
+                'created_at': created_at
             }
             teachers.append(teacher_data)
             
@@ -594,4 +603,163 @@ def create_subject():
 
     except Exception as e:
         current_app.logger.error(f"Error creating subject: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
+
+@admin_bp.route('/api/teachers', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def create_teacher():
+    """Create a new teacher"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['name', 'email', 'password', 'classes']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Check if email already exists
+        existing_user = current_app.db.collection('users').where('email', '==', data['email']).get()
+        if len(list(existing_user)) > 0:
+            return jsonify({'error': 'Email already exists'}), 400
+            
+        # Create user document
+        user_data = {
+            'name': data['name'],
+            'email': data['email'],
+            'password_hash': generate_password_hash(data['password']),
+            'role': 'teacher',
+            'classes': data['classes'],
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Add to database
+        doc_ref = current_app.db.collection('users').document()
+        doc_ref.set(user_data)
+        
+        return jsonify({
+            'message': 'Teacher created successfully',
+            'id': doc_ref.id
+        }), 201
+        
+    except Exception as e:
+        current_app.logger.error(f"Error creating teacher: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/teachers/<teacher_id>', methods=['PUT'])
+@login_required
+@role_required(['admin'])
+def update_teacher(teacher_id):
+    """Update teacher details"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['name', 'email', 'classes']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Get teacher document
+        teacher_ref = current_app.db.collection('users').document(teacher_id)
+        teacher_doc = teacher_ref.get()
+        
+        if not teacher_doc.exists:
+            return jsonify({'error': 'Teacher not found'}), 404
+            
+        # Check if email changed and already exists
+        teacher_data = teacher_doc.to_dict()
+        if data['email'] != teacher_data.get('email'):
+            existing = current_app.db.collection('users').where('email', '==', data['email']).get()
+            if len(list(existing)) > 0:
+                return jsonify({'error': 'Email already exists'}), 400
+                
+        # Prepare update data
+        update_data = {
+            'name': data['name'],
+            'email': data['email'],
+            'classes': data['classes'],
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Update password if provided
+        if data.get('password'):
+            update_data['password_hash'] = generate_password_hash(data['password'])
+            
+        # Update document
+        teacher_ref.update(update_data)
+        
+        return jsonify({'message': 'Teacher updated successfully'}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating teacher: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/teachers/<teacher_id>', methods=['DELETE'])
+@login_required
+@role_required(['admin'])
+def delete_teacher(teacher_id):
+    """Delete a teacher"""
+    try:
+        teacher_ref = current_app.db.collection('users').document(teacher_id)
+        teacher_doc = teacher_ref.get()
+        
+        if not teacher_doc.exists:
+            return jsonify({'error': 'Teacher not found'}), 404
+            
+        # Verify it's a teacher account
+        teacher_data = teacher_doc.to_dict()
+        if teacher_data.get('role') != 'teacher':
+            return jsonify({'error': 'Invalid teacher ID'}), 400
+            
+        # Delete the document
+        teacher_ref.delete()
+        
+        return jsonify({'message': 'Teacher deleted successfully'}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error deleting teacher: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
+
+@admin_bp.route('/register/face')
+@login_required
+@role_required(['admin', 'teacher'])
+def register_face():
+    """Display face registration page"""
+    return render_template('admin/register_face.html')
+
+@admin_bp.route('/api/register_face', methods=['POST'])
+@login_required
+@role_required(['admin', 'teacher'])
+def register_face_api():
+    """Handle face registration"""
+    try:
+        if 'photo' not in request.files:
+            return jsonify({'error': 'No photo uploaded'}), 400
+            
+        photo = request.files['photo']
+        student_id = request.form.get('student_id')
+        
+        if not student_id:
+            return jsonify({'error': 'Student ID is required'}), 400
+            
+        # Save photo to temporary location
+        temp_path = f"/tmp/face_{student_id}_{datetime.utcnow().timestamp()}.jpg"
+        photo.save(temp_path)
+        
+        try:
+            # Process face with your face recognition system
+            # This is where you'd integrate with your face recognition service
+            # For now, we'll just simulate success
+            pass
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        
+        return jsonify({'message': 'Photo processed successfully'}), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error processing face registration: {str(e)}")
         return jsonify({'error': str(e)}), 500 

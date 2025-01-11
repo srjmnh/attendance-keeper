@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Register Student Face - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Register Student Face</h1>
+            <p class="text-base-content/60">Take photos to register student for face recognition</p>
+        </div>
+    </div>
+
+    <!-- Registration Form -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Student Details Form -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Student Details</h2>
+                <form id="studentForm" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Name</span>
+                        </label>
+                        <input type="text" id="studentName" class="input input-bordered" required>
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Student ID</span>
+                        </label>
+                        <input type="text" id="studentId" class="input input-bordered" required>
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Class</span>
+                        </label>
+                        <select id="studentClass" class="select select-bordered" required>
+                            {% for class in range(1, 13) %}
+                                <option value="{{ class }}">Class {{ class }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Division</span>
+                        </label>
+                        <select id="studentDivision" class="select select-bordered" required>
+                            {% for div in ['A', 'B', 'C', 'D'] %}
+                                <option value="{{ div }}">Division {{ div }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Camera Feed and Controls -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Face Registration</h2>
+                <div class="space-y-4">
+                    <!-- Camera Feed -->
+                    <div class="relative aspect-video bg-base-300 rounded-lg overflow-hidden">
+                        <video id="cameraFeed" class="w-full h-full object-cover" autoplay playsinline></video>
+                        <canvas id="photoCanvas" class="hidden"></canvas>
+                        
+                        <!-- Face Detection Overlay -->
+                        <div id="faceOverlay" class="absolute inset-0 pointer-events-none">
+                            <!-- Face detection box will be drawn here -->
+                        </div>
+                        
+                        <!-- Progress Indicator -->
+                        <div class="absolute bottom-4 left-4 right-4">
+                            <div class="flex items-center gap-2">
+                                <progress id="captureProgress" class="progress progress-primary w-full" value="0" max="5"></progress>
+                                <span id="captureCount" class="badge badge-primary">0/5</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Controls -->
+                    <div class="flex justify-between items-center">
+                        <button id="switchCameraBtn" class="btn btn-circle btn-outline">
+                            <i class="ri-camera-switch-line"></i>
+                        </button>
+                        
+                        <button id="captureBtn" class="btn btn-primary gap-2">
+                            <i class="ri-camera-line"></i>
+                            Start Capture
+                        </button>
+                    </div>
+                    
+                    <!-- Instructions -->
+                    <div class="alert alert-info">
+                        <i class="ri-information-line"></i>
+                        <span>Position the student's face in the center and ensure good lighting. 5 photos will be taken automatically.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let stream = null;
+let captureInProgress = false;
+let photosTaken = 0;
+const requiredPhotos = 5;
+
+async function initCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            } 
+        });
+        document.getElementById('cameraFeed').srcObject = stream;
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        showToast('Error accessing camera. Please ensure camera permissions are granted.', 'error');
+    }
+}
+
+async function switchCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+    
+    try {
+        const currentFacingMode = stream?.getVideoTracks()[0]?.getSettings()?.facingMode;
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: currentFacingMode === 'user' ? 'environment' : 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        });
+        document.getElementById('cameraFeed').srcObject = stream;
+    } catch (error) {
+        console.error('Error switching camera:', error);
+        showToast('Error switching camera', 'error');
+    }
+}
+
+async function startCapture() {
+    if (captureInProgress) {
+        stopCapture();
+        return;
+    }
+    
+    // Validate form
+    const form = document.getElementById('studentForm');
+    if (!form.checkValidity()) {
+        showToast('Please fill in all student details', 'warning');
+        return;
+    }
+    
+    const captureBtn = document.getElementById('captureBtn');
+    captureBtn.innerHTML = '<i class="ri-stop-line"></i>Stop';
+    captureInProgress = true;
+    photosTaken = 0;
+    updateProgress();
+    
+    // Start capture loop
+    captureLoop();
+}
+
+function stopCapture() {
+    captureInProgress = false;
+    const captureBtn = document.getElementById('captureBtn');
+    captureBtn.innerHTML = '<i class="ri-camera-line"></i>Start Capture';
+}
+
+async function captureLoop() {
+    if (!captureInProgress || photosTaken >= requiredPhotos) {
+        if (photosTaken >= requiredPhotos) {
+            showToast('Face registration complete!', 'success');
+            await registerStudent();
+        }
+        stopCapture();
+        return;
+    }
+    
+    await capturePhoto();
+    photosTaken++;
+    updateProgress();
+    
+    // Wait 1 second before next capture
+    setTimeout(captureLoop, 1000);
+}
+
+async function capturePhoto() {
+    const video = document.getElementById('cameraFeed');
+    const canvas = document.getElementById('photoCanvas');
+    const context = canvas.getContext('2d');
+    
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert to blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('photo', blob);
+    formData.append('student_id', document.getElementById('studentId').value);
+    
+    // Upload photo
+    try {
+        const response = await fetch('/admin/api/register_face', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to upload photo');
+        }
+    } catch (error) {
+        console.error('Error uploading photo:', error);
+        showToast('Error uploading photo', 'error');
+        stopCapture();
+    }
+}
+
+async function registerStudent() {
+    const data = {
+        name: document.getElementById('studentName').value,
+        student_id: document.getElementById('studentId').value,
+        class: document.getElementById('studentClass').value,
+        division: document.getElementById('studentDivision').value
+    };
+    
+    try {
+        const response = await fetch('/admin/api/students', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to register student');
+        }
+        
+        showToast('Student registered successfully', 'success');
+        setTimeout(() => {
+            window.location.href = '/admin/manage/students';
+        }, 1500);
+    } catch (error) {
+        console.error('Error registering student:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+function updateProgress() {
+    const progress = document.getElementById('captureProgress');
+    const count = document.getElementById('captureCount');
+    progress.value = photosTaken;
+    count.textContent = `${photosTaken}/${requiredPhotos}`;
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : 
+                     type === 'error' ? 'error-warning' : 
+                     'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    initCamera();
+    document.getElementById('switchCameraBtn').addEventListener('click', switchCamera);
+    document.getElementById('captureBtn').addEventListener('click', startCapture);
+});
+</script>
+{% endblock %} 

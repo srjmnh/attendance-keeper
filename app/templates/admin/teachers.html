@@ -1,93 +1,238 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <!-- Head content -->
-</head>
-<body>
-    <!-- Existing admin dashboard content -->
+{% extends "base.html" %}
 
-    <!-- Add Teacher Form -->
-    <div id="addTeacherModal" class="modal">
-        <div class="modal-box">
-            <h3 class="font-bold text-lg">Add New Teacher</h3>
-            <form id="addTeacherForm">
-                <div class="form-control">
-                    <label class="label">Name</label>
-                    <input type="text" id="teacherName" required class="input input-bordered">
-                </div>
-                <div class="form-control">
-                    <label class="label">Email</label>
-                    <input type="email" id="teacherEmail" required class="input input-bordered">
-                </div>
-                <div class="form-control">
-                    <label class="label">Password</label>
-                    <input type="password" id="teacherPassword" required class="input input-bordered">
-                </div>
-                <div class="form-control">
-                    <label class="label">Assigned Classes</label>
-                    <select id="teacherClasses" multiple required class="select select-bordered">
-                        <!-- Options will be populated dynamically based on admin's classes -->
-                    </select>
-                </div>
-                <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Add Teacher</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeAddTeacherModal()">Cancel</button>
-                </div>
-            </form>
+{% block title %}Manage Teachers - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Manage Teachers</h1>
+            <p class="text-base-content/60">Total Teachers: {{ teachers|length }}</p>
+        </div>
+        
+        <div class="flex gap-2">
+            <button onclick="document.getElementById('addTeacherModal').showModal()" class="btn btn-primary gap-2">
+                <i class="ri-user-add-line"></i>
+                Add Teacher
+            </button>
         </div>
     </div>
 
-    <script>
-        async function populateTeacherClasses() {
-            try {
-                const response = await fetch('/admin/api/get_classes');
-                const classes = await response.json();
-                const select = document.getElementById('teacherClasses');
-                classes.forEach(cls => {
-                    const option = document.createElement('option');
-                    option.value = cls.id;
-                    option.textContent = cls.name;
-                    select.appendChild(option);
-                });
-            } catch (error) {
-                console.error('Error fetching classes:', error);
-                showToast('Failed to load classes.', 'error');
-            }
-        }
+    <!-- Teachers Table -->
+    <div class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
+        <table class="table table-zebra w-full">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Classes</th>
+                    <th>Joined Date</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for teacher in teachers %}
+                <tr>
+                    <td>{{ teacher.name }}</td>
+                    <td>{{ teacher.email }}</td>
+                    <td>
+                        <div class="flex flex-wrap gap-1">
+                            {% for class in teacher.classes %}
+                                <span class="badge badge-primary">{{ class }}</span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td>{{ teacher.created_at }}</td>
+                    <td>
+                        <div class="flex justify-center gap-2">
+                            <button onclick='editTeacher({{ teacher|tojson|safe }})' 
+                                    class="btn btn-ghost btn-sm">
+                                <i class="ri-edit-line"></i>
+                            </button>
+                            <button onclick="deleteTeacher('{{ teacher.id }}')" 
+                                    class="btn btn-ghost btn-sm text-error">
+                                <i class="ri-delete-bin-line"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-8">
+                        <div class="flex flex-col items-center text-base-content/50">
+                            <i class="ri-user-search-line text-4xl mb-2"></i>
+                            <p>No teachers found</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-        document.getElementById('addTeacherForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('teacherName').value.trim();
-            const email = document.getElementById('teacherEmail').value.trim();
-            const password = document.getElementById('teacherPassword').value;
-            const classes = Array.from(document.getElementById('teacherClasses').selectedOptions).map(option => option.value);
+<!-- Add/Edit Teacher Modal -->
+<dialog id="addTeacherModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4" id="modalTitle">Add New Teacher</h3>
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <form id="teacherForm" class="space-y-4" onsubmit="handleTeacherSubmit(event)">
+            <input type="hidden" id="teacherId">
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Name</span>
+                </label>
+                <input type="text" id="teacherName" class="input input-bordered" required>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Email</span>
+                </label>
+                <input type="email" id="teacherEmail" class="input input-bordered" required>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Password</span>
+                </label>
+                <input type="password" id="teacherPassword" class="input input-bordered" 
+                       minlength="6" required>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Assigned Classes</span>
+                </label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {% for class in range(1, 13) %}
+                        {% for div in ['A', 'B', 'C', 'D'] %}
+                        <label class="label cursor-pointer justify-start gap-2">
+                            <input type="checkbox" class="checkbox checkbox-primary class-checkbox" 
+                                   value="{{ class }}-{{ div }}" />
+                            <span>{{ class }}-{{ div }}</span>
+                        </label>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full gap-2">
+                <i class="ri-save-line"></i>
+                Save Teacher
+            </button>
+        </form>
+    </div>
+</dialog>
 
-            try {
-                const response = await fetch('/admin/teachers', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, password, classes })
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    showToast(result.message, 'success');
-                    closeAddTeacherModal();
-                    // Optionally, refresh the teacher list
-                } else {
-                    showToast(result.error, 'error');
-                }
-            } catch (error) {
-                console.error('Error adding teacher:', error);
-                showToast('An error occurred while adding the teacher.', 'error');
-            }
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editTeacher(teacher) {
+    document.getElementById('modalTitle').textContent = 'Edit Teacher';
+    document.getElementById('teacherId').value = teacher.id;
+    document.getElementById('teacherName').value = teacher.name;
+    document.getElementById('teacherEmail').value = teacher.email;
+    document.getElementById('teacherPassword').required = false;
+    document.getElementById('teacherPassword').placeholder = 'Leave blank to keep unchanged';
+    
+    // Clear all checkboxes first
+    document.querySelectorAll('.class-checkbox').forEach(cb => cb.checked = false);
+    
+    // Check the assigned classes
+    teacher.classes.forEach(classId => {
+        const checkbox = document.querySelector(`.class-checkbox[value="${classId}"]`);
+        if (checkbox) checkbox.checked = true;
+    });
+    
+    document.getElementById('addTeacherModal').showModal();
+}
+
+async function handleTeacherSubmit(event) {
+    event.preventDefault();
+    
+    const teacherId = document.getElementById('teacherId').value;
+    const data = {
+        name: document.getElementById('teacherName').value.trim(),
+        email: document.getElementById('teacherEmail').value.trim(),
+        classes: Array.from(document.querySelectorAll('.class-checkbox:checked')).map(cb => cb.value)
+    };
+    
+    const password = document.getElementById('teacherPassword').value;
+    if (password) {
+        data.password = password;
+    }
+    
+    try {
+        const url = teacherId ? `/admin/api/teachers/${teacherId}` : '/admin/api/teachers';
+        const method = teacherId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
         });
-
-        function closeAddTeacherModal() {
-            document.getElementById('addTeacherModal').close();
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to save teacher');
         }
+        
+        showToast('Teacher saved successfully', 'success');
+        document.getElementById('addTeacherModal').close();
+        window.location.reload();
+    } catch (error) {
+        console.error('Error saving teacher:', error);
+        showToast(error.message, 'error');
+    }
+}
 
-        // Initialize modal with class data
-        populateTeacherClasses();
-    </script>
-</body>
-</html> 
+async function deleteTeacher(id) {
+    if (!confirm('Are you sure you want to delete this teacher?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/api/teachers/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete teacher');
+        }
+        
+        showToast('Teacher deleted successfully', 'success');
+        window.location.reload();
+    } catch (error) {
+        console.error('Error deleting teacher:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : 
+                     type === 'error' ? 'error-warning' : 
+                     'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+</script>
+{% endblock %} 
