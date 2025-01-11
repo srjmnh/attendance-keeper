@@ -368,52 +368,40 @@ def take_attendance():
 @recognition_bp.route('/verify_attendance', methods=['POST'])
 @login_required
 def verify_attendance():
-    """Verify student attendance using multiple face photos"""
+    """Verify student attendance using face recognition"""
     if current_user.role != 'student':
         return jsonify({'error': 'Only students can use this feature'}), 403
         
     try:
-        # Get all photos from the request
-        photos = []
-        for i in range(1, 6):  # We expect 5 photos
-            photo_data = request.form.get(f'photo{i}')
-            if not photo_data:
-                return jsonify({'error': 'Missing required photos'}), 400
-                
-            # Clean base64 image data
-            if 'base64,' in photo_data:
-                photo_data = photo_data.split('base64,')[1]
-                
-            # Decode base64 image
-            photo_bytes = base64.b64decode(photo_data)
-            photos.append(photo_bytes)
+        # Get photo from the request
+        photo_data = request.form.get('photo')
+        if not photo_data:
+            return jsonify({'error': 'No photo provided'}), 400
             
+        # Clean base64 image data
+        if 'base64,' in photo_data:
+            photo_data = photo_data.split('base64,')[1]
+            
+        # Decode base64 image
+        photo_bytes = base64.b64decode(photo_data)
+        
         # Initialize Rekognition service
         rekognition_service = RekognitionService()
         
-        # Process each photo
-        matches = []
-        for photo in photos:
-            faces = rekognition_service.detect_faces(photo)
-            if not faces:
-                continue
-                
-            # We only expect one face in the photo
-            face = faces[0]
-            match = rekognition_service.search_face(face, photo)
-            if match:
-                matches.append(match)
-        
-        if not matches:
-            return jsonify({'error': 'No matching face found in any of the photos'}), 400
+        # Detect faces
+        faces = rekognition_service.detect_faces(photo_bytes)
+        if not faces:
+            return jsonify({'error': 'No face detected in the photo. Please try again with a clearer photo'}), 400
             
-        # Verify that all matches are for the same student
-        student_ids = set(match['student_id'] for match in matches)
-        if len(student_ids) > 1:
-            return jsonify({'error': 'Inconsistent face matches detected'}), 400
+        # We only expect one face in the photo
+        face = faces[0]
+        match = rekognition_service.search_face(face, photo_bytes)
+        
+        if not match:
+            return jsonify({'error': 'Face not recognized. Please try again'}), 400
             
         # Verify that the matched student is the current user
-        student_id = list(student_ids)[0]
+        student_id = match['student_id']
         student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
         
         if not student_ref:
@@ -425,9 +413,6 @@ def verify_attendance():
         if student_data.get('email') != current_user.email:
             return jsonify({'error': 'Face match does not correspond to logged in user'}), 403
             
-        # Calculate average confidence
-        avg_confidence = sum(match['confidence'] for match in matches) / len(matches)
-        
         # Mark attendance
         attendance_data = {
             'student_id': student_id,
@@ -439,8 +424,7 @@ def verify_attendance():
             'date': datetime.now().strftime('%Y-%m-%d'),
             'timestamp': datetime.now().isoformat(),
             'marked_by': 'self',
-            'confidence': avg_confidence,
-            'photos_matched': len(matches)
+            'confidence': match['confidence']
         }
         
         # Check if attendance already exists for today
@@ -456,8 +440,7 @@ def verify_attendance():
                 'status': 'PRESENT',
                 'timestamp': datetime.now().isoformat(),
                 'marked_by': 'self',
-                'confidence': avg_confidence,
-                'photos_matched': len(matches)
+                'confidence': match['confidence']
             })
             current_app.logger.info(f"Updated attendance for student {student_id}")
         else:
@@ -468,8 +451,7 @@ def verify_attendance():
         return jsonify({
             'message': 'Attendance marked successfully',
             'data': {
-                'confidence': avg_confidence,
-                'photos_matched': len(matches)
+                'confidence': match['confidence']
             }
         })
         

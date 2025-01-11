@@ -12,7 +12,7 @@
         </div>
     </div>
 
-    <!-- Camera Feed and Controls -->
+    <!-- Face Recognition Component -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Camera Feed -->
         <div class="card bg-base-100 shadow-sm">
@@ -21,46 +21,34 @@
                 <div class="space-y-4">
                     <!-- Camera Feed -->
                     <div class="relative aspect-video bg-base-300 rounded-lg overflow-hidden">
-                        <video id="cameraFeed" class="w-full h-full object-cover" autoplay playsinline></video>
-                        
-                        <!-- Face Detection Overlay -->
-                        <div id="faceOverlay" class="absolute inset-0 pointer-events-none">
-                            <!-- Face detection box will be drawn here -->
-                        </div>
+                        <video id="video" class="w-full h-full object-cover" autoplay playsinline></video>
+                        <canvas id="canvas" class="hidden"></canvas>
                         
                         <!-- Status Indicator -->
                         <div class="absolute bottom-4 left-4 right-4">
-                            <div id="statusIndicator" class="alert alert-info">
+                            <div id="status" class="alert alert-info">
                                 <i class="ri-information-line"></i>
                                 <span>Position your face in the center and ensure good lighting</span>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Photo Progress -->
-                    <div class="w-full bg-base-200 rounded-full h-2.5">
-                        <div id="progressBar" class="bg-primary h-2.5 rounded-full" style="width: 0%"></div>
-                    </div>
-                    <div class="text-center text-sm text-base-content/60">
-                        <span id="photoCount">0</span>/5 photos captured
-                    </div>
-                    
                     <!-- Camera Controls -->
                     <div class="flex justify-between items-center">
-                        <button id="switchCameraBtn" class="btn btn-circle btn-outline">
+                        <button id="switchCamera" class="btn btn-circle btn-outline">
                             <i class="ri-camera-switch-line"></i>
                         </button>
                         
-                        <button id="startCaptureBtn" class="btn btn-primary gap-2">
+                        <button id="capture" class="btn btn-primary gap-2">
                             <i class="ri-camera-line"></i>
-                            Start Capture
+                            Mark Attendance
                         </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Instructions and Status -->
+        <!-- Instructions -->
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body">
                 <h2 class="card-title mb-4">Instructions</h2>
@@ -73,18 +61,9 @@
                                 <li>Ensure you are in a well-lit area</li>
                                 <li>Position your face clearly in the camera</li>
                                 <li>Look directly at the camera</li>
-                                <li>Click "Start Capture" and stay still</li>
-                                <li>The system will automatically take 5 photos</li>
+                                <li>Click "Mark Attendance" when ready</li>
                             </ul>
                         </div>
-                    </div>
-                    
-                    <div id="photoPreview" class="grid grid-cols-5 gap-2">
-                        <!-- Photo previews will be shown here -->
-                    </div>
-                    
-                    <div id="attendanceStatus">
-                        <!-- Status will be shown here -->
                     </div>
                 </div>
             </div>
@@ -95,34 +74,75 @@
 
 {% block extra_js %}
 <script>
+let width = 1280;
+let height = 0;
+let streaming = false;
+let video = null;
+let canvas = null;
+let photo = null;
+let switchCameraButton = null;
+let captureButton = null;
 let stream = null;
-let processing = false;
-let capturedPhotos = [];
-let captureInterval = null;
-const REQUIRED_PHOTOS = 5;
-const CAPTURE_DELAY = 1000; // 1 second between captures
 
-async function initCamera() {
+function showMessage(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function updateStatus(message, type = 'info') {
+    const status = document.getElementById('status');
+    status.className = `alert alert-${type}`;
+    status.innerHTML = `<i class="ri-information-line"></i><span>${message}</span>`;
+}
+
+async function startup() {
+    video = document.getElementById('video');
+    canvas = document.getElementById('canvas');
+    switchCameraButton = document.getElementById('switchCamera');
+    captureButton = document.getElementById('capture');
+
     try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
                 facingMode: 'user',
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
-            } 
+            },
+            audio: false
         });
-        document.getElementById('cameraFeed').srcObject = stream;
-    } catch (error) {
-        console.error('Error accessing camera:', error);
-        showToast('Error accessing camera. Please ensure camera permissions are granted.', 'error');
+        video.srcObject = stream;
+        video.play();
+    } catch (err) {
+        showMessage('Error accessing camera: ' + err.message, 'error');
+        console.error("An error occurred: " + err);
     }
+
+    video.addEventListener('canplay', function() {
+        if (!streaming) {
+            height = video.videoHeight / (video.videoWidth / width);
+            video.setAttribute('width', width);
+            video.setAttribute('height', height);
+            canvas.setAttribute('width', width);
+            canvas.setAttribute('height', height);
+            streaming = true;
+        }
+    }, false);
+
+    switchCameraButton.addEventListener('click', switchCamera);
+    captureButton.addEventListener('click', captureAndVerify);
 }
 
 async function switchCamera() {
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
     }
-    
+
     try {
         const currentFacingMode = stream?.getVideoTracks()[0]?.getSettings()?.facingMode;
         stream = await navigator.mediaDevices.getUserMedia({
@@ -130,179 +150,68 @@ async function switchCamera() {
                 facingMode: currentFacingMode === 'user' ? 'environment' : 'user',
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
-            }
+            },
+            audio: false
         });
-        document.getElementById('cameraFeed').srcObject = stream;
-    } catch (error) {
-        console.error('Error switching camera:', error);
-        showToast('Error switching camera', 'error');
+        video.srcObject = stream;
+        video.play();
+    } catch (err) {
+        showMessage('Error switching camera: ' + err.message, 'error');
+        console.error("An error occurred: " + err);
     }
 }
 
-async function startCapture() {
-    if (processing) return;
-    
-    const startCaptureBtn = document.getElementById('startCaptureBtn');
-    const statusIndicator = document.getElementById('statusIndicator');
-    const switchCameraBtn = document.getElementById('switchCameraBtn');
+async function captureAndVerify() {
+    if (!streaming) return;
+
+    const context = canvas.getContext('2d');
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(video, 0, 0, width, height);
+
+    // Play capture sound
+    new Audio('/static/sounds/camera-shutter.mp3').play().catch(() => {});
+
+    const captureBtn = document.getElementById('capture');
+    const switchBtn = document.getElementById('switchCamera');
     
     try {
-        processing = true;
-        capturedPhotos = [];
-        document.getElementById('photoPreview').innerHTML = '';
-        updatePhotoProgress();
-        
-        startCaptureBtn.disabled = true;
-        switchCameraBtn.disabled = true;
-        startCaptureBtn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i>Capturing...';
-        
-        // Start the capture sequence
-        let photosTaken = 0;
-        statusIndicator.className = 'alert alert-warning';
-        statusIndicator.innerHTML = '<i class="ri-camera-line"></i><span>Stay still, capturing photos...</span>';
-        
-        captureInterval = setInterval(async () => {
-            if (photosTaken >= REQUIRED_PHOTOS) {
-                clearInterval(captureInterval);
-                statusIndicator.innerHTML = '<i class="ri-loader-4-line animate-spin"></i><span>Processing photos...</span>';
-                await markAttendance();
-                return;
-            }
-            
-            // Capture photo
-            const video = document.getElementById('cameraFeed');
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Convert to base64
-            const photoData = canvas.toDataURL('image/jpeg', 0.8);
-            capturedPhotos.push(photoData);
-            
-            // Update UI
-            photosTaken++;
-            updatePhotoProgress();
-            addPhotoPreview(photoData);
-            
-            // Play capture sound
-            new Audio('/static/sounds/camera-shutter.mp3').play().catch(() => {});
-            
-        }, CAPTURE_DELAY);
-        
-    } catch (error) {
-        console.error('Error starting capture:', error);
-        showToast(error.message, 'error');
-        resetUI();
-    }
-}
+        captureBtn.disabled = true;
+        switchBtn.disabled = true;
+        captureBtn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i>Processing...';
+        updateStatus('Processing your attendance...', 'warning');
 
-function updatePhotoProgress() {
-    const progress = (capturedPhotos.length / REQUIRED_PHOTOS) * 100;
-    document.getElementById('progressBar').style.width = `${progress}%`;
-    document.getElementById('photoCount').textContent = capturedPhotos.length;
-}
+        // Get image data
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
 
-function addPhotoPreview(photoData) {
-    const previewContainer = document.getElementById('photoPreview');
-    const preview = document.createElement('div');
-    preview.className = 'aspect-square rounded bg-base-300 overflow-hidden';
-    preview.innerHTML = `<img src="${photoData}" class="w-full h-full object-cover">`;
-    previewContainer.appendChild(preview);
-}
-
-function resetUI() {
-    clearInterval(captureInterval);
-    processing = false;
-    
-    const startCaptureBtn = document.getElementById('startCaptureBtn');
-    const switchCameraBtn = document.getElementById('switchCameraBtn');
-    const statusIndicator = document.getElementById('statusIndicator');
-    
-    startCaptureBtn.disabled = false;
-    switchCameraBtn.disabled = false;
-    startCaptureBtn.innerHTML = '<i class="ri-camera-line"></i>Start Capture';
-    
-    statusIndicator.className = 'alert alert-info';
-    statusIndicator.innerHTML = '<i class="ri-information-line"></i><span>Position your face in the center and ensure good lighting</span>';
-}
-
-async function markAttendance() {
-    try {
+        // Send to server
         const formData = new FormData();
-        capturedPhotos.forEach((photo, index) => {
-            formData.append(`photo${index + 1}`, photo);
-        });
-        
-        const response = await fetch('/recognition/verify_attendance', {
+        formData.append('photo', imageData);
+
+        const response = await fetch("{{ url_for('recognition.verify_attendance') }}", {
             method: 'POST',
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
-            showToast('Attendance marked successfully!', 'success');
-            const statusIndicator = document.getElementById('statusIndicator');
-            statusIndicator.className = 'alert alert-success';
-            statusIndicator.innerHTML = '<i class="ri-checkbox-circle-line"></i><span>Attendance marked successfully!</span>';
-            
-            // Show attendance details
-            const attendanceStatus = document.getElementById('attendanceStatus');
-            attendanceStatus.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="ri-checkbox-circle-line"></i>
-                    <div>
-                        <h3 class="font-bold">Attendance Recorded</h3>
-                        <p class="text-sm">Time: ${new Date().toLocaleTimeString()}</p>
-                        <p class="text-sm">Photos Matched: ${result.data.photos_matched}</p>
-                        <p class="text-sm">Confidence: ${Math.round(result.data.confidence)}%</p>
-                    </div>
-                </div>
-            `;
-            
-            // Disable capture button
-            const startCaptureBtn = document.getElementById('startCaptureBtn');
-            startCaptureBtn.disabled = true;
-            startCaptureBtn.innerHTML = '<i class="ri-checkbox-circle-line"></i>Completed';
+            showMessage('Attendance marked successfully!', 'success');
+            updateStatus('Attendance marked successfully!', 'success');
+            captureBtn.innerHTML = '<i class="ri-checkbox-circle-line"></i>Completed';
+            captureBtn.disabled = true;
         } else {
             throw new Error(result.error || 'Failed to mark attendance');
         }
     } catch (error) {
-        console.error('Error marking attendance:', error);
-        showToast(error.message, 'error');
-        const statusIndicator = document.getElementById('statusIndicator');
-        statusIndicator.className = 'alert alert-error';
-        statusIndicator.innerHTML = `<i class="ri-error-warning-line"></i><span>${error.message}</span>`;
-        
-        // Reset UI to allow retry
-        resetUI();
+        showMessage(error.message, 'error');
+        updateStatus(error.message, 'error');
+        captureBtn.disabled = false;
+        switchBtn.disabled = false;
+        captureBtn.innerHTML = '<i class="ri-camera-line"></i>Mark Attendance';
     }
 }
 
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
-    toast.innerHTML = `
-        <i class="ri-${type === 'success' ? 'checkbox-circle' : 
-                     type === 'error' ? 'error-warning' : 
-                     'information'}-line"></i>
-        <span>${message}</span>
-    `;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    initCamera();
-    document.getElementById('switchCameraBtn').addEventListener('click', switchCamera);
-    document.getElementById('startCaptureBtn').addEventListener('click', startCapture);
-});
+window.addEventListener('load', startup, false);
 </script>
 {% endblock %} 
