@@ -3,255 +3,188 @@
 {% block title %}View Attendance - AttendanceAI{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="p-6 space-y-6">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
             <h1 class="text-2xl font-bold">View Attendance</h1>
-            <p class="text-base-content/60" id="recordCount"></p>
+            <p class="text-base-content/60" id="recordCount">{{ records|length }} Records Found</p>
         </div>
-        
-        <div class="flex gap-2">
-            <button onclick="exportAttendance()" class="btn btn-outline gap-2">
-                <i class="ri-download-line"></i>
-                Export Excel
-            </button>
-        </div>
+        <button onclick="exportAttendance()" class="btn btn-outline gap-2">
+            <i class="ri-download-line"></i>
+            Export Excel
+        </button>
     </div>
 
     <!-- Filters -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="form-control">
-            <label class="label">
-                <span class="label-text">Date Range</span>
-            </label>
-            <select id="dateRange" class="select select-bordered" onchange="handleDateRangeChange()">
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-                <option value="custom">Custom Range</option>
-                <option value="all">Show All</option>
-            </select>
-        </div>
-
-        <div class="form-control" id="customDateContainer" style="display: none;">
-            <label class="label">
-                <span class="label-text">Custom Range</span>
-            </label>
-            <div class="join">
-                <input type="date" id="dateFrom" class="join-item input input-bordered w-1/2">
-                <input type="date" id="dateTo" class="join-item input input-bordered w-1/2">
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Date Range</span>
+                    </label>
+                    <select id="dateRange" class="select select-bordered w-full">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="custom">Custom Range</option>
+                        <option value="all">All Records</option>
+                    </select>
+                </div>
+                
+                <div id="customDateRange" class="form-control hidden">
+                    <label class="label">
+                        <span class="label-text">Custom Range</span>
+                    </label>
+                    <div class="join w-full">
+                        <input type="date" id="dateFrom" class="join-item input input-bordered w-1/2">
+                        <input type="date" id="dateTo" class="join-item input input-bordered w-1/2">
+                    </div>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Status</span>
+                    </label>
+                    <select id="statusFilter" class="select select-bordered w-full">
+                        <option value="">All Status</option>
+                        <option value="PRESENT">Present</option>
+                        <option value="ABSENT">Absent</option>
+                    </select>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Search</span>
+                    </label>
+                    <div class="join w-full">
+                        <input type="text" id="searchInput" placeholder="Search by name or ID..." class="join-item input input-bordered w-full">
+                        <button onclick="loadAttendance()" class="join-item btn btn-primary">
+                            <i class="ri-search-line"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-
-        {% if current_user.role in ['admin', 'teacher'] %}
-        <div class="form-control">
-            <label class="label">
-                <span class="label-text">Subject</span>
-            </label>
-            <select id="subjectFilter" class="select select-bordered">
-                <option value="">All Subjects</option>
-                {% if current_user.role == 'admin' %}
-                    {% for subject in subjects %}
-                    <option value="{{ subject.id }}">{{ subject.name }}</option>
-                    {% endfor %}
-                {% else %}
-                    {% for class_id in current_user.classes|sort %}
-                    <option value="{{ class_id }}">Class {{ class_id }}</option>
-                    {% endfor %}
-                {% endif %}
-            </select>
-        </div>
-
-        <div class="form-control">
-            <label class="label">
-                <span class="label-text">Status</span>
-            </label>
-            <select id="statusFilter" class="select select-bordered">
-                <option value="">All Status</option>
-                <option value="PRESENT">Present</option>
-                <option value="ABSENT">Absent</option>
-            </select>
-        </div>
-        {% endif %}
-
-        <div class="form-control">
-            <label class="label">
-                <span class="label-text">Search</span>
-            </label>
-            <input type="text" id="searchInput" placeholder="Search by name or ID..." 
-                   class="input input-bordered">
-        </div>
     </div>
 
-    <!-- Attendance Table -->
-    <div class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
-        <table class="table table-zebra w-full">
-            <thead>
-                <tr>
-                    <th>Date & Time</th>
-                    <th>Student ID</th>
-                    <th>Name</th>
-                    <th>Subject</th>
-                    <th>Status</th>
-                    {% if current_user.role == 'admin' %}
-                    <th class="text-center">Actions</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody id="attendanceTableBody">
-                <!-- Data will be loaded dynamically -->
-            </tbody>
-        </table>
+    <!-- Table -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Student ID</th>
+                            <th>Name</th>
+                            <th>Class</th>
+                            <th>Status</th>
+                            {% if user_role == 'admin' %}
+                            <th class="w-20 text-center">Actions</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody">
+                        {% if records %}
+                            {% for record in records %}
+                            <tr data-doc-id="{{ record.doc_id }}">
+                                <td>{{ record.timestamp }}</td>
+                                <td>{{ record.student_id }}</td>
+                                <td>{{ record.student_name or record.name or 'Unknown' }}</td>
+                                <td>{{ record.class }}-{{ record.division }}</td>
+                                <td>
+                                    {% if user_role == 'admin' %}
+                                        <select onchange="updateStatus('{{ record.doc_id }}', this.value)" class="select select-bordered select-xs">
+                                            <option value="PRESENT" {{ 'selected' if record.status == 'PRESENT' }}>PRESENT</option>
+                                            <option value="ABSENT" {{ 'selected' if record.status == 'ABSENT' }}>ABSENT</option>
+                                        </select>
+                                    {% else %}
+                                        <span class="badge {{ 'badge-success' if record.status == 'PRESENT' else 'badge-error' }}">
+                                            {{ record.status }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                {% if user_role == 'admin' %}
+                                <td class="text-center">
+                                    <button onclick="deleteAttendance('{{ record.doc_id }}')" class="btn btn-ghost btn-xs text-error">
+                                        <i class="ri-delete-bin-line"></i>
+                                    </button>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-8">
+                                    <div class="flex flex-col items-center text-base-content/50">
+                                        <i class="ri-calendar-line text-4xl mb-2"></i>
+                                        <p>No attendance records found</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
-const user_role = "{{ user_role }}";
-let debounceTimer;
-let changedRecords = new Map();
+let user_role = '{{ user_role }}';
 
-// Handle field changes
-function handleFieldChange(docId, field, value) {
-    console.log(`Field change: docId=${docId}, field=${field}, value=${value}`);
-    if (!changedRecords.has(docId)) {
-        changedRecords.set(docId, {});
-    }
-    changedRecords.get(docId)[field] = value;
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize date range picker
+    const dateRange = document.getElementById('dateRange');
+    const customDateRange = document.getElementById('customDateRange');
     
-    const saveBtn = document.getElementById(`save-${docId}`);
-    if (saveBtn) {
-        saveBtn.disabled = false;
-        saveBtn.classList.remove('opacity-50');
-        saveBtn.classList.add('hover:text-success');
-    }
-    console.log('Updated changedRecords:', changedRecords);
-}
-
-// Save changes to a record
-async function saveChanges(docId) {
-    try {
-        const changes = changedRecords.get(docId);
-        if (!changes) return;
-
-        const saveBtn = document.getElementById(`save-${docId}`);
-        if (saveBtn) {
-            saveBtn.disabled = true; // Disable while saving
+    dateRange.addEventListener('change', function() {
+        customDateRange.classList.toggle('hidden', this.value !== 'custom');
+        if (this.value !== 'custom') {
+            loadAttendance();
         }
-
-        const response = await fetch('/attendance/api/attendance/update', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                doc_id: docId,
-                ...changes
-            })
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to save changes');
-        }
-
-        changedRecords.delete(docId);
-        showToast('Changes saved successfully', 'success');
-        loadAttendance();  // Reload to show updated data
-    } catch (error) {
-        console.error('Error saving changes:', error);
-        showToast(error.message, 'error');
-        const saveBtn = document.getElementById(`save-${docId}`);
-        if (saveBtn) {
-            saveBtn.disabled = false; // Re-enable on error
-        }
-    }
-}
-
-// Initialize filters and load data
-document.addEventListener('DOMContentLoaded', () => {
-    // Set up event listeners
-    document.getElementById('dateRange').addEventListener('change', handleDateRangeChange);
+    });
+    
+    // Add event listeners for custom date inputs
     document.getElementById('dateFrom').addEventListener('change', loadAttendance);
     document.getElementById('dateTo').addEventListener('change', loadAttendance);
-    document.getElementById('subjectFilter')?.addEventListener('change', loadAttendance);
-    document.getElementById('statusFilter')?.addEventListener('change', loadAttendance);
-    document.getElementById('searchInput').addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(loadAttendance, 300);
+    document.getElementById('statusFilter').addEventListener('change', loadAttendance);
+    
+    // Add debounce to search input
+    let searchTimeout;
+    document.getElementById('searchInput').addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(loadAttendance, 300);
     });
-
-    // Load initial data
-    loadAttendance();
 });
-
-function handleDateRangeChange() {
-    const dateRange = document.getElementById('dateRange').value;
-    const customDateContainer = document.getElementById('customDateContainer');
-    customDateContainer.style.display = dateRange === 'custom' ? 'block' : 'none';
-    if (dateRange !== 'custom') {
-        loadAttendance();  // Only call loadAttendance if not custom (custom will trigger through date input changes)
-    }
-}
 
 async function loadAttendance() {
     try {
-        // Build query parameters
         const params = new URLSearchParams();
-        const dateRange = document.getElementById('dateRange').value;
-        params.append('date_range', dateRange);
+        params.append('date_range', document.getElementById('dateRange').value);
         
-        console.log('Selected date range:', dateRange);
-        
-        if (dateRange === 'custom') {
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
-            console.log('Custom date range:', { dateFrom, dateTo });
-            
-            if (dateFrom && dateTo) {
-                params.append('date_from', dateFrom);
-                params.append('date_to', dateTo);
-            }
-        }
-
-        const subjectFilter = document.getElementById('subjectFilter');
-        if (subjectFilter?.value) {
-            console.log('Subject filter:', subjectFilter.value);
-            params.append('subject_id', subjectFilter.value);
+        if (document.getElementById('dateRange').value === 'custom') {
+            params.append('date_from', document.getElementById('dateFrom').value);
+            params.append('date_to', document.getElementById('dateTo').value);
         }
 
         const statusFilter = document.getElementById('statusFilter');
         if (statusFilter?.value) {
-            console.log('Status filter:', statusFilter.value);
             params.append('status', statusFilter.value);
         }
 
         const searchInput = document.getElementById('searchInput');
         if (searchInput?.value) {
-            console.log('Search filter:', searchInput.value);
             params.append('search', searchInput.value);
         }
 
-        const url = `/attendance/api/attendance?${params.toString()}`;
-        console.log('Fetching attendance from URL:', url);
-
-        // Fetch attendance data
-        const response = await fetch(url);
-        const data = await response.json();
+        const response = await fetch(`/attendance/api/attendance?${params.toString()}`);
+        if (!response.ok) throw new Error('Failed to fetch attendance records');
         
-        if (!response.ok) {
-            if (data.admin_message && user_role === 'admin') {
-                showToast(`${data.error}\n\nAdmin: ${data.admin_message}`, 'error', 10000);
-            } else {
-                showToast(data.error || 'Failed to load attendance data', 'error');
-            }
-            return;
-        }
-
-        console.log('Received records:', data.length);
-        displayAttendance(data);
+        const records = await response.json();
+        displayAttendance(records);
     } catch (error) {
         console.error('Error loading attendance:', error);
         showToast(error.message, 'error');
@@ -259,7 +192,6 @@ async function loadAttendance() {
 }
 
 function displayAttendance(records) {
-    console.log('Displaying records:', records);
     const tbody = document.getElementById('attendanceTableBody');
     const recordCount = document.getElementById('recordCount');
     
@@ -284,66 +216,67 @@ function displayAttendance(records) {
     }
     
     // Add new rows
-    records.forEach((record, index) => {
+    records.forEach(record => {
         const row = document.createElement('tr');
         row.dataset.docId = record.doc_id;
+        
+        const studentName = record.student_name || record.name || 'Unknown';
+        const classInfo = `${record.class || ''}-${record.division || ''}`;
+        
         row.innerHTML = `
             <td>${formatDateTime(record.timestamp)}</td>
+            <td>${record.student_id || ''}</td>
+            <td>${studentName}</td>
+            <td>${classInfo}</td>
             <td>
-                ${user_role === 'admin' ? 
-                    `<input type="text" class="input input-bordered input-sm w-full" 
-                            value="${record.student_id}" 
-                            oninput="handleFieldChange('${record.doc_id}', 'student_id', this.value)">` 
-                    : record.student_id}
+                ${user_role === 'admin' ? `
+                    <select onchange="updateStatus('${record.doc_id}', this.value)" class="select select-bordered select-xs">
+                        <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>PRESENT</option>
+                        <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>ABSENT</option>
+                    </select>
+                ` : `
+                    <span class="badge ${record.status === 'PRESENT' ? 'badge-success' : 'badge-error'}">
+                        ${record.status}
+                    </span>
+                `}
             </td>
-            <td>
-                ${user_role === 'admin' ? 
-                    `<input type="text" class="input input-bordered input-sm w-full" 
-                            value="${record.name}" 
-                            oninput="handleFieldChange('${record.doc_id}', 'name', this.value)">` 
-                    : record.name}
-            </td>
-            <td>
-                ${user_role === 'admin' ? 
-                    `<input type="text" class="input input-bordered input-sm w-full" 
-                            value="${record.subject_name || ''}" 
-                            oninput="handleFieldChange('${record.doc_id}', 'subject_name', this.value)">` 
-                    : record.subject_name || ''}
-            </td>
-            <td>
-                ${user_role === 'admin' || user_role === 'teacher' ? 
-                    `<select class="select select-bordered select-sm w-28" 
-                            onchange="handleFieldChange('${record.doc_id}', 'status', this.value)">
-                        <option value="PRESENT" ${record.status === 'PRESENT' ? 'selected' : ''}>Present</option>
-                        <option value="ABSENT" ${record.status === 'ABSENT' ? 'selected' : ''}>Absent</option>
-                    </select>` 
-                    : record.status}
-            </td>
+            ${user_role === 'admin' ? `
             <td class="text-center">
-                <div class="flex justify-center gap-2">
-                    ${(user_role === 'admin' || user_role === 'teacher') ? 
-                        `<button onclick="saveChanges('${record.doc_id}')" 
-                                class="btn btn-ghost btn-sm text-success save-btn opacity-50" 
-                                id="save-${record.doc_id}" disabled>
-                            <i class="ri-save-line"></i>
-                        </button>` : ''}
-                    ${user_role === 'admin' ? 
-                        `<button onclick="deleteAttendance('${record.doc_id}')" 
-                                class="btn btn-ghost btn-sm text-error">
-                            <i class="ri-delete-bin-line"></i>
-                        </button>` : ''}
-                </div>
+                <button onclick="deleteAttendance('${record.doc_id}')" class="btn btn-ghost btn-xs text-error">
+                    <i class="ri-delete-bin-line"></i>
+                </button>
             </td>
+            ` : ''}
         `;
         tbody.appendChild(row);
     });
 }
 
-async function deleteAttendance(docId) {
-    if (!confirm('Are you sure you want to delete this attendance record?')) {
-        return;
-    }
+async function updateStatus(docId, newStatus) {
+    try {
+        const response = await fetch(`/attendance/api/attendance/${docId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
 
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to update attendance status');
+        }
+
+        showToast('Attendance status updated successfully', 'success');
+    } catch (error) {
+        console.error('Error updating status:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+async function deleteAttendance(docId) {
+    if (!confirm('Are you sure you want to delete this attendance record?')) return;
+    
     try {
         const response = await fetch(`/attendance/api/attendance/${docId}`, {
             method: 'DELETE'
@@ -354,12 +287,32 @@ async function deleteAttendance(docId) {
             throw new Error(result.error || 'Failed to delete attendance record');
         }
 
+        // Remove the row from the table
+        const row = document.querySelector(`tr[data-doc-id="${docId}"]`);
+        if (row) row.remove();
+        
+        // Update record count
+        const recordCount = document.getElementById('recordCount');
+        const currentCount = parseInt(recordCount.textContent);
+        recordCount.textContent = `${currentCount - 1} Records Found`;
+
         showToast('Attendance record deleted successfully', 'success');
-        loadAttendance();
     } catch (error) {
         console.error('Error deleting attendance:', error);
         showToast(error.message, 'error');
     }
+}
+
+function formatDateTime(timestamp) {
+    if (!timestamp) return 'N/A';
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
 async function exportAttendance() {
@@ -370,11 +323,6 @@ async function exportAttendance() {
         if (document.getElementById('dateRange').value === 'custom') {
             params.append('date_from', document.getElementById('dateFrom').value);
             params.append('date_to', document.getElementById('dateTo').value);
-        }
-
-        const subjectFilter = document.getElementById('subjectFilter');
-        if (subjectFilter?.value) {
-            params.append('subject_id', subjectFilter.value);
         }
 
         const statusFilter = document.getElementById('statusFilter');
@@ -392,18 +340,6 @@ async function exportAttendance() {
         console.error('Error exporting attendance:', error);
         showToast(error.message, 'error');
     }
-}
-
-function formatDateTime(timestamp) {
-    if (!timestamp) return 'N/A';
-    const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
 }
 </script>
 {% endblock %} 

@@ -13,16 +13,15 @@ class ChatUI {
     setupEventListeners() {
         // Toggle chat window
         this.toggleBtn.addEventListener('click', () => {
-            if (this.chatWindow.style.display === 'none' || this.chatWindow.style.display === '') {
-                this.chatWindow.style.display = 'flex';
-            } else {
-                this.chatWindow.style.display = 'none';
+            this.chatWindow.classList.toggle('hidden');
+            if (!this.chatWindow.classList.contains('hidden')) {
+                this.chatInput.focus();
             }
         });
         
         // Close chat window
         this.chatCloseBtn.addEventListener('click', () => {
-            this.chatWindow.style.display = 'none';
+            this.chatWindow.classList.add('hidden');
         });
         
         // Send message on button click
@@ -30,18 +29,43 @@ class ChatUI {
         
         // Send message on Enter key
         this.chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.sendMessage();
             }
         });
     }
     
-    addMessage(text, sender) {
+    addMessage(text, isUser = false) {
         const div = document.createElement('div');
-        div.classList.add('message', sender);
-        div.textContent = text;
+        div.className = `chat ${isUser ? 'chat-end' : 'chat-start'}`;
+        div.innerHTML = `
+            <div class="chat-bubble ${isUser ? '' : 'chat-bubble-primary'}">
+                ${this.formatMessage(text)}
+            </div>
+        `;
         this.chatMessages.appendChild(div);
+        this.scrollToBottom();
+    }
+    
+    formatMessage(text) {
+        // Convert URLs to links
+        text = text.replace(
+            /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim,
+            '<a href="$1" class="link" target="_blank">$1</a>'
+        );
+        
+        // Convert page references to links
+        text = text.replace(
+            /\((\/[a-zA-Z0-9\/\-_]+)\)/g,
+            '(<a href="$1" class="link">$1</a>)'
+        );
+        
+        // Convert line breaks to <br>
+        return text.replace(/\n/g, '<br>');
+    }
+    
+    scrollToBottom() {
         this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
     }
     
@@ -52,25 +76,41 @@ class ChatUI {
         // Clear input
         this.chatInput.value = '';
         
-        // Add user message to chat
-        this.addMessage(message, 'user');
+        // Add user message
+        this.addMessage(message, true);
         
         try {
-            const response = await fetch('/chat', {
+            // Show typing indicator
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat chat-start';
+            typingDiv.innerHTML = `
+                <div class="chat-bubble chat-bubble-primary opacity-50">
+                    <span class="loading loading-dots"></span>
+                </div>
+            `;
+            this.chatMessages.appendChild(typingDiv);
+            this.scrollToBottom();
+            
+            // Send message to server
+            const response = await fetch('/chat/ai/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: message })
             });
+            
+            // Remove typing indicator
+            typingDiv.remove();
+            
+            if (!response.ok) {
+                throw new Error('Failed to get response');
+            }
             
             const data = await response.json();
             
-            if (data.error) {
-                this.addMessage(data.error, 'assistant');
-                return;
-            }
-            
             // Add assistant's response
-            this.addMessage(data.message, 'assistant');
+            this.addMessage(data.message);
             
             // Handle navigation if present
             if (data.navigation) {
@@ -79,19 +119,19 @@ class ChatUI {
             
         } catch (error) {
             console.error('Chat error:', error);
-            this.addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+            this.addMessage('Sorry, I encountered an error. Please try again.');
         }
     }
     
     handleNavigation(tab) {
         // Get the tab button
-        const tabButton = document.querySelector(`#${tab}-tab`);
+        const tabButton = document.querySelector(`[data-tab="${tab}"]`);
         if (tabButton) {
             // Trigger click on the tab
             tabButton.click();
             // Highlight the tab briefly
             tabButton.style.transition = 'background-color 0.3s';
-            tabButton.style.backgroundColor = '#e3f2fd';
+            tabButton.style.backgroundColor = 'var(--primary-focus)';
             setTimeout(() => {
                 tabButton.style.backgroundColor = '';
             }, 1000);

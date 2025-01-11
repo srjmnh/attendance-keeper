@@ -8,7 +8,7 @@ class ChatbotService:
     
     def __init__(self):
         """Initialize Gemini client and system context"""
-        api_key = os.getenv('GEMINI_API_KEY')  # Using your environment variable name
+        api_key = os.environ.get('GEMINI_API_KEY')  # Get from environment variable
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
             

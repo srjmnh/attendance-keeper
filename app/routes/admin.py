@@ -9,6 +9,7 @@ import pandas as pd
 import io
 import firebase_admin
 from firebase_admin import auth
+from firebase_admin import firestore
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -21,62 +22,31 @@ def admin_dashboard():
 
 @admin_bp.route('/manage/students')
 @login_required
-@role_required(['admin', 'teacher'])
 def manage_students():
-    """Display student management page"""
+    if not current_user.role == 'admin':
+        flash('Unauthorized access', 'error')
+        return redirect(url_for('main.dashboard'))
+        
     try:
-        current_app.logger.info("Fetching students for management page")
+        current_app.logger.info("Fetching students from users collection")
+        # Get all students from users collection where role is student
+        students_ref = current_app.db.collection('users').where('role', '==', 'student').get()
         students = []
         
-        # Get students collection with role filter
-        students_ref = current_app.db.collection('users').where('role', '==', 'student')
-        
-        # For teachers, filter students based on their assigned classes
-        if current_user.role == 'teacher':
-            assigned_classes = current_user.classes
-            assigned_class_numbers = list(set(class_div.split('-')[0] for class_div in assigned_classes))
-            assigned_divisions = list(set(class_div.split('-')[1] for class_div in assigned_classes))
-            
-            # Get students in assigned classes and divisions
-            docs = students_ref.get()
-            for doc in docs:
-                data = doc.to_dict()
-                class_str = str(data.get('class', ''))
-                division = str(data.get('division', '')).upper()
-                
-                # Check if student's class and division match teacher's assignments
-                if (class_str in assigned_class_numbers and 
-                    division in assigned_divisions and 
-                    f"{class_str}-{division}" in assigned_classes):
-                    student_data = {
-                        'id': doc.id,
-                        'name': str(data.get('name', '')),
-                        'student_id': str(data.get('student_id', '')),
-                        'class': int(data.get('class', 0)) or '',
-                        'division': division
-                    }
-                    students.append(student_data)
-        else:
-            # For admin, get all students
-            docs = students_ref.get()
-            for doc in docs:
-                data = doc.to_dict()
-                student_data = {
-                    'id': doc.id,
-                    'name': str(data.get('name', '')),
-                    'student_id': str(data.get('student_id', '')),
-                    'class': int(data.get('class', 0)) or '',
-                    'division': str(data.get('division', '')).upper()
-                }
-                students.append(student_data)
+        for doc in students_ref:
+            student_data = doc.to_dict()
+            student_data['doc_id'] = doc.id
+            student_data['has_portal'] = True  # Since we're getting from users collection, they all have portal accounts
+            student_data['email'] = student_data.get('email', '')
+            students.append(student_data)
             
         current_app.logger.info(f"Found {len(students)} students")
         return render_template('admin/students.html', students=students)
         
     except Exception as e:
-        current_app.logger.error(f"Error loading students page: {str(e)}")
-        flash('Failed to load students. Please try again.', 'error')
-        return render_template('admin/students.html', students=[])
+        current_app.logger.error(f"Error fetching students: {str(e)}")
+        flash('Error fetching students', 'error')
+        return redirect(url_for('main.dashboard'))
 
 @admin_bp.route('/manage/subjects', methods=['GET', 'POST'])
 @login_required
@@ -112,38 +82,37 @@ def manage_subjects():
     # GET request - return template
     return render_template('admin/subjects.html')
 
-@admin_bp.route('/manage/users')
+@admin_bp.route('/manage/teachers')
 @login_required
 @role_required(['admin'])
-def manage_users():
-    """Display user management page"""
+def manage_teachers():
+    """Display teacher management page"""
     try:
-        current_app.logger.info("Fetching users for management page")
-        users = []
+        current_app.logger.info("Fetching teachers for management page")
+        teachers = []
         
-        # Get all users
-        users_ref = current_app.db.collection('users')
-        docs = users_ref.get()
+        # Get only teacher users
+        teachers_ref = current_app.db.collection('users').where('role', '==', 'teacher')
+        docs = teachers_ref.get()
         
         for doc in docs:
             data = doc.to_dict()
-            user_data = {
+            teacher_data = {
                 'id': doc.id,
                 'email': str(data.get('email', '')),
                 'name': str(data.get('name', '')),
-                'role': str(data.get('role', '')),
                 'classes': data.get('classes', []),
-                'student_id': str(data.get('student_id', ''))
+                'created_at': data.get('created_at', '')
             }
-            users.append(user_data)
+            teachers.append(teacher_data)
             
-        current_app.logger.info(f"Found {len(users)} users")
-        return render_template('admin/users.html', users=users)
+        current_app.logger.info(f"Found {len(teachers)} teachers")
+        return render_template('admin/teachers.html', teachers=teachers)
         
     except Exception as e:
-        current_app.logger.error(f"Error loading users page: {str(e)}")
-        flash('Failed to load users. Please try again.', 'error')
-        return render_template('admin/users.html', users=[])
+        current_app.logger.error(f"Error loading teachers page: {str(e)}")
+        flash('Failed to load teachers. Please try again.', 'error')
+        return render_template('admin/teachers.html', teachers=[])
 
 @admin_bp.route('/manage_subjects/<subject_id>', methods=['DELETE'])
 @login_required
@@ -188,16 +157,19 @@ def update_student(student_id):
         if division not in ['A', 'B', 'C', 'D']:
             return jsonify({'error': 'Division must be A, B, C, or D'}), 400
             
-        # Check if student exists
+        # Get student document directly by document ID
         student_ref = current_app.db.collection('users').document(student_id)
         student_doc = student_ref.get()
+        
         if not student_doc.exists:
+            current_app.logger.error(f"Student not found with document ID: {student_id}")
             return jsonify({'error': 'Student not found'}), 404
+            
+        student_data = student_doc.to_dict()
             
         # For teachers, validate that they can manage this class
         if current_user.role == 'teacher':
             # Check if teacher can manage the current class
-            student_data = student_doc.to_dict()
             current_class = f"{student_data.get('class')}-{student_data.get('division')}"
             if current_class not in current_user.classes:
                 return jsonify({'error': 'You are not authorized to manage this student'}), 403
@@ -208,8 +180,8 @@ def update_student(student_id):
                 return jsonify({'error': 'You are not authorized to move students to this class'}), 403
             
         # Check if new student ID conflicts with existing one (excluding current student)
-        if student_id_new != data.get('student_id'):
-            existing = current_app.db.collection('users').where('student_id', '==', student_id_new).get()
+        if student_id_new != student_data.get('student_id'):
+            existing = current_app.db.collection('users').where('student_id', '==', student_id_new).where('role', '==', 'student').get()
             if len(list(existing)) > 0:
                 return jsonify({'error': 'Student ID already exists'}), 400
         
@@ -218,9 +190,12 @@ def update_student(student_id):
             'name': str(data['name']).strip(),
             'student_id': student_id_new,
             'class': class_num,
-            'division': division
+            'division': division,
+            'updated_at': datetime.utcnow().isoformat()
         }
+        
         student_ref.update(update_data)
+        current_app.logger.info(f"Successfully updated student {student_id}")
         return jsonify({'message': 'Student updated successfully.'}), 200
         
     except Exception as e:
@@ -292,128 +267,117 @@ def create_student():
 
 @admin_bp.route('/add_student', methods=['POST'])
 @login_required
-@role_required(['admin'])
 def add_student():
-    """Add a new user account"""
-    try:
-        data = request.json
-        current_app.logger.info(f"Received data for add_user: {data}")
+    if not current_user.role == 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
         
-        email = data.get('email')
-        password = data.get('password')
-        name = data.get('name')
-        role = data.get('role')
-        student_id = data.get('student_id')
-        classes = data.get('classes', [])
-
-        # Log the required fields
-        current_app.logger.info(f"Required fields: email={email}, name={name}, role={role}, student_id={student_id}, classes={classes}, password={'set' if password else 'not set'}")
-
+    try:
+        data = request.get_json()
+        
         # Validate required fields
-        if not all([email, password, name, role]):
-            missing = [field for field, value in {'email': email, 'password': password, 'name': name, 'role': role}.items() if not value]
-            error_msg = f"Missing required fields: {', '.join(missing)}"
-            current_app.logger.error(error_msg)
-            return jsonify({'error': error_msg}), 400
-
-        # Validate student_id for student role
-        if role == 'student' and not student_id:
-            error_msg = "Student ID is required for student accounts"
-            current_app.logger.error(error_msg)
-            return jsonify({'error': error_msg}), 400
-
-        # Validate classes for teacher role
-        if role == 'teacher' and not classes:
-            error_msg = "At least one class must be assigned to teacher accounts"
-            current_app.logger.error(error_msg)
-            return jsonify({'error': error_msg}), 400
-
-        # Check if student_id exists (only for student role)
-        if role == 'student':
-            existing = current_app.db.collection('users').where('student_id', '==', student_id).get()
-            if len(list(existing)) > 0:
-                return jsonify({'error': 'Student ID already exists'}), 400
-
-        try:
-            # Create user in Firebase Auth
-            current_app.logger.info(f"Creating Firebase Auth user with email: {email}")
-            user_kwargs = {
-                'email': email,
-                'password': password,
-                'display_name': name
-            }
-            user = auth.create_user(**user_kwargs)
-            current_app.logger.info(f"Created Firebase Auth user with UID: {user.uid}")
+        required_fields = ['email', 'password', 'name', 'role', 'student_id']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
             
-            # Add custom claims based on role
-            claims = {'role': role}
-            if role == 'student':
-                claims['student_id'] = student_id
-            elif role == 'teacher':
-                claims['classes'] = classes
-            current_app.logger.info(f"Setting custom claims for user {user.uid}: {claims}")
-            auth.set_custom_user_claims(user.uid, claims)
-            
-            # Add user to Firestore
-            user_data = {
-                'email': email,
-                'name': name,
-                'role': role,
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            }
-            
-            # Add role-specific data
-            if role == 'student':
-                user_data['student_id'] = student_id
-            elif role == 'teacher':
-                user_data['classes'] = classes
-            
-            current_app.logger.info(f"Adding user data to Firestore: {user_data}")
-            current_app.db.collection('users').document(user.uid).set(user_data)
-            return jsonify({'message': f'{role.title()} account created successfully', 'id': user.uid}), 201
-
-        except firebase_admin.auth.EmailAlreadyExistsError:
-            current_app.logger.error(f"Email {email} already exists")
+        # Check if email already exists
+        user_ref = current_app.db.collection('users').where('email', '==', data['email']).get()
+        if len(list(user_ref)) > 0:
             return jsonify({'error': 'Email already exists'}), 400
-        except Exception as e:
-            current_app.logger.error(f"Firebase error: {str(e)}")
-            return jsonify({'error': str(e)}), 500
             
+        # Create user in Firebase Auth
+        user = auth.create_user(
+            email=data['email'],
+            password=data['password'],
+            display_name=data['name']
+        )
+        
+        # Get the student document
+        student_ref = current_app.db.collection('students').where('student_id', '==', data['student_id']).get()
+        if not student_ref:
+            return jsonify({'error': 'Student not found'}), 404
+            
+        student_doc = list(student_ref)[0]
+        student_data = student_doc.to_dict()
+        
+        # Create user document in Firestore
+        user_data = {
+            'uid': user.uid,
+            'email': data['email'],
+            'name': data['name'],
+            'role': 'student',
+            'student_id': data['student_id'],
+            'class': student_data.get('class'),
+            'division': student_data.get('division'),
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Update student document with email
+        student_doc.reference.update({
+            'email': data['email']
+        })
+        
+        # Save user data
+        current_app.db.collection('users').document(user.uid).set(user_data)
+        
+        return jsonify({
+            'message': 'Student portal account created successfully',
+            'uid': user.uid
+        })
+        
     except Exception as e:
-        current_app.logger.error(f"Error creating user account: {str(e)}")
+        print(f"Error creating student portal account: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/teachers', methods=['POST'])
 @login_required
 @role_required(['admin'])
 def add_teacher():
-    data = request.form
-    email = data.get('email')
-    password = data.get('password')
-    classes = data.getlist('classes')  # Assuming multiple classes can be assigned
-
-    # Validate if classes exist
-    db_service = DatabaseService()
-    valid_classes = db_service.get_all_classes()
-    for cls in classes:
-        if cls not in valid_classes:
-            return jsonify({'error': f'Class {cls} does not exist.'}), 400
-
     try:
-        # Create user in Firebase Auth
-        user = auth.create_user(
-            email=email,
-            password=password,
-            custom_claims={'role': 'teacher', 'classes': classes}
-        )
-        # Optionally, add user to Firestore
-        db_service.add_user(user.uid, email, data.get('name'), 'teacher', classes=classes)
-        return jsonify({'message': 'Teacher account created successfully.'}), 201
-    except firebase_admin.auth.EmailAlreadyExistsError:
-        return jsonify({'error': 'Email already exists.'}), 400
+        data = request.get_json()
+        name = data.get('name')
+        email = data.get('email')
+        password = data.get('password')
+        classes = data.get('classes', [])  # List of class IDs (e.g., ["1-A", "1-B"])
+
+        # Validate required fields
+        if not all([name, email, password]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Validate classes
+        if not classes:
+            return jsonify({'error': 'At least one class must be assigned'}), 400
+
+        # Check if email already exists
+        existing_user = current_app.db.collection('users').where('email', '==', email).get()
+        if len(list(existing_user)) > 0:
+            return jsonify({'error': 'Email already exists'}), 400
+
+        # Hash the password
+        password_hash = generate_password_hash(password)
+
+        # Create user document in Firestore
+        user_data = {
+            'name': name,
+            'email': email,
+            'password_hash': password_hash,
+            'role': 'teacher',
+            'classes': classes,
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        # Add user to Firestore
+        doc_ref = current_app.db.collection('users').document()
+        doc_ref.set(user_data)
+
+        return jsonify({
+            'message': 'Teacher account created successfully',
+            'id': doc_ref.id
+        }), 201
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500 
+        current_app.logger.error(f"Error creating teacher account: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/api/users', methods=['POST'])
 @login_required
@@ -585,38 +549,14 @@ def list_subjects():
 @admin_bp.route('/api/subjects', methods=['GET'])
 @login_required
 def get_subjects():
-    """Get subjects based on user role"""
     try:
-        subjects = []
         subjects_ref = current_app.db.collection('subjects')
-        
-        if current_user.role == 'admin':
-            # Admin sees all subjects
-            docs = subjects_ref.stream()
-            subjects = [{
-                'id': doc.id,
-                'name': doc.to_dict().get('name', ''),
-                'class_id': doc.to_dict().get('class_id', '')
-            } for doc in docs]
-        else:
-            # Teachers see subjects for their assigned classes
-            teacher_classes = getattr(current_user, 'classes', []) or []
-            docs = subjects_ref.stream()
-            
-            for doc in docs:
-                subject_data = doc.to_dict()
-                class_id = subject_data.get('class_id', '')
-                
-                # Check if the subject's class matches any of teacher's assigned classes
-                if class_id in teacher_classes:
-                    subjects.append({
-                        'id': doc.id,
-                        'name': subject_data.get('name', ''),
-                        'class_id': class_id
-                    })
-        
-        current_app.logger.info(f"Found {len(subjects)} subjects for user {current_user.email}")
-        return jsonify({'subjects': subjects})
+        subjects = subjects_ref.stream()
+        subject_list = [{'id': doc.id, **doc.to_dict()} for doc in subjects]
+
+        current_app.logger.info(f"Found {len(subject_list)} subjects")
+        return jsonify({'subjects': subject_list}), 200
+
     except Exception as e:
         current_app.logger.error(f"Error getting subjects: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -625,43 +565,33 @@ def get_subjects():
 @login_required
 @role_required(['admin'])
 def create_subject():
-    """Create a new subject"""
     try:
-        data = request.json
+        data = request.get_json()
         name = data.get('name')
-        class_id = data.get('class_id')  # Format: "1-A", "2-B", etc.
-        
-        if not name or not class_id:
-            return jsonify({'error': 'Subject name and class are required'}), 400
-        
-        # Validate class_id format
-        try:
-            class_num, division = class_id.split('-')
-            if not (1 <= int(class_num) <= 12 and division in ['A', 'B', 'C', 'D']):
-                return jsonify({'error': 'Invalid class format. Must be like "1-A", "2-B", etc.'}), 400
-        except (ValueError, AttributeError):
-            return jsonify({'error': 'Invalid class format. Must be like "1-A", "2-B", etc.'}), 400
-        
-        # Add subject to database
+
+        if not name:
+            return jsonify({'error': 'Subject name is required'}), 400
+
+        # Create subject document
         subject_data = {
             'name': name,
-            'class_id': class_id,
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
-        
-        doc_ref = current_app.db.collection('subjects').add(subject_data)
-        
+
+        # Add subject to Firestore
+        doc_ref = current_app.db.collection('subjects').document()
+        doc_ref.set(subject_data)
+
         return jsonify({
-            'message': 'Subject added successfully',
-            'id': doc_ref[1].id,
+            'message': 'Subject created successfully',
+            'id': doc_ref.id,
             'subject': {
-                'id': doc_ref[1].id,
-                'name': name,
-                'class_id': class_id
+                'id': doc_ref.id,
+                **subject_data
             }
         }), 201
-        
+
     except Exception as e:
         current_app.logger.error(f"Error creating subject: {str(e)}")
         return jsonify({'error': str(e)}), 500 

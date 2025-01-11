@@ -225,6 +225,15 @@ def recognize():
                 'identified_people': []
             })
             
+        # Get teacher's assigned classes
+        teacher_classes = []
+        if current_user.role == 'teacher':
+            teacher_classes = getattr(current_user, 'classes', [])
+            if not teacher_classes:
+                return jsonify({
+                    'error': 'No classes assigned to your account'
+                }), 403
+            
         # Search for each face in the collection
         identified_people = []
         for face in faces:
@@ -236,71 +245,84 @@ def recognize():
                     
                     # Get student details
                     student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
-                    if student_ref:
-                        student_data = student_ref[0].to_dict()
-                        student_class = f"{student_data.get('class')}-{student_data.get('division')}"
-                        
-                        # For teachers, check if they can mark attendance for this student
-                        if current_user.role == 'teacher' and student_class not in current_user.classes:
-                            identified_people.append({
-                                'message': f'Not authorized to mark attendance for student {student_id}'
-                            })
-                            continue
-                        
-                        # Mark attendance
-                        attendance_data = {
-                            'student_id': student_id,
-                            'student_name': student_data.get('name', ''),
-                            'class': student_data.get('class', ''),
-                            'division': student_data.get('division', ''),
-                            'status': 'PRESENT',
-                            'date': datetime.now().strftime('%Y-%m-%d'),
-                            'timestamp': datetime.now().isoformat(),
-                            'marked_by': current_user.email,
-                            'confidence': confidence
-                        }
-                        
-                        # Check if attendance already exists for today
-                        today = datetime.now().strftime('%Y-%m-%d')
-                        existing_attendance = current_app.db.collection('attendance')\
-                            .where('student_id', '==', student_id)\
-                            .where('date', '==', today)\
-                            .get()
-                        
-                        if existing_attendance:
-                            # Update existing attendance
-                            doc = existing_attendance[0]
-                            doc.reference.update({
-                                'status': 'PRESENT',
-                                'timestamp': datetime.now().isoformat(),
-                                'marked_by': current_user.email,
-                                'confidence': confidence
-                            })
-                        else:
-                            # Add new attendance record
-                            current_app.db.collection('attendance').add(attendance_data)
-                        
-                        identified_people.append({
-                            'student_id': student_id,
-                            'name': student_data.get('name', ''),
-                            'confidence': confidence
-                        })
-                    else:
+                    if not student_ref:
                         identified_people.append({
                             'message': f'Student {student_id} not found in database'
                         })
+                        continue
+
+                    student_doc = student_ref[0]
+                    student_data = student_doc.to_dict()
+                    student_class = f"{student_data.get('class')}-{student_data.get('division')}"
+                    student_name = student_data.get('name', '')
+                    
+                    # For teachers, check if they can mark attendance for this student
+                    if current_user.role == 'teacher' and student_class not in teacher_classes:
+                        identified_people.append({
+                            'student_id': student_id,
+                            'name': student_name,
+                            'class': student_data.get('class', ''),
+                            'division': student_data.get('division', ''),
+                            'message': f'Not authorized to mark attendance for student in class {student_class}'
+                        })
+                        continue
+                    
+                    # Mark attendance
+                    attendance_data = {
+                        'student_id': student_id,
+                        'student_name': student_name,
+                        'name': student_name,
+                        'class': student_data.get('class', ''),
+                        'division': student_data.get('division', ''),
+                        'class_id': student_class,  # Add class_id for filtering
+                        'status': 'PRESENT',
+                        'date': datetime.now().strftime('%Y-%m-%d'),
+                        'timestamp': datetime.now().isoformat(),
+                        'marked_by': current_user.email,
+                        'confidence': confidence
+                    }
+                    
+                    # Check if attendance already exists for today
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    existing_attendance = current_app.db.collection('attendance').where(
+                        'student_id', '==', student_id
+                    ).where('date', '==', today).get()
+                    
+                    if existing_attendance:
+                        # Update existing attendance
+                        doc = existing_attendance[0]
+                        doc.reference.update({
+                            'status': 'PRESENT',
+                            'timestamp': datetime.now().isoformat(),
+                            'marked_by': current_user.email,
+                            'confidence': confidence
+                        })
+                        current_app.logger.info(f"Updated attendance for student {student_id}")
+                    else:
+                        # Add new attendance record
+                        doc_ref = current_app.db.collection('attendance').add(attendance_data)
+                        current_app.logger.info(f"Created new attendance record for student {student_id}")
+                    
+                    identified_people.append({
+                        'student_id': student_id,
+                        'name': student_name,
+                        'class': student_data.get('class', ''),
+                        'division': student_data.get('division', ''),
+                        'confidence': confidence,
+                        'message': 'Attendance marked successfully'
+                    })
                 else:
                     identified_people.append({
-                        'message': 'Face not registered in the system'
+                        'message': 'No match found for this face'
                     })
             except Exception as e:
                 current_app.logger.error(f"Error processing face: {str(e)}")
                 identified_people.append({
                     'message': f'Error processing face: {str(e)}'
                 })
-        
+                
         return jsonify({
-            'message': 'Recognition completed',
+            'message': 'Recognition complete',
             'total_faces': len(faces),
             'identified_people': identified_people
         })

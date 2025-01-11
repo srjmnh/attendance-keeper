@@ -8,20 +8,20 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
+    # Initialize default stats and data
+    stats = {
+        'total_students': 0,
+        'total_subjects': 0,
+        'today_attendance': 0,
+        'attendance_trend': 'No change'
+    }
+    
+    attendance_data = {
+        'labels': [],
+        'values': []
+    }
+    
     try:
-        # Initialize stats and data
-        stats = {
-            'total_students': 0,
-            'total_subjects': 0,
-            'today_attendance': 0,
-            'attendance_trend': 'No change'
-        }
-        
-        attendance_data = {
-            'labels': [],
-            'values': []
-        }
-        
         # Get date range for attendance data
         today = datetime.now().date()
         start_date = today - timedelta(days=7)  # Last 7 days
@@ -34,17 +34,20 @@ def dashboard():
         # For teachers, we need to filter by their assigned classes
         teacher_classes = []
         if current_user.role == 'teacher':
-            if not hasattr(current_user, 'classes') or not current_user.classes:
+            teacher_classes = getattr(current_user, 'classes', [])
+            if not teacher_classes:
                 return render_template('dashboard.html',
                                     stats=stats,
                                     attendance_data=attendance_data,
                                     attendance_records=[],
                                     error="No classes assigned to your account.")
-            teacher_classes = current_user.classes
+            
             # For teachers, we'll filter after getting the documents
             students = list(students_query.stream())
             stats['total_students'] = sum(1 for doc in students 
-                if f"{doc.get('class')}-{doc.get('division')}" in teacher_classes)
+                if f"{doc.to_dict().get('class')}-{doc.to_dict().get('division')}" in teacher_classes)
+        elif current_user.role == 'student':
+            stats['total_students'] = 1  # Only themselves
         else:
             stats['total_students'] = len(list(students_query.stream()))
         
@@ -52,8 +55,15 @@ def dashboard():
         subjects_query = current_app.db.collection('subjects')
         if current_user.role == 'teacher':
             # For teachers, only count subjects they teach
-            stats['total_subjects'] = len([s for s in subjects_query.stream() 
-                if s.get('class_id') in teacher_classes])
+            subjects = list(subjects_query.stream())
+            stats['total_subjects'] = sum(1 for s in subjects 
+                if f"{s.to_dict().get('class')}-{s.to_dict().get('division')}" in teacher_classes)
+        elif current_user.role == 'student':
+            # For students, count subjects in their class
+            class_id = f"{getattr(current_user, 'class_id', '')}-{getattr(current_user, 'division', '')}"
+            subjects = list(subjects_query.stream())
+            stats['total_subjects'] = sum(1 for s in subjects 
+                if f"{s.to_dict().get('class')}-{s.to_dict().get('division')}" == class_id)
         else:
             stats['total_subjects'] = len(list(subjects_query.stream()))
         
@@ -141,10 +151,20 @@ def dashboard():
                 if student_class not in teacher_classes:
                     continue
             
-            # Ensure name is a string and not None
-            name = record.get('student_name', '')
+            # Get student name from either student_name or name field
+            name = record.get('student_name') or record.get('name')
             if not name:
-                name = record.get('name', 'Unknown')
+                # Try to fetch student name from users collection
+                student_id = record.get('student_id')
+                if student_id:
+                    student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+                    if student_ref:
+                        student_data = student_ref[0].to_dict()
+                        name = student_data.get('name', 'Unknown')
+                    else:
+                        name = 'Unknown'
+                else:
+                    name = 'Unknown'
             
             # Convert record values to JSON serializable types
             recent_records.append({
@@ -157,18 +177,13 @@ def dashboard():
             })
         
         return render_template('dashboard.html',
-                             stats=stats,
-                             attendance_data=attendance_data,
-                             attendance_records=recent_records)
-                             
+                            stats=stats,
+                            attendance_data=attendance_data,
+                            attendance_records=recent_records)
+                            
     except Exception as e:
         current_app.logger.error(f"Error loading dashboard: {str(e)}")
         return render_template('dashboard.html',
-                             stats={
-                                 'total_students': 0,
-                                 'total_subjects': 0,
-                                 'today_attendance': 0,
-                                 'attendance_trend': 'No data'
-                             },
-                             attendance_data={'labels': [], 'values': []},
-                             attendance_records=[]) 
+                            stats=stats,
+                            attendance_data=attendance_data,
+                            attendance_records=[])

@@ -160,7 +160,7 @@ async function recognizeFaces(imageData) {
         // Clean base64 image data
         const base64Image = imageData.includes('base64') ? imageData : `data:image/jpeg;base64,${imageData}`;
 
-        const response = await fetch('/recognition/recognize', {
+        const response = await fetch('/recognize', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

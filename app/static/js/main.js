@@ -37,3 +37,55 @@ function showToast(message, type = 'info', duration = 3000) {
         toast.addEventListener('animationend', () => toast.remove());
     }, duration);
 }
+
+function editStudent(student) {
+    // Set form to edit mode
+    document.getElementById('modalTitle').textContent = 'Edit Student';
+    document.getElementById('studentId').value = student.doc_id;
+    document.getElementById('studentName').value = student.name;
+    document.getElementById('studentIdInput').value = student.student_id;
+    document.getElementById('studentClass').value = student.class;
+    document.getElementById('studentDivision').value = student.division;
+    
+    // Show modal
+    document.getElementById('addStudentModal').showModal();
+}
+
+async function handleStudentSubmit(event) {
+    event.preventDefault();
+    
+    const studentId = document.getElementById('studentId').value;
+    const data = {
+        name: document.getElementById('studentName').value,
+        student_id: document.getElementById('studentIdInput').value,
+        class: document.getElementById('studentClass').value,
+        division: document.getElementById('studentDivision').value
+    };
+    
+    try {
+        const url = studentId ? `/admin/api/students/${studentId}` : '/admin/api/students';
+        const method = studentId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save student');
+        }
+        
+        // Success
+        showToast('Student saved successfully', 'success');
+        document.getElementById('addStudentModal').close();
+        location.reload(); // Refresh to show updated data
+        
+    } catch (error) {
+        console.error('Error saving student:', error);
+        showToast(error.message, 'error');
+    }
+}

@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_user, logout_user, current_user
 from app.services.db_service import DatabaseService
 from app.models.user import User
 from app.forms.auth import LoginForm
+from werkzeug.security import check_password_hash
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -16,15 +17,54 @@ def login():
         email = form.email.data
         password = form.password.data
         
-        db_service = DatabaseService()
-        user = db_service.get_user_by_email(email)
-        if user and user.check_password(password):
+        try:
+            # Get user from Firestore
+            users_ref = current_app.db.collection('users')
+            query = users_ref.where('email', '==', email).limit(1).stream()
+            
+            user_doc = None
+            for doc in query:
+                user_doc = doc
+                break
+            
+            if not user_doc:
+                flash('Please check your login details and try again.', 'error')
+                return redirect(url_for('auth.login'))
+            
+            user_data = user_doc.to_dict()
+            user_data['id'] = user_doc.id
+            
+            # Verify password
+            if not check_password_hash(user_data.get('password_hash', ''), password):
+                flash('Please check your login details and try again.', 'error')
+                return redirect(url_for('auth.login'))
+            
+            # Create user object with all necessary data
+            user = User(
+                id=user_data.get('id'),
+                email=user_data.get('email'),
+                name=user_data.get('name'),
+                role=user_data.get('role'),
+                classes=user_data.get('classes', []),
+                student_id=user_data.get('student_id')
+            )
+            
+            # Log in user
             login_user(user)
-            flash('Logged in successfully.', 'success')
+            
+            # Get the page they wanted to access
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('main.dashboard'))
-        else:
-            flash('Invalid email or password.', 'error')
+            
+            if not next_page or not next_page.startswith('/'):
+                next_page = url_for('main.dashboard')
+            
+            flash('Successfully logged in!', 'success')
+            return redirect(next_page)
+            
+        except Exception as e:
+            current_app.logger.error(f"Login error: {str(e)}")
+            flash('An error occurred during login. Please try again.', 'error')
+            return redirect(url_for('auth.login'))
     
     return render_template('auth/login.html', form=form)
 

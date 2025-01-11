@@ -110,32 +110,9 @@ def delete_user(user_id):
 def get_user_subjects(user_id):
     """Get subjects associated with a user"""
     try:
-        user_doc = current_app.db.collection('users').document(user_id).get()
-        
-        if not user_doc.exists:
-            return []
-        
-        user_data = user_doc.to_dict()
-        role = user_data.get('role')
-        
-        if role == 'admin':
-            # Admin can see all subjects
-            subjects = current_app.db.collection('subjects').stream()
-            return [{'id': doc.id, **doc.to_dict()} for doc in subjects]
-        elif role == 'teacher':
-            # Teacher can see assigned subjects
-            subject_ids = user_data.get('subjects', [])
-            subjects = []
-            
-            for subject_id in subject_ids:
-                doc = current_app.db.collection('subjects').document(subject_id).get()
-                if doc.exists:
-                    subjects.append({'id': doc.id, **doc.to_dict()})
-            
-            return subjects
-        else:
-            # Student can see enrolled subjects
-            return user_data.get('enrolled_subjects', [])
+        # All users can see all subjects
+        subjects = current_app.db.collection('subjects').stream()
+        return [{'id': doc.id, **doc.to_dict()} for doc in subjects]
     except Exception as e:
         current_app.logger.error(f"Error getting user subjects: {str(e)}")
         raise 

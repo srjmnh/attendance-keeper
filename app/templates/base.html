@@ -88,6 +88,45 @@
                 
                 {% block content %}{% endblock %}
             </main>
+
+            <!-- Chatbot Toggle Button -->
+            <button id="chatbotToggle" class="btn btn-circle btn-primary fixed bottom-6 right-6 text-2xl shadow-lg">
+                <i class="ri-message-3-line"></i>
+            </button>
+
+            <!-- Chatbot Window -->
+            <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100">
+                <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i class="ri-robot-line"></i>
+                        <span class="font-bold">AI Assistant</span>
+                    </div>
+                    <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle">×</button>
+                </div>
+                <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <!-- Welcome Message -->
+                    <div class="chat chat-start">
+                        <div class="chat-bubble chat-bubble-primary">
+                            👋 Hi! I'm your AI assistant. I can help you with:
+                            <ul class="list-disc list-inside mt-2">
+                                <li>Taking attendance with face recognition</li>
+                                <li>Managing attendance records</li>
+                                <li>Student registration</li>
+                                <li>Navigating the system</li>
+                            </ul>
+                            How can I help you today?
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer p-4 border-t">
+                    <div class="join w-full">
+                        <input type="text" id="chatInput" class="join-item input input-bordered w-full" placeholder="Type your message...">
+                        <button id="chatSendBtn" class="join-item btn btn-primary">
+                            <i class="ri-send-plane-line"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Sidebar -->
@@ -241,6 +280,9 @@
             localStorage.setItem('theme', theme);
         });
     </script>
+
+    <!-- Load chat.js -->
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 
     {% block extra_js %}{% endblock %}
 </body>

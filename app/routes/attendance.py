@@ -15,8 +15,6 @@ def view_attendance():
     try:
         # Get filter parameters
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-        subject_id = request.args.get('subject_id')
-        status = request.args.get('status')
         
         # Base query
         query = current_app.db.collection('attendance')
@@ -24,48 +22,40 @@ def view_attendance():
         # Apply date filter
         query = query.where('date', '==', date)
         
-        # For teachers, only show their assigned classes
-        if current_user.role == 'teacher':
-            if not current_user.classes:
-                return render_template('attendance/view.html', records=[], subjects=[], date=date,
-                                    error="No classes assigned to your account.")
-            query = query.where('subject_id', 'in', current_user.classes)
-        
-        # Apply additional filters if provided
-        if subject_id:
-            query = query.where('subject_id', '==', subject_id)
-        if status:
-            query = query.where('status', '==', status)
+        # For students, only show their own records
+        if current_user.role == 'student':
+            query = query.where('student_id', '==', current_user.student_id)
             
         # Execute query
         records = []
         for doc in query.stream():
             record = doc.to_dict()
-            record['id'] = doc.id
+            record['doc_id'] = doc.id
+            
+            # For teachers, only show their assigned classes
+            if current_user.role == 'teacher':
+                if not hasattr(current_user, 'classes') or not current_user.classes:
+                    current_app.logger.warning(f"Teacher {current_user.email} has no assigned classes")
+                    continue
+                    
+                class_division = f"{record.get('class', '')}-{record.get('division', '')}"
+                if class_division not in current_user.classes:
+                    continue
+                    
             records.append(record)
             
-        # Get available subjects for filtering
-        subjects = []
-        if current_user.role == 'admin':
-            # Admin can see all subjects
-            subjects_ref = current_app.db.collection('subjects').stream()
-            subjects = [{'id': doc.id, 'name': doc.to_dict()['name']} for doc in subjects_ref]
-        else:
-            # Teachers can only see their assigned subjects
-            for class_id in current_user.classes:
-                subject_doc = current_app.db.collection('subjects').document(class_id).get()
-                if subject_doc.exists:
-                    subject_data = subject_doc.to_dict()
-                    subjects.append({
-                        'id': subject_doc.id,
-                        'name': subject_data.get('name', '')
-                    })
-        
-        return render_template('attendance/view.html', records=records, subjects=subjects, date=date)
+        current_app.logger.info(f"Found {len(records)} attendance records for date {date}")
+        return render_template('attendance/view.html', 
+                             records=records, 
+                             date=date,
+                             user_role=current_user.role)
         
     except Exception as e:
         current_app.logger.error(f"Error viewing attendance: {str(e)}")
-        return render_template('attendance/view.html', records=[], subjects=[], date=date,
+        return render_template('attendance/view.html', 
+                             records=[], 
+                             date=date,
+                             user_role=current_user.role,
                              error="An error occurred while fetching attendance records.")
 
 @attendance_bp.route('/mark', methods=['POST'])
@@ -80,24 +70,32 @@ def mark_attendance():
         if not student_id:
             return jsonify({'error': 'Student ID is required'}), 400
             
+        # Get student details
+        student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+        if not student_ref:
+            return jsonify({'error': 'Student not found'}), 404
+            
+        student_data = student_ref[0].to_dict()
+        student_class = student_data.get('class', '')
+        student_division = student_data.get('division', '')
+        class_division = f"{student_class}-{student_division}"
+            
         # For teachers, validate they have access to this student's class
         if current_user.role == 'teacher':
-            student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
-            if not student_ref:
-                return jsonify({'error': 'Student not found'}), 404
+            if not hasattr(current_user, 'classes') or not current_user.classes:
+                current_app.logger.warning(f"Teacher {current_user.email} has no assigned classes")
+                return jsonify({'error': 'No classes assigned to your account'}), 403
                 
-            student_data = student_ref[0].to_dict()
-            student_class = f"{student_data.get('class')}-{student_data.get('division')}"
-            
-            if student_class not in current_user.classes:
+            if class_division not in current_user.classes:
+                current_app.logger.warning(f"Teacher {current_user.email} attempted to mark attendance for unauthorized class {class_division}")
                 return jsonify({'error': 'You are not authorized to mark attendance for this student'}), 403
             
         # Create attendance record
         attendance_data = {
             'student_id': student_id,
             'student_name': student_data.get('name', ''),
-            'class': student_data.get('class', ''),
-            'division': student_data.get('division', ''),
+            'class': student_class,
+            'division': student_division,
             'status': status,
             'date': datetime.now().strftime('%Y-%m-%d'),
             'timestamp': datetime.now().isoformat(),
@@ -118,6 +116,7 @@ def mark_attendance():
                 'timestamp': datetime.now().isoformat(),
                 'marked_by': current_user.email
             })
+            current_app.logger.info(f"Updated attendance for student {student_id} in class {class_division}")
             return jsonify({
                 'message': 'Attendance updated successfully',
                 'id': doc.id
@@ -125,6 +124,7 @@ def mark_attendance():
         else:
             # Add new attendance record
             doc_ref = current_app.db.collection('attendance').add(attendance_data)
+            current_app.logger.info(f"Marked new attendance for student {student_id} in class {class_division}")
             return jsonify({
                 'message': 'Attendance marked successfully',
                 'id': doc_ref[1].id
@@ -176,121 +176,79 @@ def update_attendance(record_id):
 def get_attendance():
     """Get attendance records with filters"""
     try:
-        student_id = request.args.get('student_id')
-        subject_id = request.args.get('subject_id')
-        date_range = request.args.get('date_range')
+        date_range = request.args.get('date_range', 'today')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         status = request.args.get('status')
         search = request.args.get('search')
 
-        current_app.logger.info(f"Fetching attendance with filters: date_range={date_range}, subject_id={subject_id}, status={status}, search={search}")
+        # Build query
+        query = current_app.db.collection('attendance')
+        
+        # For students, only show their own records
+        if current_user.role == 'student':
+            query = query.where('student_id', '==', current_user.student_id)
+        
+        # Apply filters
+        if status:
+            query = query.where('status', '==', status)
 
-        try:
-            # Build query
-            query = current_app.db.collection('attendance')
+        # Date range filter
+        today = datetime.now().date()
+        if date_range == 'today':
+            query = query.where('date', '==', today.strftime('%Y-%m-%d'))
+        elif date_range == 'week':
+            start_of_week = today - timedelta(days=today.weekday())
+            end_of_week = start_of_week + timedelta(days=7)
+            query = query.where('date', '>=', start_of_week.strftime('%Y-%m-%d'))
+            query = query.where('date', '<', end_of_week.strftime('%Y-%m-%d'))
+        elif date_range == 'month':
+            start_of_month = today.replace(day=1)
+            if today.month == 12:
+                end_of_month = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                end_of_month = today.replace(month=today.month + 1, day=1)
+            query = query.where('date', '>=', start_of_month.strftime('%Y-%m-%d'))
+            query = query.where('date', '<', end_of_month.strftime('%Y-%m-%d'))
+        elif date_range == 'custom' and date_from and date_to:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+                to_date = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
+                query = query.where('date', '>=', from_date.strftime('%Y-%m-%d'))
+                query = query.where('date', '<', to_date.strftime('%Y-%m-%d'))
+            except ValueError:
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        elif date_range != 'all':  # Default to today if no valid date range is specified
+            query = query.where('date', '==', today.strftime('%Y-%m-%d'))
+
+        # Always order by date and timestamp
+        query = query.order_by('date', direction='DESCENDING')
+        query = query.order_by('timestamp', direction='DESCENDING')
+        
+        # Execute query and format results
+        records = []
+        docs = list(query.stream())
+        current_app.logger.info(f"Found {len(docs)} records before filtering")
+
+        for doc in docs:
+            record = doc.to_dict()
+            record['doc_id'] = doc.id
             
-            # Note: This query requires a composite index on (subject_id, timestamp, __name__)
-            # Create the index in Firebase Console or use the link in the error message
+            # For teachers, only show their assigned classes
             if current_user.role == 'teacher':
-                query = query.where('subject_id', 'in', current_user.classes)
-                current_app.logger.debug(f"Applied teacher filter: classes={current_user.classes}")
-            elif current_user.role == 'student':
-                query = query.where('student_id', '==', current_user.id)
-                current_app.logger.debug(f"Applied student filter: student_id={current_user.id}")
-
-            # Apply filters
-            if student_id:
-                query = query.where('student_id', '==', student_id)
-            if subject_id:
-                query = query.where('subject_id', '==', subject_id)
-            if status:
-                query = query.where('status', '==', status)
-
-            # Date range filter
-            today = datetime.now().date()
-            if date_range == 'today':
-                query = query.where('timestamp', '>=', today.isoformat())
-                query = query.where('timestamp', '<', (today + timedelta(days=1)).isoformat())
-                current_app.logger.debug(f"Applied today filter: {today.isoformat()} to {(today + timedelta(days=1)).isoformat()}")
-            elif date_range == 'week':
-                start_of_week = today - timedelta(days=today.weekday())
-                query = query.where('timestamp', '>=', start_of_week.isoformat())
-                query = query.where('timestamp', '<', (start_of_week + timedelta(days=7)).isoformat())
-                current_app.logger.debug(f"Applied week filter: {start_of_week.isoformat()} to {(start_of_week + timedelta(days=7)).isoformat()}")
-            elif date_range == 'month':
-                start_of_month = today.replace(day=1)
-                if today.month == 12:
-                    end_of_month = today.replace(year=today.year + 1, month=1, day=1)
-                else:
-                    end_of_month = today.replace(month=today.month + 1, day=1)
-                query = query.where('timestamp', '>=', start_of_month.isoformat())
-                query = query.where('timestamp', '<', end_of_month.isoformat())
-                current_app.logger.debug(f"Applied month filter: {start_of_month.isoformat()} to {end_of_month.isoformat()}")
-            elif date_range == 'custom' and date_from and date_to:
-                try:
-                    from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-                    to_date = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
-                    query = query.where('timestamp', '>=', from_date.isoformat())
-                    query = query.where('timestamp', '<', to_date.isoformat())
-                    current_app.logger.debug(f"Applied custom date filter: {from_date.isoformat()} to {to_date.isoformat()}")
-                except ValueError:
-                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-            elif date_range != 'all':  # Only apply default today filter if not 'all'
-                # Default to today if no valid date range is specified
-                query = query.where('timestamp', '>=', today.isoformat())
-                query = query.where('timestamp', '<', (today + timedelta(days=1)).isoformat())
-                current_app.logger.debug(f"No date range specified, defaulting to today: {today.isoformat()} to {(today + timedelta(days=1)).isoformat()}")
-
-            # Always order by timestamp descending for consistent ordering
-            query = query.order_by('timestamp', direction='DESCENDING')
+                if not hasattr(current_user, 'classes') or not current_user.classes:
+                    current_app.logger.warning(f"Teacher {current_user.email} has no assigned classes")
+                    continue
+                    
+                class_division = f"{record.get('class', '')}-{record.get('division', '')}"
+                if class_division not in current_user.classes:
+                    continue
             
-            # For 'all' option, limit to last 1000 records to prevent performance issues
-            if date_range == 'all':
-                query = query.limit(1000)
-                current_app.logger.debug("Showing all records (limited to 1000)")
-
-            # Execute query and format results
-            records = []
-            docs = list(query.stream())  # Convert to list to get count
-            current_app.logger.info(f"Found {len(docs)} records before search filter")
-
-            for doc in docs:
-                record = doc.to_dict()
-                record['doc_id'] = doc.id
-                
-                # Apply search filter if provided
-                if search:
-                    search = search.lower()
-                    if search not in record.get('name', '').lower() and search not in record.get('student_id', '').lower():
-                        continue
-                
-                # Format timestamp
-                timestamp = record.get('timestamp')
-                if timestamp:
-                    try:
-                        dt = datetime.fromisoformat(timestamp)
-                        record['timestamp'] = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    except (ValueError, TypeError):
-                        record['timestamp'] = timestamp
-                
-                records.append(record)
-            
-            current_app.logger.info(f"Returning {len(records)} records after all filters")
-            return jsonify(records)
-        except Exception as e:
-            if "The query requires an index" in str(e):
-                current_app.logger.error(f"Missing Firestore index: {str(e)}")
-                # Extract the index creation URL from the error message
-                error_msg = str(e)
-                index_url_start = error_msg.find("https://console.firebase.google.com")
-                if index_url_start != -1:
-                    index_url = error_msg[index_url_start:].split(" ")[0]
-                    return jsonify({
-                        'error': 'Database index needs to be created. Please contact the administrator.',
-                        'admin_message': f'Create the required index at: {index_url}'
-                    }), 400
-            raise  # Re-raise other exceptions
+            records.append(record)
+        
+        current_app.logger.info(f"Returning {len(records)} records after all filters")
+        return jsonify(records)
+        
     except Exception as e:
         current_app.logger.error(f"Error getting attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -462,4 +420,36 @@ def register_student():
     db_service.register_student(student_id, name, subject_id, image_url)
 
     return jsonify({'message': 'Student registered successfully.'}), 201
+
+@attendance_bp.route('/api/attendance/<doc_id>/status', methods=['PUT'])
+@login_required
+@role_required(['admin'])
+def update_attendance_status(doc_id):
+    """Update attendance status"""
+    try:
+        data = request.json
+        new_status = data.get('status')
+        
+        if not new_status or new_status not in ['PRESENT', 'ABSENT']:
+            return jsonify({'error': 'Invalid status provided'}), 400
+            
+        # Get the attendance document
+        doc_ref = current_app.db.collection('attendance').document(doc_id)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            return jsonify({'error': 'Attendance record not found'}), 404
+            
+        # Update the status
+        doc_ref.update({
+            'status': new_status,
+            'updated_at': datetime.now().isoformat(),
+            'updated_by': current_user.email
+        })
+        
+        return jsonify({'message': 'Status updated successfully'})
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating attendance status: {str(e)}")
+        return jsonify({'error': 'Failed to update attendance status'}), 500
 

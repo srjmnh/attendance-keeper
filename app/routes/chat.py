@@ -1,4 +1,5 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, render_template
+from flask_login import login_required
 from app.services.chatbot_service import ChatbotService
 import asyncio
 
@@ -9,8 +10,15 @@ chatbot_service = ChatbotService()
 MAX_MEMORY = 20
 conversation_memory = []
 
+@chat_bp.route('/')
+@login_required
+def chat_page():
+    """Render chat interface"""
+    return render_template('chat/index.html')
+
 @chat_bp.route('/ai/chat', methods=['POST'])
-async def chat():
+@login_required
+def chat():
     """Handle chat messages"""
     try:
         data = request.get_json()
@@ -27,8 +35,10 @@ async def chat():
             conversation_memory.pop(0)
         
         # Get chatbot response
-        chatbot = ChatbotService()
-        response = await chatbot.get_chat_response(user_message, conversation_memory)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(chatbot_service.get_chat_response(user_message, conversation_memory))
+        loop.close()
         
         # Add assistant response to memory
         conversation_memory.append({"role": "assistant", "content": response["message"]})

@@ -12,10 +12,6 @@
         </div>
         
         <div class="flex gap-2">
-            <button onclick="document.getElementById('addStudentModal').showModal()" class="btn btn-primary gap-2">
-                <i class="ri-user-add-line"></i>
-                Add Student
-            </button>
             <button onclick="document.getElementById('uploadModal').showModal()" class="btn btn-outline gap-2">
                 <i class="ri-upload-line"></i>
                 Upload Excel
@@ -74,12 +70,13 @@
                     <th>Name</th>
                     <th>Class</th>
                     <th>Division</th>
+                    <th>Portal Access</th>
                     <th class="text-center">Actions</th>
                 </tr>
             </thead>
             <tbody id="studentsTableBody">
                 {% for student in students %}
-                <tr class="student-row" 
+                <tr class="student-row {% if student.has_portal %}bg-success/10{% else %}bg-warning/10{% endif %}" 
                     data-name="{{ student.name|lower }}"
                     data-id="{{ student.student_id|lower }}"
                     data-class="{{ student.class }}"
@@ -89,12 +86,33 @@
                     <td>Class {{ student.class }}</td>
                     <td>{{ student.division }}</td>
                     <td>
+                        {% if student.has_portal %}
+                            <div class="flex items-center gap-2">
+                                <span class="badge badge-success">Active</span>
+                                <span class="text-sm text-gray-600">{{ student.email }}</span>
+                            </div>
+                        {% else %}
+                            <div class="flex items-center gap-2">
+                                <span class="badge badge-warning">Pending</span>
+                                <button onclick="createPortalAccount('{{ student.doc_id }}', '{{ student.name }}', '{{ student.student_id }}')" 
+                                        class="btn btn-sm btn-warning">
+                                    Create Portal Account
+                                </button>
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div class="flex justify-center gap-2">
-                            <button onclick='editStudent({{ student|tojson|safe }})' 
-                                    class="btn btn-ghost btn-sm">
+                            <button onclick="editStudent({
+                                id: '{{ student.doc_id }}',
+                                name: '{{ student.name }}',
+                                student_id: '{{ student.student_id }}',
+                                class: '{{ student.class }}',
+                                division: '{{ student.division }}'
+                            })" class="btn btn-ghost btn-sm">
                                 <i class="ri-edit-line"></i>
                             </button>
-                            <button onclick="deleteStudent('{{ student.id }}')" 
+                            <button onclick="deleteStudent('{{ student.doc_id }}')" 
                                     class="btn btn-ghost btn-sm text-error">
                                 <i class="ri-delete-bin-line"></i>
                             </button>
@@ -103,7 +121,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center py-8">
+                    <td colspan="6" class="text-center py-8">
                         <div class="flex flex-col items-center text-base-content/50">
                             <i class="ri-user-search-line text-4xl mb-2"></i>
                             <p>No students found</p>
@@ -198,6 +216,41 @@
                 Upload
             </button>
         </div>
+    </div>
+</dialog>
+
+<!-- Create Portal Account Modal -->
+<dialog id="portalAccountModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Create Portal Account</h3>
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <form id="portalAccountForm" class="space-y-4" onsubmit="handlePortalAccountSubmit(event)">
+            <input type="hidden" id="portalStudentId">
+            <input type="hidden" id="portalStudentName">
+            <input type="hidden" id="portalStudentNumber">
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Email</span>
+                </label>
+                <input type="email" id="portalEmail" class="input input-bordered" required>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Password</span>
+                </label>
+                <input type="password" id="portalPassword" class="input input-bordered" required 
+                       minlength="6" title="Password must be at least 6 characters">
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full gap-2">
+                <i class="ri-user-add-line"></i>
+                Create Account
+            </button>
+        </form>
     </div>
 </dialog>
 {% endblock %}
@@ -348,6 +401,49 @@ function showToast(message, type = 'info') {
     setTimeout(() => {
         toast.remove();
     }, 3000);
+}
+
+function createPortalAccount(studentId, name, studentNumber) {
+    document.getElementById('portalStudentId').value = studentId;
+    document.getElementById('portalStudentName').value = name;
+    document.getElementById('portalStudentNumber').value = studentNumber;
+    document.getElementById('portalAccountModal').showModal();
+}
+
+async function handlePortalAccountSubmit(event) {
+    event.preventDefault();
+    
+    const data = {
+        email: document.getElementById('portalEmail').value.trim(),
+        password: document.getElementById('portalPassword').value,
+        name: document.getElementById('portalStudentName').value,
+        role: 'student',
+        student_id: document.getElementById('portalStudentNumber').value
+    };
+    
+    try {
+        const response = await fetch('/admin/add_student', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to create portal account');
+        }
+        
+        showToast('Portal account created successfully', 'success');
+        document.getElementById('portalAccountModal').close();
+        window.location.reload();
+    } catch (error) {
+        console.error('Error creating portal account:', error);
+        showToast(error.message, 'error');
+    }
 }
 </script>
 {% endblock %}
