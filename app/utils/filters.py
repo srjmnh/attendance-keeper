@@ -32,5 +32,10 @@ def init_filters(app):
         except (ValueError, TypeError):
             return str(value)
     
+    @app.template_filter('current_year')
+    def current_year_filter(text):
+        """Return the current year."""
+        return datetime.now().year
+    
     # Return the app to ensure filters are registered
     return app 

@@ -94,15 +94,20 @@ def create_app(config_name=None):
     app = init_filters(app)
     
     # Register blueprints
-    from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp, teacher_bp
+    from app.routes import (
+        auth_bp, main_bp, admin_bp, recognition_bp,
+        attendance_bp, chat_bp, teacher_bp, approval_bp,
+        notification_bp
+    )
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
-    app.register_blueprint(ai_bp)
     app.register_blueprint(recognition_bp)
     app.register_blueprint(attendance_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(teacher_bp)
+    app.register_blueprint(approval_bp)
+    app.register_blueprint(notification_bp)
     app.register_blueprint(monitoring_bp, url_prefix='/monitoring')
     
     # Register error handlers

@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}View Request{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">Request Details</h1>
+            <p class="text-sm opacity-60">Created {{ request.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        </div>
+        <div class="flex gap-2">
+            {% if current_user.is_admin and request.status.value == 'pending' %}
+            <button onclick="approveRequest()" class="btn btn-success">
+                <i class="ri-check-line"></i>
+                Approve
+            </button>
+            <button onclick="rejectRequest()" class="btn btn-error">
+                <i class="ri-close-line"></i>
+                Reject
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Request Info -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Left Column -->
+        <div class="space-y-6">
+            <div class="card bg-base-100">
+                <div class="card-body">
+                    <h2 class="card-title">Request Information</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Type</label>
+                            <div class="mt-1">
+                                <span class="badge badge-outline">{{ request.type.value }}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Status</label>
+                            <div class="mt-1">
+                                {% if request.status.value == 'pending' %}
+                                    <span class="badge badge-warning">Pending</span>
+                                {% elif request.status.value == 'approved' %}
+                                    <span class="badge badge-success">Approved</span>
+                                {% else %}
+                                    <span class="badge badge-error">Rejected</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Requestor</label>
+                            <div class="mt-1">{{ request.requestor_name }}</div>
+                        </div>
+                        {% if request.approver_id %}
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Approver</label>
+                            <div class="mt-1">{{ request.approver_name }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-base-100">
+                <div class="card-body">
+                    <h2 class="card-title">Request Details</h2>
+                    <div class="space-y-4">
+                        {% if request.type.value == 'student_edit' %}
+                            <div>
+                                <label class="text-sm font-medium opacity-60">Student</label>
+                                <div class="mt-1">{{ request.data.student_name }}</div>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium opacity-60">Changes</label>
+                                <div class="mt-1">
+                                    <ul class="list-disc list-inside space-y-1">
+                                    {% for field, value in request.data.changes.items() %}
+                                        <li>
+                                            <span class="font-medium">{{ field }}:</span>
+                                            {{ value }}
+                                        </li>
+                                    {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        {% elif request.type.value == 'attendance_dispute' %}
+                            <div>
+                                <label class="text-sm font-medium opacity-60">Date</label>
+                                <div class="mt-1">{{ request.data.date }}</div>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium opacity-60">Subject</label>
+                                <div class="mt-1">{{ request.data.subject }}</div>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium opacity-60">Reason</label>
+                                <div class="mt-1">{{ request.data.reason }}</div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="space-y-6">
+            <!-- Comments Section -->
+            <div class="card bg-base-100">
+                <div class="card-body">
+                    <h2 class="card-title">Comments</h2>
+                    <div class="space-y-4">
+                        <div class="space-y-4" id="comments">
+                            {% for comment in request.comments %}
+                            <div class="chat {% if comment.user_id == current_user.id %}chat-end{% else %}chat-start{% endif %}">
+                                <div class="chat-header">
+                                    {{ comment.user_name }}
+                                    <time class="text-xs opacity-50">{{ comment.timestamp.strftime('%Y-%m-%d %H:%M') }}</time>
+                                </div>
+                                <div class="chat-bubble">{{ comment.comment }}</div>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4 opacity-60">
+                                No comments yet
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Comment Input -->
+                        <div class="join w-full">
+                            <input type="text" id="commentInput" class="join-item input input-bordered flex-1" placeholder="Add a comment...">
+                            <button onclick="addComment()" class="join-item btn btn-primary">
+                                <i class="ri-send-plane-line"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approval Modal -->
+<dialog id="approvalModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Approve Request</h3>
+        <div class="py-4">
+            <textarea id="approvalComment" class="textarea textarea-bordered w-full" placeholder="Add a comment (optional)"></textarea>
+        </div>
+        <div class="modal-action">
+            <button onclick="submitApproval()" class="btn btn-success">Confirm Approval</button>
+            <button onclick="closeModal('approvalModal')" class="btn">Cancel</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Rejection Modal -->
+<dialog id="rejectionModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Reject Request</h3>
+        <div class="py-4">
+            <textarea id="rejectionComment" class="textarea textarea-bordered w-full" placeholder="Add a reason for rejection"></textarea>
+        </div>
+        <div class="modal-action">
+            <button onclick="submitRejection()" class="btn btn-error">Confirm Rejection</button>
+            <button onclick="closeModal('rejectionModal')" class="btn">Cancel</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function approveRequest() {
+    document.getElementById('approvalModal').showModal();
+}
+
+function rejectRequest() {
+    document.getElementById('rejectionModal').showModal();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).close();
+}
+
+async function submitApproval() {
+    const comment = document.getElementById('approvalComment').value;
+    try {
+        const response = await fetch(`/api/approvals/{{ request.id }}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ comment })
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to approve request');
+        }
+    } catch (error) {
+        alert('An error occurred while approving the request');
+    }
+}
+
+async function submitRejection() {
+    const comment = document.getElementById('rejectionComment').value;
+    if (!comment) {
+        alert('Please provide a reason for rejection');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/approvals/{{ request.id }}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ comment })
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to reject request');
+        }
+    } catch (error) {
+        alert('An error occurred while rejecting the request');
+    }
+}
+
+async function addComment() {
+    const comment = document.getElementById('commentInput').value;
+    if (!comment) return;
+    
+    try {
+        const response = await fetch(`/api/approvals/{{ request.id }}/comment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ comment })
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to add comment');
+        }
+    } catch (error) {
+        alert('An error occurred while adding the comment');
+    }
+}
+</script>
+{% endblock %} 

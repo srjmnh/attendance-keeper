@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}My Requests{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold">My Requests</h1>
+        <div class="flex gap-2">
+            <div class="join">
+                <input type="text" id="searchInput" placeholder="Search requests..." class="join-item input input-bordered">
+                <select id="statusFilter" class="join-item select select-bordered">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid gap-4">
+        {% for request in requests %}
+        <div class="card bg-base-100 hover:shadow-md transition-shadow">
+            <div class="card-body">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="card-title">
+                            <span class="badge badge-outline">{{ request.type.value }}</span>
+                        </h2>
+                        <p class="text-sm opacity-60">Created {{ request.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        {% if request.status.value == 'pending' %}
+                            <span class="badge badge-warning">Pending</span>
+                        {% elif request.status.value == 'approved' %}
+                            <span class="badge badge-success">Approved</span>
+                        {% else %}
+                            <span class="badge badge-error">Rejected</span>
+                        {% endif %}
+                        <a href="{{ url_for('approval.view_request', request_id=request.id) }}" class="btn btn-sm">
+                            View Details
+                        </a>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Request Details -->
+                <div class="space-y-4">
+                    {% if request.type.value == 'student_edit' %}
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Student</label>
+                            <div class="mt-1">{{ request.data.student_name }}</div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Changes</label>
+                            <div class="mt-1">
+                                <ul class="list-disc list-inside space-y-1">
+                                {% for field, value in request.data.changes.items() %}
+                                    <li>
+                                        <span class="font-medium">{{ field }}:</span>
+                                        {{ value }}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    {% elif request.type.value == 'attendance_dispute' %}
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Date</label>
+                            <div class="mt-1">{{ request.data.date }}</div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Subject</label>
+                            <div class="mt-1">{{ request.data.subject }}</div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium opacity-60">Reason</label>
+                            <div class="mt-1">{{ request.data.reason }}</div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if request.comments %}
+                <div class="divider"></div>
+                
+                <!-- Latest Comment -->
+                <div>
+                    <label class="text-sm font-medium opacity-60">Latest Comment</label>
+                    <div class="mt-2">
+                        <div class="chat chat-start">
+                            <div class="chat-header">
+                                {{ request.comments[-1].user_name }}
+                                <time class="text-xs opacity-50">{{ request.comments[-1].timestamp.strftime('%Y-%m-%d %H:%M') }}</time>
+                            </div>
+                            <div class="chat-bubble">{{ request.comments[-1].comment }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <div class="opacity-60">No requests found</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Search and filter functionality
+document.getElementById('searchInput').addEventListener('input', filterRequests);
+document.getElementById('statusFilter').addEventListener('change', filterRequests);
+
+function filterRequests() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const cards = document.querySelectorAll('.card');
+    
+    cards.forEach(card => {
+        const type = card.querySelector('.badge-outline')?.textContent.toLowerCase();
+        const status = card.querySelector('.badge:not(.badge-outline)')?.textContent.toLowerCase();
+        const details = card.querySelector('.space-y-4')?.textContent.toLowerCase();
+        
+        const matchesSearch = !searchTerm || 
+            type?.includes(searchTerm) || 
+            details?.includes(searchTerm);
+            
+        const matchesStatus = !statusFilter || status === statusFilter;
+        
+        card.style.display = matchesSearch && matchesStatus ? '' : 'none';
+    });
+}
+</script>
+{% endblock %} 

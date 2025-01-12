@@ -10,29 +10,112 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Premium Fonts -->
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,400&f[]=clash-display@600,500&display=swap" rel="stylesheet">
     
     <!-- Icons -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.0.1/fonts/remixicon.css" rel="stylesheet">
     
+    <!-- Animation Library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    
     <style>
+        :root {
+            --animation-timing: 0.2s;
+        }
+        
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Satoshi', sans-serif;
+            overflow-x: hidden;
+            transition: all var(--animation-timing) ease-in-out;
         }
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-in-out;
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Clash Display', sans-serif;
         }
-        .animate-slide-down {
-            animation: slideDown 0.3s ease-in-out;
+        
+        /* Modern Animations */
+        .fade-in {
+            animation: fadeIn var(--animation-timing) ease-in-out;
         }
+        
+        .slide-in {
+            animation: slideIn var(--animation-timing) ease-in-out;
+        }
+        
+        .scale-in {
+            animation: scaleIn var(--animation-timing) ease-in-out;
+        }
+        
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        @keyframes slideDown {
-            from { transform: translateY(-10px); opacity: 0; }
+        
+        @keyframes slideIn {
+            from { transform: translateY(10px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        
+        /* Enhanced UI Elements */
+        .btn {
+            transition: all var(--animation-timing) cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: none;
+            font-weight: 500;
+        }
+        
+        .btn:active {
+            transform: scale(0.97);
+        }
+        
+        .card {
+            transition: transform var(--animation-timing) ease-in-out,
+                      box-shadow var(--animation-timing) ease-in-out;
+            border: 1px solid hsl(var(--b3));
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Drawer and Sidebar Styles */
+        .drawer {
+            min-height: 100vh;
+        }
+        
+        .drawer-content {
+            min-height: 100vh;
+            transition: padding-left var(--animation-timing) cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @media (min-width: 1024px) {
+            .drawer-content {
+                padding-left: 280px;
+            }
+        }
+        
+        .drawer-side {
+            position: fixed;
+            z-index: 40;
+        }
+        
+        #sidebar {
+            width: 280px;
+            height: 100vh;
+            overflow-y: auto;
+            background-color: hsl(var(--b1));
+            border-right: 1px solid hsl(var(--b3));
+            display: flex;
+            flex-direction: column;
+            transition: all var(--animation-timing) cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
         
         /* Mobile optimizations */
@@ -40,18 +123,197 @@
             .drawer-content {
                 padding-left: 0 !important;
             }
+            
             #sidebar {
                 transform: translateX(-100%);
-                transition: transform 0.3s ease-in-out;
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                width: 280px;
+                z-index: 50;
+                box-shadow: 0 0 40px rgba(0, 0, 0, 0.2);
             }
+            
             .drawer.drawer-open #sidebar {
                 transform: translateX(0);
             }
+            
             #chatbotWindow {
                 width: calc(100% - 2rem) !important;
                 max-width: 24rem;
                 right: 1rem;
+                bottom: 5rem;
+                border-radius: 1.5rem;
+                overflow: hidden;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
             }
+            
+            .mobile-header {
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                background-color: hsla(var(--b1) / 0.85);
+                border-bottom: 1px solid hsl(var(--b3));
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            }
+            
+            .mobile-nav-item {
+                padding: 0.75rem 1rem;
+                border-radius: 0.75rem;
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                transition: all var(--animation-timing) cubic-bezier(0.4, 0, 0.2, 1);
+                font-weight: 500;
+            }
+            
+            .mobile-nav-item:hover {
+                background-color: hsl(var(--b2));
+                transform: translateX(4px);
+            }
+            
+            .mobile-nav-item i {
+                transition: transform var(--animation-timing) ease;
+            }
+            
+            .mobile-nav-item:hover i {
+                transform: scale(1.1);
+            }
+            
+            .mobile-section-title {
+                font-family: 'Clash Display', sans-serif;
+                font-size: 0.75rem;
+                font-weight: 500;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                color: hsl(var(--bc) / 0.4);
+                padding: 1rem 1rem 0.5rem;
+            }
+            
+            main {
+                padding-top: 4rem !important;
+            }
+            
+            .card {
+                border-radius: 1.5rem;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            
+            .drawer-overlay {
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                background-color: rgba(0, 0, 0, 0.4);
+                transition: all var(--animation-timing) ease-in-out;
+            }
+        }
+        
+        /* Enhanced Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: hsl(var(--bc) / 0.2);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--bc) / 0.3);
+        }
+        
+        /* Loading Animation */
+        .loading {
+            position: relative;
+            pointer-events: none;
+        }
+        
+        .loading:after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: hsl(var(--b1));
+            opacity: 0.7;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Enhanced Chatbot Styles */
+        #chatbotWindow {
+            width: 400px;
+            height: 600px;
+            position: fixed;
+            bottom: 5rem;
+            right: 2rem;
+            display: none;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid hsl(var(--b3));
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background-color: hsla(var(--b1) / 0.8);
+        }
+
+        #chatMessages {
+            height: calc(100% - 130px);
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .chat-bubble {
+            max-width: 80%;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .chat-bubble-primary {
+            background-color: hsl(var(--p));
+            color: hsl(var(--pc));
+        }
+
+        .chat-bubble-secondary {
+            background-color: hsl(var(--b2));
+            color: hsl(var(--bc));
+        }
+
+        #chatbotToggle {
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 1.75rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        #chatbotToggle:hover {
+            transform: scale(1.1);
+        }
+
+        /* Dark mode enhancements */
+        [data-theme="dark"] {
+            color-scheme: dark;
+        }
+
+        [data-theme="dark"] .card {
+            background-color: hsla(var(--b1) / 0.8);
+        }
+
+        [data-theme="dark"] #sidebar {
+            background-color: hsla(var(--b1) / 0.8);
+        }
+
+        [data-theme="dark"] .mobile-header {
+            background-color: hsla(var(--b1) / 0.85);
         }
     </style>
     
@@ -64,33 +326,35 @@
         
         <div class="drawer-content flex flex-col">
             <!-- Mobile Header -->
-            <div class="lg:hidden sticky top-0 z-30 flex items-center gap-2 bg-base-100 px-4 py-2 shadow-sm">
-                <label for="drawer-toggle" class="btn btn-square btn-ghost drawer-button">
-                    <i class="ri-menu-line text-lg"></i>
-                </label>
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-primary text-primary-content rounded-lg flex items-center justify-center">
-                        <span class="text-lg font-bold">A</span>
-                    </div>
-                    <div>
-                        <h1 class="text-base font-bold">AttendanceAI</h1>
-                        <p class="text-xs opacity-60">Smart Attendance System</p>
+            <div class="lg:hidden fixed top-0 left-0 right-0 z-30 mobile-header">
+                <div class="flex items-center gap-3 px-4 py-3">
+                    <label for="drawer-toggle" class="btn btn-ghost btn-sm btn-circle drawer-button">
+                        <i class="ri-menu-line text-lg"></i>
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 bg-primary text-primary-content rounded-lg flex items-center justify-center">
+                            <span class="text-lg font-bold">A</span>
+                        </div>
+                        <div>
+                            <h1 class="text-base font-semibold">AttendanceAI</h1>
+                            <p class="text-xs opacity-60">Smart Attendance System</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Main Content -->
-            <main class="flex-1 lg:pl-64 min-h-screen bg-base-200">
-                <div class="container mx-auto px-4 py-6">
+            <main class="flex-1 min-h-screen bg-base-200">
+                <div class="container mx-auto p-4">
                     {% block content %}{% endblock %}
                 </div>
             </main>
         </div>
 
         <!-- Sidebar -->
-        <div class="drawer-side z-40">
+        <div class="drawer-side">
             <label for="drawer-toggle" class="drawer-overlay"></label>
-            <aside id="sidebar" class="w-64 min-h-screen bg-base-100 border-r">
+            <aside id="sidebar">
                 <!-- Logo -->
                 <div class="px-4 py-3 border-b hidden lg:block">
                     <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2">
@@ -109,7 +373,7 @@
                     <ul class="space-y-1 px-3">
                         <!-- Dashboard -->
                         <li>
-                            <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                            <a href="{{ url_for('main.dashboard') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                 <i class="ri-dashboard-line text-lg"></i>
                                 <span>Dashboard</span>
                             </a>
@@ -118,7 +382,7 @@
                         {% if current_user.role in ['admin', 'teacher'] %}
                             <!-- View Attendance -->
                             <li>
-                                <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                <a href="{{ url_for('attendance.view_attendance') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                     <i class="ri-calendar-check-line text-lg"></i>
                                     <span>View Attendance</span>
                                 </a>
@@ -127,7 +391,7 @@
                             {% if current_user.role == 'teacher' %}
                                 <!-- View Students (for teachers) -->
                                 <li>
-                                    <a href="{{ url_for('teacher.students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'teacher.students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                    <a href="{{ url_for('teacher.students') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'teacher.students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                         <i class="ri-user-line text-lg"></i>
                                         <span>View Students</span>
                                     </a>
@@ -138,13 +402,13 @@
                         {% if current_user.role == 'admin' %}
                             <!-- Admin Links -->
                             <li class="pt-4">
-                                <div class="px-3 pb-2">
-                                    <p class="text-xs font-medium opacity-60 uppercase">Administration</p>
+                                <div class="mobile-section-title">
+                                    Administration
                                 </div>
                                 <ul class="space-y-1">
                                     <!-- Manage Teachers -->
                                     <li>
-                                        <a href="{{ url_for('admin.manage_teachers') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                        <a href="{{ url_for('admin.manage_teachers') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                             <i class="ri-team-line text-lg"></i>
                                             <span>Manage Teachers</span>
                                         </a>
@@ -152,7 +416,7 @@
 
                                     <!-- Manage Students -->
                                     <li>
-                                        <a href="{{ url_for('admin.manage_students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                        <a href="{{ url_for('admin.manage_students') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                             <i class="ri-user-settings-line text-lg"></i>
                                             <span>Manage Students</span>
                                         </a>
@@ -160,7 +424,7 @@
 
                                     <!-- Manage Subjects -->
                                     <li>
-                                        <a href="{{ url_for('admin.manage_subjects') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                        <a href="{{ url_for('admin.manage_subjects') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                             <i class="ri-book-open-line text-lg"></i>
                                             <span>Manage Subjects</span>
                                         </a>
@@ -172,13 +436,13 @@
                         {% if current_user.role == 'student' %}
                             <!-- Student Links -->
                             <li>
-                                <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                <a href="{{ url_for('attendance.view_attendance') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                     <i class="ri-calendar-check-line text-lg"></i>
                                     <span>My Attendance</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{{ url_for('recognition.take_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'recognition.take_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                <a href="{{ url_for('recognition.take_attendance') }}" class="mobile-nav-item hover:bg-base-200 {% if request.endpoint == 'recognition.take_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
                                     <i class="ri-camera-line text-lg"></i>
                                     <span>Take Attendance</span>
                                 </a>
@@ -190,7 +454,7 @@
                 <!-- User Menu -->
                 <div class="absolute bottom-0 left-0 right-0 p-4 border-t bg-base-100">
                     <div class="dropdown dropdown-top w-full">
-                        <label tabindex="0" class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 cursor-pointer">
+                        <label tabindex="0" class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 cursor-pointer">
                             <div class="avatar placeholder">
                                 <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
                                     {% if current_user.is_authenticated and current_user.name %}
@@ -206,7 +470,7 @@
                             </div>
                             <i class="ri-arrow-up-s-line opacity-60"></i>
                         </label>
-                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-lg w-full">
+                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-lg w-full">
                             <li>
                                 <a href="{{ url_for('auth.logout') }}" class="gap-2 text-error">
                                     <i class="ri-logout-box-line"></i>
@@ -214,6 +478,27 @@
                                 </a>
                             </li>
                         </ul>
+                    </div>
+                </div>
+
+                <!-- Add this after the user menu dropdown -->
+                <div class="dropdown dropdown-end">
+                    <label tabindex="0" class="btn btn-ghost btn-circle">
+                        <div class="indicator">
+                            <i class="ri-notification-3-line text-lg"></i>
+                            <span id="notificationCount" class="badge badge-sm indicator-item badge-primary hidden">0</span>
+                        </div>
+                    </label>
+                    <div tabindex="0" class="dropdown-content z-[1] card card-compact w-96 p-2 shadow-lg bg-base-100">
+                        <div class="card-body">
+                            <h3 class="card-title text-base">Notifications</h3>
+                            <div id="notificationList" class="space-y-2 max-h-96 overflow-y-auto">
+                                <!-- Notifications will be inserted here -->
+                            </div>
+                            <div class="card-actions justify-end mt-2">
+                                <button onclick="markAllAsRead()" class="btn btn-ghost btn-sm">Mark all as read</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -228,8 +513,8 @@
         </button>
 
         <!-- Chatbot Window -->
-        <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100 z-40">
-            <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
+        <div id="chatbotWindow" class="card fixed shadow-xl hidden flex-col bg-base-100 z-40">
+            <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center rounded-t-lg">
                 <div class="flex items-center gap-2">
                     <i class="ri-robot-line"></i>
                     <span class="font-bold">AI Assistant</span>
@@ -264,20 +549,41 @@
 
     <!-- Theme Toggle Script -->
     <script>
-        const themeToggle = document.getElementById('theme-toggle');
-        const html = document.documentElement;
-        
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        html.setAttribute('data-theme', savedTheme);
-        themeToggle.checked = savedTheme === 'dark';
-        
-        // Theme toggle handler
-        themeToggle.addEventListener('change', function() {
-            const theme = this.checked ? 'dark' : 'light';
-            html.setAttribute('data-theme', theme);
+        // Theme handling
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
+            
+            // Update all theme controllers
+            document.querySelectorAll('.theme-controller').forEach(controller => {
+                controller.checked = theme === 'dark';
+            });
+        }
+
+        // Initialize theme
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+            setTheme(initialTheme);
+        }
+
+        // Watch for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (!localStorage.getItem('theme')) {
+                setTheme(e.matches ? 'dark' : 'light');
+            }
         });
+
+        // Handle theme toggle clicks
+        document.querySelectorAll('.theme-controller').forEach(controller => {
+            controller.addEventListener('change', (e) => {
+                setTheme(e.target.checked ? 'dark' : 'light');
+            });
+        });
+
+        // Initialize theme on load
+        initializeTheme();
 
         // Close drawer when clicking a link on mobile
         document.querySelectorAll('.drawer-side a').forEach(link => {
@@ -297,6 +603,158 @@
     <!-- Load chat.js -->
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 
+    <!-- Add this before the closing body tag -->
+    <script>
+    // Notification handling
+    let notifications = [];
+
+    async function fetchNotifications() {
+        try {
+            const response = await fetch('/api/notifications');
+            if (response.ok) {
+                notifications = await response.json();
+                updateNotificationUI();
+            }
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error);
+        }
+    }
+
+    async function updateUnreadCount() {
+        try {
+            const response = await fetch('/api/notifications/unread-count');
+            if (response.ok) {
+                const data = await response.json();
+                const countElement = document.getElementById('notificationCount');
+                if (data.count > 0) {
+                    countElement.textContent = data.count;
+                    countElement.classList.remove('hidden');
+                } else {
+                    countElement.classList.add('hidden');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch unread count:', error);
+        }
+    }
+
+    function updateNotificationUI() {
+        const container = document.getElementById('notificationList');
+        container.innerHTML = '';
+        
+        if (notifications.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4 opacity-60">
+                    No notifications
+                </div>
+            `;
+            return;
+        }
+        
+        notifications.forEach(notification => {
+            const element = document.createElement('div');
+            element.className = `alert ${getAlertClass(notification)} shadow-sm`;
+            
+            element.innerHTML = `
+                <div class="flex-1">
+                    <h3 class="font-bold">${notification.title}</h3>
+                    <div class="text-sm">${notification.message}</div>
+                    <div class="text-xs opacity-60">${formatDate(notification.created_at)}</div>
+                </div>
+                <div class="flex-none flex gap-2">
+                    ${notification.actions.map(action => `
+                        <a href="${action.url}" class="btn btn-sm">${action.label}</a>
+                    `).join('')}
+                    ${notification.status === 'unread' ? `
+                        <button onclick="markAsRead('${notification.id}')" class="btn btn-ghost btn-sm">
+                            <i class="ri-check-line"></i>
+                        </button>
+                    ` : ''}
+                    <button onclick="archiveNotification('${notification.id}')" class="btn btn-ghost btn-sm">
+                        <i class="ri-archive-line"></i>
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(element);
+        });
+    }
+
+    function getAlertClass(notification) {
+        switch (notification.priority) {
+            case 'high':
+                return 'alert-error';
+            case 'normal':
+                return 'alert-info';
+            case 'low':
+                return 'alert-success';
+            default:
+                return '';
+        }
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString();
+    }
+
+    async function markAsRead(notificationId) {
+        try {
+            const response = await fetch(`/api/notifications/${notificationId}/read`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+            
+            if (response.ok) {
+                await fetchNotifications();
+                await updateUnreadCount();
+            }
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+        }
+    }
+
+    async function archiveNotification(notificationId) {
+        try {
+            const response = await fetch(`/api/notifications/${notificationId}/archive`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+            
+            if (response.ok) {
+                await fetchNotifications();
+                await updateUnreadCount();
+            }
+        } catch (error) {
+            console.error('Failed to archive notification:', error);
+        }
+    }
+
+    async function markAllAsRead() {
+        const unreadNotifications = notifications.filter(n => n.status === 'unread');
+        for (const notification of unreadNotifications) {
+            await markAsRead(notification.id);
+        }
+    }
+
+    // Initial load
+    fetchNotifications();
+    updateUnreadCount();
+
+    // Poll for new notifications every 30 seconds
+    setInterval(() => {
+        fetchNotifications();
+        updateUnreadCount();
+    }, 30000);
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
+</html> 
 </html> 

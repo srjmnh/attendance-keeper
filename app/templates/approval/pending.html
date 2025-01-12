@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Approvals{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Pending Approvals</h1>
+        <div class="flex gap-2">
+            <div class="join">
+                <input type="text" id="searchInput" placeholder="Search requests..." class="join-item input input-bordered">
+                <select id="typeFilter" class="join-item select select-bordered">
+                    <option value="">All Types</option>
+                    <option value="student_edit">Student Edit</option>
+                    <option value="attendance_dispute">Attendance Dispute</option>
+                    <option value="face_registration">Face Registration</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Requestor</th>
+                    <th>Created</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for request in requests %}
+                <tr class="hover">
+                    <td>
+                        <span class="badge badge-outline">{{ request.type.value }}</span>
+                    </td>
+                    <td>{{ request.requestor_name }}</td>
+                    <td>{{ request.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <span class="badge badge-warning">Pending</span>
+                    </td>
+                    <td>
+                        <div class="join">
+                            <button onclick="viewRequest('{{ request.id }}')" class="join-item btn btn-sm">
+                                View
+                            </button>
+                            <button onclick="approveRequest('{{ request.id }}')" class="join-item btn btn-sm btn-success">
+                                Approve
+                            </button>
+                            <button onclick="rejectRequest('{{ request.id }}')" class="join-item btn btn-sm btn-error">
+                                Reject
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-4">
+                        No pending approvals
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Approval Modal -->
+<dialog id="approvalModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Approve Request</h3>
+        <div class="py-4">
+            <textarea id="approvalComment" class="textarea textarea-bordered w-full" placeholder="Add a comment (optional)"></textarea>
+        </div>
+        <div class="modal-action">
+            <button onclick="submitApproval()" class="btn btn-success">Confirm Approval</button>
+            <button onclick="closeModal('approvalModal')" class="btn">Cancel</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Rejection Modal -->
+<dialog id="rejectionModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Reject Request</h3>
+        <div class="py-4">
+            <textarea id="rejectionComment" class="textarea textarea-bordered w-full" placeholder="Add a reason for rejection"></textarea>
+        </div>
+        <div class="modal-action">
+            <button onclick="submitRejection()" class="btn btn-error">Confirm Rejection</button>
+            <button onclick="closeModal('rejectionModal')" class="btn">Cancel</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentRequestId = null;
+
+function viewRequest(requestId) {
+    window.location.href = `/approvals/${requestId}`;
+}
+
+function approveRequest(requestId) {
+    currentRequestId = requestId;
+    document.getElementById('approvalModal').showModal();
+}
+
+function rejectRequest(requestId) {
+    currentRequestId = requestId;
+    document.getElementById('rejectionModal').showModal();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).close();
+}
+
+async function submitApproval() {
+    const comment = document.getElementById('approvalComment').value;
+    try {
+        const response = await fetch(`/api/approvals/${currentRequestId}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ comment })
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to approve request');
+        }
+    } catch (error) {
+        alert('An error occurred while approving the request');
+    }
+}
+
+async function submitRejection() {
+    const comment = document.getElementById('rejectionComment').value;
+    if (!comment) {
+        alert('Please provide a reason for rejection');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/approvals/${currentRequestId}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ comment })
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to reject request');
+        }
+    } catch (error) {
+        alert('An error occurred while rejecting the request');
+    }
+}
+
+// Search and filter functionality
+document.getElementById('searchInput').addEventListener('input', filterRequests);
+document.getElementById('typeFilter').addEventListener('change', filterRequests);
+
+function filterRequests() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const typeFilter = document.getElementById('typeFilter').value;
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        const type = row.querySelector('td:first-child')?.textContent.toLowerCase();
+        const requestor = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+        
+        const matchesSearch = !searchTerm || 
+            type.includes(searchTerm) || 
+            requestor.includes(searchTerm);
+            
+        const matchesType = !typeFilter || type.includes(typeFilter);
+        
+        row.style.display = matchesSearch && matchesType ? '' : 'none';
+    });
+}
+</script>
+{% endblock %} 
