@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_login import LoginManager
 from app.services.db_service import DatabaseService
-from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp
+from app.routes import auth_bp, main_bp, admin_bp, ai_bp, recognition_bp, attendance_bp, chat_bp, teacher_bp
 from app.utils.errors import register_error_handlers
 import os
 import boto3
@@ -62,6 +62,7 @@ def create_app():
     app.register_blueprint(recognition_bp)
     app.register_blueprint(attendance_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(teacher_bp)
     
     return app
 

@@ -6,6 +6,7 @@ from app.routes.ai import ai_bp
 from app.routes.recognition import recognition_bp
 from app.routes.attendance import attendance_bp
 from app.routes.chat import chat_bp
+from app.routes.teacher import teacher_bp
 
 __all__ = [
     'auth_bp',
@@ -14,5 +15,6 @@ __all__ = [
     'ai_bp',
     'recognition_bp',
     'attendance_bp',
-    'chat_bp'
+    'chat_bp',
+    'teacher_bp'
 ] 

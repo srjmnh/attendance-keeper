@@ -115,46 +115,74 @@
                             </a>
                         </li>
 
-                        <!-- View Attendance -->
-                        <li>
-                            <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                <i class="ri-calendar-check-line text-lg"></i>
-                                <span>View Attendance</span>
-                            </a>
-                        </li>
+                        {% if current_user.role in ['admin', 'teacher'] %}
+                            <!-- View Attendance -->
+                            <li>
+                                <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                    <i class="ri-calendar-check-line text-lg"></i>
+                                    <span>View Attendance</span>
+                                </a>
+                            </li>
+
+                            {% if current_user.role == 'teacher' %}
+                                <!-- View Students (for teachers) -->
+                                <li>
+                                    <a href="{{ url_for('teacher.students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'teacher.students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                        <i class="ri-user-line text-lg"></i>
+                                        <span>View Students</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endif %}
 
                         {% if current_user.role == 'admin' %}
-                        <!-- Admin Links -->
-                        <li class="pt-4">
-                            <div class="px-3 pb-2">
-                                <p class="text-xs font-medium opacity-60 uppercase">Administration</p>
-                            </div>
-                            <ul class="space-y-1">
-                                <!-- Manage Teachers -->
-                                <li>
-                                    <a href="{{ url_for('admin.manage_teachers') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                        <i class="ri-team-line text-lg"></i>
-                                        <span>Manage Teachers</span>
-                                    </a>
-                                </li>
+                            <!-- Admin Links -->
+                            <li class="pt-4">
+                                <div class="px-3 pb-2">
+                                    <p class="text-xs font-medium opacity-60 uppercase">Administration</p>
+                                </div>
+                                <ul class="space-y-1">
+                                    <!-- Manage Teachers -->
+                                    <li>
+                                        <a href="{{ url_for('admin.manage_teachers') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                            <i class="ri-team-line text-lg"></i>
+                                            <span>Manage Teachers</span>
+                                        </a>
+                                    </li>
 
-                                <!-- Manage Students -->
-                                <li>
-                                    <a href="{{ url_for('admin.manage_students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                        <i class="ri-user-settings-line text-lg"></i>
-                                        <span>Manage Students</span>
-                                    </a>
-                                </li>
+                                    <!-- Manage Students -->
+                                    <li>
+                                        <a href="{{ url_for('admin.manage_students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                            <i class="ri-user-settings-line text-lg"></i>
+                                            <span>Manage Students</span>
+                                        </a>
+                                    </li>
 
-                                <!-- Manage Subjects -->
-                                <li>
-                                    <a href="{{ url_for('admin.manage_subjects') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                        <i class="ri-book-open-line text-lg"></i>
-                                        <span>Manage Subjects</span>
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
+                                    <!-- Manage Subjects -->
+                                    <li>
+                                        <a href="{{ url_for('admin.manage_subjects') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                            <i class="ri-book-open-line text-lg"></i>
+                                            <span>Manage Subjects</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </li>
+                        {% endif %}
+
+                        {% if current_user.role == 'student' %}
+                            <!-- Student Links -->
+                            <li>
+                                <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                    <i class="ri-calendar-check-line text-lg"></i>
+                                    <span>My Attendance</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{{ url_for('recognition.take_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'recognition.take_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                    <i class="ri-camera-line text-lg"></i>
+                                    <span>Take Attendance</span>
+                                </a>
+                            </li>
                         {% endif %}
                     </ul>
                 </nav>

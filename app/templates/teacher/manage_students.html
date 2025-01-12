@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}View Students - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">View Students</h1>
+            <p class="text-base-content/60">Total Students: {{ students|length }}</p>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="flex flex-col md:flex-row gap-4">
+        <div class="form-control flex-1">
+            <input type="text" id="searchInput" placeholder="Search by name or ID..." 
+                   class="input input-bordered w-full" oninput="filterStudents()">
+        </div>
+        <div class="join">
+            <select id="classFilter" class="select select-bordered join-item" onchange="filterStudents()">
+                <option value="">All Classes</option>
+                {% set unique_classes = [] %}
+                {% for class_id in current_user.classes %}
+                    {% set class_num = class_id.split('-')[0] %}
+                    {% if class_num not in unique_classes %}
+                        {% set _ = unique_classes.append(class_num) %}
+                    {% endif %}
+                {% endfor %}
+                {% for class in unique_classes|sort %}
+                    <option value="{{ class }}">Class {{ class }}</option>
+                {% endfor %}
+            </select>
+            <select id="divisionFilter" class="select select-bordered join-item" onchange="filterStudents()">
+                <option value="">All Divisions</option>
+                {% for class_id in current_user.classes %}
+                    {% set division = class_id.split('-')[1] %}
+                    <option value="{{ division }}">Division {{ division }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Students Table -->
+    <div class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
+        <table class="table table-zebra w-full">
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Division</th>
+                    <th>Portal Access</th>
+                </tr>
+            </thead>
+            <tbody id="studentsTableBody">
+                {% for student in students %}
+                <tr class="student-row" 
+                    data-name="{{ student.name|lower }}"
+                    data-id="{{ student.student_id|lower }}"
+                    data-class="{{ student.class }}"
+                    data-division="{{ student.division }}">
+                    <td>{{ student.student_id }}</td>
+                    <td>{{ student.name }}</td>
+                    <td>Class {{ student.class }}</td>
+                    <td>{{ student.division }}</td>
+                    <td>
+                        {% if student.has_portal %}
+                            <div class="flex items-center gap-2">
+                                <span class="badge badge-success">Active</span>
+                                <span class="text-sm text-gray-600">{{ student.email }}</span>
+                            </div>
+                        {% else %}
+                            <span class="badge badge-error">No Access</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-8">
+                        <div class="flex flex-col items-center text-base-content/50">
+                            <i class="ri-user-search-line text-4xl mb-2"></i>
+                            <p>No students found</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterStudents() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const classFilter = document.getElementById('classFilter').value;
+    const divisionFilter = document.getElementById('divisionFilter').value;
+    
+    document.querySelectorAll('.student-row').forEach(row => {
+        const name = row.dataset.name;
+        const id = row.dataset.id;
+        const studentClass = row.dataset.class;
+        const division = row.dataset.division;
+        
+        const matchesSearch = !searchTerm || 
+            name.includes(searchTerm) || 
+            id.includes(searchTerm);
+            
+        const matchesClass = !classFilter || 
+            studentClass === classFilter;
+            
+        const matchesDivision = !divisionFilter || 
+            division === divisionFilter;
+        
+        row.style.display = (matchesSearch && matchesClass && matchesDivision) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %} 

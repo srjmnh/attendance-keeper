@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}View Students{% endblock %}
+
+{% block content %}
+<div class="p-4 space-y-4">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Students in Your Classes</h1>
+        <div class="text-sm text-base-content/60">
+            Total Students: {{ students|length }}
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="flex flex-col sm:flex-row gap-4">
+        <div class="form-control flex-1">
+            <div class="input-group">
+                <span class="btn btn-square">
+                    <i class="ri-search-line"></i>
+                </span>
+                <input type="text" id="searchInput" placeholder="Search by name or ID..." 
+                       class="input input-bordered flex-1" 
+                       oninput="filterStudents()">
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <select id="classFilter" class="select select-bordered" onchange="filterStudents()">
+                <option value="">All Classes</option>
+                {% set classes = [] %}
+                {% for student in students %}
+                    {% set class = student.class %}
+                    {% if class not in classes %}
+                        {% set _ = classes.append(class) %}
+                        <option value="{{ class }}">Class {{ class }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <select id="divisionFilter" class="select select-bordered" onchange="filterStudents()">
+                <option value="">All Divisions</option>
+                {% set divisions = [] %}
+                {% for student in students %}
+                    {% set division = student.division %}
+                    {% if division not in divisions %}
+                        {% set _ = divisions.append(division) %}
+                        <option value="{{ division }}">Division {{ division }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Students Table -->
+    <div class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
+        <table class="table table-zebra w-full">
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Division</th>
+                    <th>Portal Access</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr class="student-row">
+                    <td>{{ student.student_id }}</td>
+                    <td>{{ student.name }}</td>
+                    <td>{{ student.class }}</td>
+                    <td>{{ student.division }}</td>
+                    <td>
+                        {% if student.has_portal %}
+                            <span class="badge badge-success gap-1">
+                                <i class="ri-check-line"></i>
+                                Active
+                            </span>
+                        {% else %}
+                            <span class="badge badge-ghost gap-1">
+                                <i class="ri-close-line"></i>
+                                Not Set
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-8">
+                        <div class="flex flex-col items-center text-base-content/50">
+                            <i class="ri-user-search-line text-4xl mb-2"></i>
+                            <p>No students found in your assigned classes</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterStudents() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const classFilter = document.getElementById('classFilter').value;
+    const divisionFilter = document.getElementById('divisionFilter').value;
+    
+    document.querySelectorAll('.student-row').forEach(row => {
+        const name = row.children[1].textContent.toLowerCase();
+        const id = row.children[0].textContent.toLowerCase();
+        const studentClass = row.children[2].textContent;
+        const division = row.children[3].textContent;
+        
+        const matchesSearch = name.includes(searchTerm) || id.includes(searchTerm);
+        const matchesClass = !classFilter || studentClass === classFilter;
+        const matchesDivision = !divisionFilter || division === divisionFilter;
+        
+        row.style.display = matchesSearch && matchesClass && matchesDivision ? '' : 'none';
+    });
+}
+</script>
+{% endblock %} 
