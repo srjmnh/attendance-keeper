@@ -2,6 +2,7 @@ import os
 from flask import Flask, g
 from flask_login import LoginManager
 from firebase_admin import credentials, initialize_app, firestore
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 import base64
 import json
 from app.services.db_service import DatabaseService
@@ -12,7 +13,6 @@ from app.utils.errors import register_error_handlers
 from app.services.cache_service import init_cache
 from app.utils.rate_limit import init_limiter
 from app.utils.monitoring import monitoring_bp
-from flask_wtf.csrf import CSRFProtect
 from app.utils.filters import init_filters
 
 login_manager = LoginManager()
@@ -50,7 +50,7 @@ def create_app(config_name=None):
     # Add CSRF token to template context
     @app.context_processor
     def inject_csrf_token():
-        return dict(csrf_token=csrf._get_token)
+        return dict(csrf_token=lambda: generate_csrf())
     
     # Initialize Firebase Admin SDK
     firebase_creds = os.environ.get('FIREBASE_ADMIN_CREDENTIALS_BASE64')

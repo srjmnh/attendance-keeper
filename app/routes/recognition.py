@@ -12,6 +12,7 @@ import boto3
 import os
 import time
 from app.services.rekognition_service import RekognitionService
+from flask_wtf.csrf import generate_csrf
 
 recognition_bp = Blueprint('recognition', __name__)
 
@@ -457,4 +458,161 @@ def verify_attendance():
         
     except Exception as e:
         current_app.logger.error(f"Error verifying attendance: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
+
+@recognition_bp.route('/classroom')
+@login_required
+@role_required(['admin', 'teacher'])
+def classroom_mode():
+    """Classroom mode for real-time attendance tracking"""
+    return render_template('recognition/classroom_mode.html')
+
+@recognition_bp.route('/detect_faces', methods=['POST'])
+def detect_faces():
+    """Detect faces in an image and return matches."""
+    try:
+        data = request.get_json()
+        if not data or 'image' not in data:
+            return jsonify({'error': 'No image data provided'}), 400
+
+        # Remove data URL prefix if present
+        image_data = data['image']
+        if image_data.startswith('data:image'):
+            image_data = image_data.split(',')[1]
+
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data)
+        
+        # Initialize Rekognition service
+        rekognition_service = RekognitionService()
+        
+        # Detect faces using the service
+        faces = rekognition_service.detect_faces(image_bytes)
+        if not faces:
+            return jsonify({'faces': []})
+
+        # Get today's date at midnight for attendance check
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Process each face
+        processed_faces = []
+        unique_students = set()  # Track unique students
+        
+        for face in faces:
+            # Get bounding box - handle both possible response structures
+            bbox = face.get('BoundingBox', face.get('boundingBox', {}))
+            face_data = {
+                'boundingBox': {
+                    'x': int(bbox.get('Left', bbox.get('x', 0)) * 1280),
+                    'y': int(bbox.get('Top', bbox.get('y', 0)) * 720),
+                    'width': int(bbox.get('Width', bbox.get('width', 0)) * 1280),
+                    'height': int(bbox.get('Height', bbox.get('height', 0)) * 720)
+                },
+                'match': None
+            }
+            
+            # Search for this specific face
+            match = rekognition_service.search_face(face, image_bytes)
+            if match:
+                student_id = match['student_id']
+                # Only process if we haven't seen this student yet
+                if student_id not in unique_students:
+                    unique_students.add(student_id)
+                    
+                    # Get student details
+                    student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+                    if len(list(student_ref)) > 0:
+                        student = student_ref[0].to_dict()
+                        # Check if attendance is already marked
+                        attendance_ref = current_app.db.collection('attendance').where('student_id', '==', student_id).where('date', '>=', today).limit(1).get()
+                        already_marked = len(list(attendance_ref)) > 0
+                        
+                        face_data['match'] = {
+                            'student_id': student_id,
+                            'name': student.get('name', ''),
+                            'confidence': match['confidence'],
+                            'alreadyMarked': already_marked
+                        }
+            
+            processed_faces.append(face_data)
+
+        return jsonify({'faces': processed_faces, 'uniqueCount': len(unique_students)})
+
+    except Exception as e:
+        current_app.logger.error(f"Error in detect_faces: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@recognition_bp.route('/mark_classroom_attendance', methods=['POST'])
+def mark_classroom_attendance():
+    """Mark attendance for multiple students detected in classroom mode."""
+    try:
+        data = request.get_json()
+        if not data or 'students' not in data:
+            return jsonify({'error': 'No student data provided'}), 400
+
+        students = data['students']
+        if not students:
+            return jsonify({'error': 'No students to mark attendance for'}), 400
+
+        # Get current timestamp
+        now = datetime.now()
+        today_str = now.strftime('%Y-%m-%d')
+
+        marked_count = 0
+        for student in students:
+            student_id = student.get('student_id')
+            if not student_id:
+                continue
+
+            # Get student details
+            student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
+            student_docs = list(student_ref)
+            if not student_docs:
+                continue
+
+            student_data = student_docs[0].to_dict()
+            
+            # Create attendance data
+            attendance_data = {
+                'student_id': student_id,
+                'student_name': student_data.get('name', ''),
+                'class': student_data.get('class', ''),
+                'division': student_data.get('division', ''),
+                'class_id': f"{student_data.get('class')}-{student_data.get('division')}",
+                'status': 'PRESENT',
+                'date': today_str,
+                'timestamp': now.isoformat(),
+                'marked_by': current_user.email,
+                'confidence': student.get('confidence', 0),
+                'method': 'classroom'
+            }
+
+            # Check if attendance already exists for today
+            existing_attendance = current_app.db.collection('attendance').where(
+                'student_id', '==', student_id
+            ).where('date', '==', today_str).get()
+
+            if existing_attendance:
+                # Update existing attendance
+                doc = existing_attendance[0]
+                doc.reference.update({
+                    'status': 'PRESENT',
+                    'timestamp': now.isoformat(),
+                    'marked_by': current_user.email,
+                    'confidence': student.get('confidence', 0),
+                    'method': 'classroom'
+                })
+            else:
+                # Add new attendance record
+                current_app.db.collection('attendance').add(attendance_data)
+            
+            marked_count += 1
+
+        return jsonify({
+            'message': f'Successfully marked attendance for {marked_count} students',
+            'marked_count': marked_count
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error in mark_classroom_attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500 

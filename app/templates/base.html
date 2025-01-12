@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}AttendanceAI{% endblock %}</title>
     
     <!-- Tailwind and DaisyUI -->
@@ -44,230 +44,155 @@
         <input id="drawer-toggle" type="checkbox" class="drawer-toggle" />
         
         <!-- Main Content -->
-        <div class="drawer-content flex flex-col">
-            <!-- Top Navigation Bar -->
-            <div class="navbar bg-base-100 shadow-sm lg:hidden">
-                {% if current_user.is_authenticated %}
-                    <div class="flex-none">
-                        <label for="drawer-toggle" class="btn btn-square btn-ghost">
-                            <i class="ri-menu-line text-xl"></i>
-                        </label>
-                    </div>
-                    <div class="flex-1">
-                        <h1 class="text-xl font-semibold">{% block page_title %}Dashboard{% endblock %}</h1>
-                    </div>
-                {% else %}
-                    <div class="flex-1">
-                        <h1 class="text-xl font-semibold">AttendanceAI</h1>
-                    </div>
-                {% endif %}
-            </div>
-            
-            <!-- Main Content Area -->
-            <main class="p-4 lg:p-6">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        <div class="space-y-2 mb-4">
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category }} shadow-lg animate-fade-in">
-                                    <div>
-                                        {% if category == 'success' %}
-                                            <i class="ri-checkbox-circle-line"></i>
-                                        {% elif category == 'error' %}
-                                            <i class="ri-error-warning-line"></i>
-                                        {% else %}
-                                            <i class="ri-information-line"></i>
-                                        {% endif %}
-                                        <span>{{ message }}</span>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                {% endwith %}
-                
+        <main class="pl-64 min-h-screen bg-base-200">
+            <div class="container mx-auto p-4">
                 {% block content %}{% endblock %}
-            </main>
+            </div>
+        </main>
 
-            <!-- Chatbot Toggle Button -->
-            <button id="chatbotToggle" class="btn btn-circle btn-primary fixed bottom-6 right-6 text-2xl shadow-lg">
-                <i class="ri-message-3-line"></i>
-            </button>
+        <!-- Toast Container -->
+        <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
-            <!-- Chatbot Window -->
-            <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100">
-                <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
-                    <div class="flex items-center gap-2">
-                        <i class="ri-robot-line"></i>
-                        <span class="font-bold">AI Assistant</span>
-                    </div>
-                    <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle">×</button>
+        <!-- Chatbot Toggle Button -->
+        <button id="chatbotToggle" class="btn btn-circle btn-primary fixed bottom-6 right-6 text-2xl shadow-lg">
+            <i class="ri-message-3-line"></i>
+        </button>
+
+        <!-- Chatbot Window -->
+        <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100">
+            <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="ri-robot-line"></i>
+                    <span class="font-bold">AI Assistant</span>
                 </div>
-                <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
-                    <!-- Welcome Message -->
-                    <div class="chat chat-start">
-                        <div class="chat-bubble chat-bubble-primary">
-                            👋 Hi! I'm your AI assistant. I can help you with:
-                            <ul class="list-disc list-inside mt-2">
-                                <li>Taking attendance with face recognition</li>
-                                <li>Managing attendance records</li>
-                                <li>Student registration</li>
-                                <li>Navigating the system</li>
-                            </ul>
-                            How can I help you today?
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer p-4 border-t">
-                    <div class="join w-full">
-                        <input type="text" id="chatInput" class="join-item input input-bordered w-full" placeholder="Type your message...">
-                        <button id="chatSendBtn" class="join-item btn btn-primary">
-                            <i class="ri-send-plane-line"></i>
-                        </button>
+                <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle">×</button>
+            </div>
+            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Welcome Message -->
+                <div class="chat chat-start">
+                    <div class="chat-bubble chat-bubble-primary">
+                        👋 Hi! I'm your AI assistant. I can help you with:
+                        <ul class="list-disc list-inside mt-2">
+                            <li>Taking attendance with face recognition</li>
+                            <li>Managing attendance records</li>
+                            <li>Student registration</li>
+                            <li>Navigating the system</li>
+                        </ul>
+                        How can I help you today?
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Sidebar -->
-        <div class="drawer-side z-40">
-            <label for="drawer-toggle" class="drawer-overlay"></label>
-            <aside class="bg-base-100 w-80 min-h-full border-r">
-                <!-- Logo -->
-                <div class="p-4 border-b">
-                    <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-3">
-                        <div class="avatar placeholder">
-                            <div class="w-10 h-10 rounded-lg bg-primary text-primary-content">
-                                <span class="text-2xl">A</span>
-                            </div>
-                        </div>
-                        <div>
-                            <h1 class="text-xl font-bold">AttendanceAI</h1>
-                            <p class="text-sm opacity-60">Smart Attendance System</p>
-                        </div>
-                    </a>
+            <div class="card-footer p-4 border-t">
+                <div class="join w-full">
+                    <input type="text" id="chatInput" class="join-item input input-bordered w-full" placeholder="Type your message...">
+                    <button id="chatSendBtn" class="join-item btn btn-primary">
+                        <i class="ri-send-plane-line"></i>
+                    </button>
                 </div>
-                
-                <!-- Navigation -->
-                <div class="p-4">
-                    <nav class="space-y-2">
-                        {% if current_user.is_authenticated %}
-                            <a href="{{ url_for('main.dashboard') }}" 
-                               class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content{% endif %}">
-                                <i class="ri-dashboard-line text-xl"></i>
-                                <span class="font-medium">Dashboard</span>
-                            </a>
-                            
-                            {% if current_user.role in ['admin', 'teacher'] %}
-                                <div class="divider my-4"></div>
-                                
-                                <a href="{{ url_for('attendance.view_attendance') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content{% endif %}">
-                                    <i class="ri-calendar-check-line text-xl"></i>
-                                    <span class="font-medium">View Attendance</span>
-                                </a>
-                                
-                                <div class="divider my-4"></div>
-                                
-                                {% if current_user.role == 'admin' %}
-                                    <a href="{{ url_for('admin.manage_teachers') }}"
-                                       class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content{% endif %}">
-                                        <i class="ri-team-line text-xl"></i>
-                                        <span class="font-medium">Manage Teachers</span>
-                                    </a>
-                                {% endif %}
-                                
-                                <a href="{{ url_for('admin.manage_subjects') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content{% endif %}">
-                                    <i class="ri-book-line text-xl"></i>
-                                    <span class="font-medium">Manage Subjects</span>
-                                </a>
-                                
-                                <a href="{{ url_for('admin.manage_students') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content{% endif %}">
-                                    <i class="ri-user-line text-xl"></i>
-                                    <span class="font-medium">Manage Students</span>
-                                </a>
-                            {% endif %}
-                            
-                            {% if current_user.role == 'student' %}
-                                <a href="{{ url_for('attendance.view_attendance') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content{% endif %}">
-                                    <i class="ri-calendar-check-line text-xl"></i>
-                                    <span class="font-medium">My Attendance</span>
-                                </a>
-                                
-                                <a href="{{ url_for('recognition.take_attendance') }}"
-                                   class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors {% if request.endpoint == 'recognition.take_attendance' %}bg-primary text-primary-content{% endif %}">
-                                    <i class="ri-camera-line text-xl"></i>
-                                    <span class="font-medium">Take Attendance</span>
-                                </a>
-                            {% endif %}
-                        {% endif %}
-                    </nav>
-                </div>
-                
-                <!-- User Profile -->
-                <div class="absolute bottom-0 left-0 right-0 border-t">
-                    <div class="p-4">
-                        {% if current_user.is_authenticated %}
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="avatar placeholder">
-                                    <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
-                                        <span>{{ current_user.email[0].upper() }}</span>
-                                    </div>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-medium truncate">{{ current_user.email }}</p>
-                                    <p class="text-sm opacity-60">{{ current_user.role.title() }}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="flex items-center gap-2 text-sm">
-                                    <i class="ri-moon-line"></i>
-                                    Dark Mode
-                                </span>
-                                <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
-                            </div>
-                            
-                            <a href="{{ url_for('auth.logout') }}" 
-                               class="btn btn-error btn-outline w-full gap-2">
-                                <i class="ri-logout-box-line"></i>
-                                Sign Out
-                            </a>
-                        {% else %}
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="avatar placeholder">
-                                    <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
-                                        <span>G</span>
-                                    </div>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-medium truncate">Guest</p>
-                                    <p class="text-sm opacity-60">Not logged in</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="flex items-center gap-2 text-sm">
-                                    <i class="ri-moon-line"></i>
-                                    Dark Mode
-                                </span>
-                                <input type="checkbox" class="toggle toggle-primary" id="theme-toggle" />
-                            </div>
-                            
-                            <a href="{{ url_for('auth.login') }}" 
-                               class="btn btn-primary w-full gap-2">
-                                <i class="ri-login-box-line"></i>
-                                Sign In
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </aside>
+            </div>
         </div>
     </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen bg-base-100 border-r">
+        <!-- Logo -->
+        <div class="px-4 py-3 border-b">
+            <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2">
+                <div class="w-10 h-10 bg-primary text-primary-content rounded-lg flex items-center justify-center">
+                    <span class="text-xl font-bold">A</span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold">AttendanceAI</h1>
+                    <p class="text-xs opacity-60">Smart Attendance System</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="py-4">
+            <ul class="space-y-1 px-3">
+                <!-- Dashboard -->
+                <li>
+                    <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                        <i class="ri-dashboard-line text-lg"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+
+                <!-- View Attendance -->
+                <li>
+                    <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                        <i class="ri-calendar-check-line text-lg"></i>
+                        <span>View Attendance</span>
+                    </a>
+                </li>
+
+                {% if current_user.role == 'admin' %}
+                <!-- Admin Links -->
+                <li class="pt-4">
+                    <div class="px-3 pb-2">
+                        <p class="text-xs font-medium opacity-60 uppercase">Administration</p>
+                    </div>
+                    <ul class="space-y-1">
+                        <!-- Manage Teachers -->
+                        <li>
+                            <a href="{{ url_for('admin.manage_teachers') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                <i class="ri-team-line text-lg"></i>
+                                <span>Manage Teachers</span>
+                            </a>
+                        </li>
+
+                        <!-- Manage Students -->
+                        <li>
+                            <a href="{{ url_for('admin.manage_students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                <i class="ri-user-settings-line text-lg"></i>
+                                <span>Manage Students</span>
+                            </a>
+                        </li>
+
+                        <!-- Manage Subjects -->
+                        <li>
+                            <a href="{{ url_for('admin.manage_subjects') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
+                                <i class="ri-book-open-line text-lg"></i>
+                                <span>Manage Subjects</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- User Menu -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
+            <div class="dropdown dropdown-top w-full">
+                <label tabindex="0" class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 cursor-pointer">
+                    <div class="avatar placeholder">
+                        <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
+                            {% if current_user.is_authenticated and current_user.name %}
+                                <span class="text-xl">{{ current_user.name[0] | upper }}</span>
+                            {% else %}
+                                <span class="text-xl"><i class="ri-user-line"></i></span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium truncate">{{ current_user.name }}</p>
+                        <p class="text-sm opacity-60 capitalize">{{ current_user.role }}</p>
+                    </div>
+                    <i class="ri-arrow-up-s-line opacity-60"></i>
+                </label>
+                <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-lg w-full">
+                    <li>
+                        <a href="{{ url_for('auth.logout') }}" class="gap-2 text-error">
+                            <i class="ri-logout-box-line"></i>
+                            Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </aside>
 
     <!-- Theme Toggle Script -->
     <script>

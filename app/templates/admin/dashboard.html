@@ -1,0 +1,71 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Take Attendance -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title">Take Attendance</h2>
+            <p class="text-base-content/60">Mark attendance for individual students</p>
+            <div class="card-actions justify-end">
+                <a href="{{ url_for('recognition.recognize') }}" class="btn btn-primary gap-2">
+                    <i class="ri-camera-line"></i>
+                    Take Attendance
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Classroom Mode -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title">Classroom Mode</h2>
+            <p class="text-base-content/60">Real-time attendance tracking for multiple students</p>
+            <div class="card-actions justify-end">
+                <a href="{{ url_for('recognition.classroom_mode') }}" class="btn btn-primary gap-2">
+                    <i class="ri-group-line"></i>
+                    Start Classroom Mode
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Students -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title">Manage Students</h2>
+            <p class="text-base-content/60">View, add, and manage student records</p>
+            <div class="card-actions justify-end">
+                <a href="{{ url_for('admin.manage_students') }}" class="btn btn-primary gap-2">
+                    <i class="ri-user-settings-line"></i>
+                    Manage Students
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Teachers -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title">Manage Teachers</h2>
+            <p class="text-base-content/60">View and manage teacher accounts</p>
+            <div class="card-actions justify-end">
+                <a href="{{ url_for('admin.manage_teachers') }}" class="btn btn-primary gap-2">
+                    <i class="ri-team-line"></i>
+                    Manage Teachers
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Attendance -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title">View Attendance</h2>
+            <p class="text-base-content/60">View and export attendance records</p>
+            <div class="card-actions justify-end">
+                <a href="{{ url_for('attendance.view_attendance') }}" class="btn btn-primary gap-2">
+                    <i class="ri-calendar-check-line"></i>
+                    View Records
+                </a>
+            </div>
+        </div>
+    </div>
+</div> 

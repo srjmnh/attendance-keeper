@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}Classroom Mode - AttendanceAI{% endblock %}
+
+{% block content %}
+<div class="fixed inset-0 bg-black flex flex-col">
+    <!-- Header -->
+    <div class="bg-black/50 backdrop-blur-sm z-10 border-b border-white/10">
+        <div class="container mx-auto px-4 py-2">
+            <div class="flex items-center justify-between">
+                <div class="text-white">
+                    <h1 class="text-xl font-bold">Classroom Mode</h1>
+                    <p class="text-sm opacity-60">Real-time attendance tracking</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="stats bg-black/50 text-white border border-white/10">
+                        <div class="stat py-2">
+                            <div class="stat-title text-sm opacity-60">Faces Detected</div>
+                            <div class="stat-value text-2xl" id="faceCounter">0</div>
+                        </div>
+                    </div>
+                    <button id="switchCamera" class="btn btn-circle btn-sm btn-outline border-white/20 text-white hover:bg-white/10">
+                        <i class="ri-camera-switch-line"></i>
+                    </button>
+                    <button onclick="confirmAttendance()" class="btn btn-success btn-sm gap-2">
+                        <i class="ri-check-double-line"></i>
+                        Confirm
+                    </button>
+                    <button onclick="toggleFullscreen()" class="btn btn-circle btn-sm btn-outline border-white/20 text-white hover:bg-white/10">
+                        <i class="ri-fullscreen-line" id="fullscreenIcon"></i>
+                    </button>
+                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm gap-2 text-white hover:bg-white/10">
+                        <i class="ri-close-line"></i>
+                        Exit
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 relative">
+        <!-- Camera Feed -->
+        <div class="absolute inset-0 flex items-center justify-center bg-black">
+            <video id="video" class="max-h-full w-auto object-contain" autoplay playsinline></video>
+            <canvas id="canvas" class="hidden"></canvas>
+        </div>
+        
+        <!-- Face Detection Overlay -->
+        <div id="faceOverlay" class="absolute inset-0 pointer-events-none">
+            <!-- Face boxes will be drawn here -->
+        </div>
+        
+        <!-- Status Messages -->
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-3xl px-4">
+            <div class="space-y-2">
+                <div id="status" class="alert bg-black/50 text-white border border-white/10 shadow-lg py-2 backdrop-blur-sm">
+                    <i class="ri-information-line"></i>
+                    <span>Position students' faces in the camera view</span>
+                </div>
+                <div id="detectedFaces" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-black/50 backdrop-blur-sm rounded-lg border border-white/10">
+                    <!-- Detected faces will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let width = 1280;
+let height = 0;
+let streaming = false;
+let video = null;
+let canvas = null;
+let switchCameraButton = null;
+let confirmButton = null;
+let stream = null;
+let detectedStudents = new Map();
+let processingFrame = false;
+let lastProcessedTime = 0;
+const PROCESS_INTERVAL = 1000; // Process every 1 second
+
+function showMessage(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function updateStatus(message, type = 'info') {
+    const status = document.getElementById('status');
+    status.className = `alert alert-${type}`;
+    status.innerHTML = `<i class="ri-information-line"></i><span>${message}</span>`;
+}
+
+function drawFaceBox(face) {
+    const overlay = document.getElementById('faceOverlay');
+    const box = document.createElement('div');
+    const { x, y, width: w, height: h } = face.boundingBox;
+    
+    // Change border color based on match status
+    const borderColor = face.match ? (face.match.alreadyMarked ? 'border-warning' : 'border-success') : 'border-error';
+    box.className = `absolute border-2 ${borderColor} rounded-lg transition-all duration-200 shadow-lg`;
+    box.style.left = `${x}px`;
+    box.style.top = `${y}px`;
+    box.style.width = `${w}px`;
+    box.style.height = `${h}px`;
+    
+    if (face.match) {
+        // Name label with attendance status
+        const label = document.createElement('div');
+        const bgColor = face.match.alreadyMarked ? 'bg-warning' : 'bg-success';
+        label.className = `absolute -top-6 left-0 right-0 text-center ${bgColor} text-${bgColor}-content px-2 py-0.5 rounded-t-lg text-xs font-medium shadow-lg`;
+        label.textContent = face.match.name + (face.match.alreadyMarked ? ' (Marked)' : '');
+        box.appendChild(label);
+        
+        // Confidence label
+        const confidence = document.createElement('div');
+        confidence.className = 'absolute -bottom-6 left-0 right-0 text-center bg-black/50 backdrop-blur-sm text-white text-xs py-0.5 shadow-lg';
+        confidence.textContent = `${Math.round(face.match.confidence)}%`;
+        box.appendChild(confidence);
+    }
+    
+    overlay.appendChild(box);
+}
+
+function clearFaceBoxes() {
+    const overlay = document.getElementById('faceOverlay');
+    overlay.innerHTML = '';
+}
+
+function updateDetectedFaces(faces) {
+    const count = document.getElementById('faceCounter');
+    if (count) count.textContent = faces.length;
+    
+    // Clear previous faces
+    detectedStudents.clear();
+    
+    faces.forEach(face => {
+        if (face.match) {
+            // Store only the highest confidence match for each student
+            const existingMatch = detectedStudents.get(face.match.student_id);
+            if (!existingMatch || face.match.confidence > existingMatch.confidence) {
+                detectedStudents.set(face.match.student_id, face.match);
+            }
+        }
+        // Draw face box
+        drawFaceBox(face);
+    });
+}
+
+async function startup() {
+    video = document.getElementById('video');
+    canvas = document.getElementById('canvas');
+    switchCameraButton = document.getElementById('switchCamera');
+    confirmButton = document.getElementById('confirmAttendance');
+
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
+        video.srcObject = stream;
+        video.play();
+    } catch (err) {
+        showMessage('Error accessing camera: ' + err.message, 'error');
+        console.error("An error occurred: " + err);
+    }
+
+    video.addEventListener('canplay', function() {
+        if (!streaming) {
+            height = video.videoHeight / (video.videoWidth / width);
+            video.setAttribute('width', width);
+            video.setAttribute('height', height);
+            canvas.setAttribute('width', width);
+            canvas.setAttribute('height', height);
+            streaming = true;
+            
+            // Start face detection loop
+            detectFaces();
+        }
+    }, false);
+
+    switchCameraButton.addEventListener('click', switchCamera);
+    confirmButton.addEventListener('click', confirmAttendance);
+}
+
+async function switchCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+
+    try {
+        const currentFacingMode = stream?.getVideoTracks()[0]?.getSettings()?.facingMode;
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: currentFacingMode === 'user' ? 'environment' : 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
+        video.srcObject = stream;
+        video.play();
+    } catch (err) {
+        showMessage('Error switching camera: ' + err.message, 'error');
+        console.error("An error occurred: " + err);
+    }
+}
+
+// Add CSRF token handling
+function getCSRFToken() {
+    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+}
+
+async function detectFaces() {
+    if (!streaming || processingFrame) return;
+    
+    const now = Date.now();
+    if (now - lastProcessedTime < PROCESS_INTERVAL) {
+        requestAnimationFrame(detectFaces);
+        return;
+    }
+    
+    processingFrame = true;
+    lastProcessedTime = now;
+    
+    try {
+        const context = canvas.getContext('2d');
+        canvas.width = width;
+        canvas.height = height;
+        context.drawImage(video, 0, 0, width, height);
+        
+        // Get image data
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        
+        // Send to server for face detection
+        const response = await fetch("{{ url_for('recognition.detect_faces') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ image: imageData })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            clearFaceBoxes();
+            
+            if (result.faces && result.faces.length > 0) {
+                updateDetectedFaces(result.faces);
+                
+                // Update status message
+                if (result.faces.some(face => face.match)) {
+                    updateStatus('Faces detected and identified', 'success');
+                } else {
+                    updateStatus('Faces detected but not recognized', 'warning');
+                }
+            } else {
+                updateStatus('Position students\' faces in the camera view');
+            }
+        }
+    } catch (error) {
+        console.error('Error detecting faces:', error);
+        updateStatus('Error detecting faces. Please try again.', 'error');
+    } finally {
+        processingFrame = false;
+        requestAnimationFrame(detectFaces);
+    }
+}
+
+async function confirmAttendance() {
+    if (detectedStudents.size === 0) {
+        showMessage('No students detected to mark attendance for', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/mark_classroom_attendance', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                students: Array.from(detectedStudents.values())
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showMessage(`${data.message}`, 'success');
+            // Clear detected students after marking attendance
+            detectedStudents.clear();
+        } else {
+            showMessage(data.error || 'Failed to mark attendance', 'error');
+        }
+    } catch (error) {
+        console.error('Error marking attendance:', error);
+        showMessage('Failed to mark attendance. Please try again.', 'error');
+    }
+}
+
+// Update styles for fullscreen mode with smooth transitions
+const style = document.createElement('style');
+style.textContent = `
+    /* Base layout */
+    .fixed.inset-0 {
+        padding-left: 16rem; /* Width of sidebar */
+        transition: padding-left 0.3s ease-out;
+    }
+    
+    /* Fullscreen mode */
+    :fullscreen .fixed.inset-0 {
+        padding-left: 0;
+    }
+    
+    /* Sidebar transitions */
+    #sidebar {
+        transform: translateX(0);
+        transition: transform 0.3s ease-out;
+    }
+    
+    :fullscreen #sidebar {
+        transform: translateX(-100%);
+    }
+    
+    /* Hide navigation elements in fullscreen */
+    :fullscreen .drawer-side,
+    :fullscreen .navbar {
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+    }
+    
+    /* Video container */
+    #video {
+        max-height: calc(100vh - 64px); /* Subtract header height */
+        transition: max-height 0.3s ease-out;
+    }
+    
+    :fullscreen #video {
+        max-height: 100vh;
+    }
+    
+    /* Face detection boxes */
+    #faceOverlay {
+        pointer-events: none;
+        z-index: 20;
+    }
+    
+    /* Status messages */
+    .bottom-4 {
+        z-index: 30;
+    }
+`;
+document.head.appendChild(style);
+
+// Update fullscreen toggle function
+function toggleFullscreen() {
+    const container = document.documentElement;
+    const icon = document.getElementById('fullscreenIcon');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.querySelector('main');
+    
+    if (!document.fullscreenElement) {
+        if (container.requestFullscreen) {
+            container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+            container.msRequestFullscreen();
+        }
+        icon.className = 'ri-fullscreen-exit-line';
+        
+        // Add transitions
+        if (sidebar) {
+            sidebar.style.transform = 'translateX(-100%)';
+        }
+        if (mainContent) {
+            mainContent.classList.add('fullscreen-mode');
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+        icon.className = 'ri-fullscreen-line';
+        
+        // Reset transitions
+        if (sidebar) {
+            sidebar.style.transform = 'translateX(0)';
+        }
+        if (mainContent) {
+            mainContent.classList.remove('fullscreen-mode');
+        }
+    }
+}
+
+// Update fullscreen change event handler
+document.addEventListener('fullscreenchange', function() {
+    const icon = document.getElementById('fullscreenIcon');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.querySelector('main');
+    
+    if (document.fullscreenElement) {
+        icon.className = 'ri-fullscreen-exit-line';
+        if (sidebar) {
+            sidebar.style.transform = 'translateX(-100%)';
+        }
+        if (mainContent) {
+            mainContent.classList.add('fullscreen-mode');
+        }
+    } else {
+        icon.className = 'ri-fullscreen-line';
+        if (sidebar) {
+            sidebar.style.transform = 'translateX(0)';
+        }
+        if (mainContent) {
+            mainContent.classList.remove('fullscreen-mode');
+        }
+    }
+});
+
+window.addEventListener('load', startup, false);
+</script>
+{% endblock %} 
