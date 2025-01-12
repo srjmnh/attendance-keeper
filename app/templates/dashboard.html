@@ -3,50 +3,76 @@
 {% block title %}Dashboard - AttendanceAI{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-8" data-aos="fade-up">
+    <!-- Welcome Section with Quick Actions -->
+    <div class="card bg-base-100 shadow-xl overflow-hidden">
+        <div class="card-body p-6">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="space-y-2" data-aos="fade-right" data-aos-delay="100">
+                    <h2 class="text-3xl font-bold">Welcome back, {{ current_user.email.split('@')[0] }}!</h2>
+                    <p class="text-base-content/60">Here's your attendance overview for today</p>
+                </div>
+                {% if current_user.role in ['admin', 'teacher'] %}
+                <div class="flex flex-wrap gap-3" data-aos="fade-left" data-aos-delay="200">
+                    <button onclick="startCamera()" class="btn btn-primary gap-2 hover:scale-105 transition-transform">
+                        <i class="ri-camera-line"></i>
+                        Take Attendance
+                    </button>
+                    <a href="{{ url_for('recognition.classroom_mode') }}" class="btn btn-secondary gap-2 hover:scale-105 transition-transform">
+                        <i class="ri-group-line"></i>
+                        Classroom Mode
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <!-- Stats Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Total Students -->
-        <div class="stats shadow">
+        <div class="stats shadow-lg bg-base-100 hover:shadow-xl transition-shadow" data-aos="zoom-in" data-aos-delay="100">
             <div class="stat">
                 <div class="stat-figure text-primary">
-                    <i class="ri-user-line text-3xl"></i>
+                    <i class="ri-user-line text-4xl"></i>
                 </div>
-                <div class="stat-title">Total Students</div>
+                <div class="stat-title font-medium">Total Students</div>
                 <div class="stat-value text-primary">{{ stats.total_students }}</div>
+                <div class="stat-desc">Active students in system</div>
             </div>
         </div>
         
         <!-- Total Subjects -->
-        <div class="stats shadow">
+        <div class="stats shadow-lg bg-base-100 hover:shadow-xl transition-shadow" data-aos="zoom-in" data-aos-delay="200">
             <div class="stat">
                 <div class="stat-figure text-secondary">
-                    <i class="ri-book-line text-3xl"></i>
+                    <i class="ri-book-line text-4xl"></i>
                 </div>
-                <div class="stat-title">Total Subjects</div>
+                <div class="stat-title font-medium">Total Subjects</div>
                 <div class="stat-value text-secondary">{{ stats.total_subjects }}</div>
+                <div class="stat-desc">Across all classes</div>
             </div>
         </div>
         
         <!-- Today's Attendance -->
-        <div class="stats shadow">
+        <div class="stats shadow-lg bg-base-100 hover:shadow-xl transition-shadow" data-aos="zoom-in" data-aos-delay="300">
             <div class="stat">
                 <div class="stat-figure text-accent">
-                    <i class="ri-calendar-check-line text-3xl"></i>
+                    <i class="ri-calendar-check-line text-4xl"></i>
                 </div>
-                <div class="stat-title">Today's Attendance</div>
+                <div class="stat-title font-medium">Today's Attendance</div>
                 <div class="stat-value text-accent">{{ stats.today_attendance }}%</div>
                 <div class="stat-desc">{{ stats.attendance_trend }}</div>
             </div>
         </div>
         
         <!-- Recognition Status -->
-        <div class="stats shadow">
+        <div class="stats shadow-lg bg-base-100 hover:shadow-xl transition-shadow" data-aos="zoom-in" data-aos-delay="400">
             <div class="stat">
                 <div class="stat-figure text-success">
-                    <i class="ri-face-recognition-line text-3xl"></i>
+                    <i class="ri-face-recognition-line text-4xl"></i>
                 </div>
-                <div class="stat-title">Recognition Status</div>
+                <div class="stat-title font-medium">Recognition Status</div>
                 <div class="stat-value text-success" id="recognitionStatus">Ready</div>
                 <div class="stat-desc" id="recognitionProgress"></div>
             </div>
@@ -55,29 +81,32 @@
     
     <!-- Recognition Controls -->
     {% if current_user.role in ['admin', 'teacher'] %}
-    <div class="card bg-base-100 shadow-lg">
-        <div class="card-body p-4">
-            <h2 class="card-title flex items-center gap-2 mb-4">
+    <div class="card bg-base-100 shadow-xl" data-aos="fade-up" data-aos-delay="500">
+        <div class="card-body p-6">
+            <h2 class="text-2xl font-bold flex items-center gap-2 mb-6">
                 <i class="ri-camera-line text-primary"></i>
                 Face Recognition
             </h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Camera Section -->
-                <div class="space-y-3">
+                <div class="space-y-4">
                     <!-- Camera Preview -->
-                    <div class="relative bg-base-200 rounded-lg overflow-hidden aspect-video">
+                    <div class="relative bg-base-200 rounded-xl overflow-hidden aspect-video shadow-inner">
                         <video id="cameraPreview" class="w-full h-full object-cover" autoplay playsinline></video>
                         <canvas id="photoCanvas" class="hidden"></canvas>
+                        
+                        <!-- Camera Overlay -->
+                        <div class="absolute inset-0 border-2 border-primary/20 rounded-xl pointer-events-none"></div>
                     </div>
                     
                     <!-- Camera Controls -->
-                    <div class="flex gap-2">
-                        <button onclick="startCamera()" class="btn btn-outline btn-sm gap-2">
+                    <div class="flex gap-3">
+                        <button onclick="startCamera()" class="btn btn-primary gap-2 flex-1 hover:scale-105 transition-transform">
                             <i class="ri-camera-line"></i>
                             Start Camera
                         </button>
-                        <button onclick="stopCamera()" class="btn btn-outline btn-sm gap-2">
+                        <button onclick="stopCamera()" class="btn btn-outline gap-2 flex-1 hover:scale-105 transition-transform">
                             <i class="ri-camera-off-line"></i>
                             Stop Camera
                         </button>
@@ -85,25 +114,29 @@
                 </div>
                 
                 <!-- Controls Section -->
-                <div class="space-y-3">
+                <div class="space-y-6">
                     <!-- Take Attendance Controls -->
-                    <div id="recognitionControls" class="flex flex-col gap-2">
-                        <div class="flex gap-2">
-                            <button onclick="captureAndRecognize()" class="btn btn-primary btn-sm gap-2 flex-1">
+                    <div id="recognitionControls" class="space-y-4">
+                        <div class="flex gap-3">
+                            <button onclick="captureAndRecognize()" class="btn btn-primary gap-2 flex-1 hover:scale-105 transition-transform">
                                 <i class="ri-camera-lens-line"></i>
                                 Take Attendance
                             </button>
-                            <a href="{{ url_for('recognition.classroom_mode') }}" class="btn btn-secondary btn-sm gap-2">
+                            <a href="{{ url_for('recognition.classroom_mode') }}" class="btn btn-secondary gap-2 flex-1 hover:scale-105 transition-transform">
                                 <i class="ri-fullscreen-line"></i>
                                 Classroom Mode
                             </a>
                         </div>
-                        <div class="divider my-2">OR</div>
+                        
+                        <div class="divider">OR</div>
+                        
                         <div class="form-control">
                             <label class="label">
-                                <span class="label-text">Upload Image</span>
+                                <span class="label-text font-medium">Upload Image for Recognition</span>
                             </label>
-                            <input type="file" id="recognitionFile" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" onchange="handleRecognitionUpload()" />
+                            <input type="file" id="recognitionFile" accept="image/*" 
+                                   class="file-input file-input-bordered w-full hover:file-input-primary transition-colors"
+                                   onchange="handleRecognitionUpload()" />
                         </div>
                     </div>
                 </div>
@@ -115,38 +148,38 @@
     <!-- Main Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Attendance Chart -->
-        <div class="card bg-base-100 shadow-lg lg:col-span-2">
+        <div class="card bg-base-100 shadow-xl lg:col-span-2" data-aos="fade-right" data-aos-delay="600">
             <div class="card-body">
-                <h2 class="card-title flex items-center gap-2">
+                <h2 class="text-2xl font-bold flex items-center gap-2 mb-4">
                     <i class="ri-line-chart-line text-primary"></i>
                     Attendance Trend
                 </h2>
-                <div class="h-[300px]">
+                <div class="h-[300px] relative">
                     <canvas id="attendanceChart"></canvas>
                 </div>
             </div>
         </div>
         
         <!-- Recent Activity -->
-        <div class="card bg-base-100 shadow-lg">
+        <div class="card bg-base-100 shadow-xl" data-aos="fade-left" data-aos-delay="700">
             <div class="card-body">
-                <h2 class="card-title flex items-center gap-2">
+                <h2 class="text-2xl font-bold flex items-center gap-2 mb-4">
                     <i class="ri-history-line text-primary"></i>
                     Recent Activity
                 </h2>
-                <div class="space-y-4">
+                <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                     {% for record in attendance_records %}
-                    <div class="flex items-start gap-3">
+                    <div class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors">
                         <div class="avatar placeholder">
-                            <div class="w-8 h-8 rounded-lg bg-primary text-primary-content">
-                                <span>{{ record.name[0].upper() if record.name else 'U' }}</span>
+                            <div class="w-10 h-10 rounded-lg bg-primary text-primary-content">
+                                <span class="text-lg">{{ record.name[0].upper() if record.name else 'U' }}</span>
                             </div>
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="font-medium">{{ record.name or 'Unknown' }}</p>
-                            <p class="text-sm opacity-60">{{ record.subject_name }}</p>
+                            <p class="text-sm text-base-content/60">{{ record.subject_name }}</p>
                         </div>
-                        <div class="badge badge-{{ 'success' if record.status == 'PRESENT' else 'error' }}">
+                        <div class="badge badge-lg {{ 'badge-success' if record.status == 'PRESENT' else 'badge-error' }}">
                             {{ record.status }}
                         </div>
                     </div>
@@ -158,36 +191,38 @@
 </div>
 
 <!-- Recognition Progress Modal -->
-<dialog id="recognitionModal" class="modal">
+<dialog id="recognitionModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Face Recognition Progress</h3>
-        <div class="space-y-4">
-            <progress class="progress progress-primary w-full" value="0" max="100" id="recognitionProgressBar"></progress>
-            <p id="recognitionMessage" class="text-center">Initializing...</p>
+        <h3 class="font-bold text-xl mb-6">Face Recognition Progress</h3>
+        <div class="space-y-6">
+            <div class="w-full bg-base-200 rounded-full h-4 overflow-hidden">
+                <div class="progress progress-primary h-full transition-all duration-300" id="recognitionProgressBar" style="width: 0%"></div>
+            </div>
+            <p id="recognitionMessage" class="text-center text-lg">Initializing...</p>
         </div>
     </div>
 </dialog>
 
 <!-- Camera Access Modal -->
-<dialog id="cameraModal" class="modal">
+<dialog id="cameraModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Camera Access Required</h3>
-        <p>Please allow camera access to use face recognition features.</p>
+        <h3 class="font-bold text-xl mb-4">Camera Access Required</h3>
+        <p class="py-4">Please allow camera access to use face recognition features. Check your browser settings if you've previously denied access.</p>
         <div class="modal-action">
             <form method="dialog">
-                <button class="btn">Close</button>
+                <button class="btn btn-primary">Understood</button>
             </form>
         </div>
     </div>
 </dialog>
 
 <!-- Recognition Success Modal -->
-<dialog id="recognitionSuccessModal" class="modal">
+<dialog id="recognitionSuccessModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box w-11/12 max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">Recognition Results</h3>
-        <div id="recognitionSuccessMessage" class="prose max-h-[60vh] overflow-y-auto"></div>
-        <div class="modal-action flex justify-between items-center mt-4">
-            <button onclick="confirmAllAttendance()" class="btn btn-success gap-2">
+        <h3 class="font-bold text-xl mb-6">Recognition Results</h3>
+        <div id="recognitionSuccessMessage" class="prose max-h-[60vh] overflow-y-auto custom-scrollbar"></div>
+        <div class="modal-action flex justify-between items-center mt-6">
+            <button onclick="confirmAllAttendance()" class="btn btn-success gap-2 hover:scale-105 transition-transform">
                 <i class="ri-check-double-line"></i>
                 Confirm Attendance
             </button>
@@ -195,15 +230,23 @@
         </div>
     </div>
 </dialog>
+
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/aos@next/dist/aos.js"></script>
 <script>
+// Initialize AOS
+AOS.init({
+    duration: 800,
+    once: true
+});
+
 // Get attendance data from server-side
 const chartData = JSON.parse('{{ attendance_data | tojson | safe }}');
 
-// Initialize attendance chart
+// Initialize attendance chart with animation
 const ctx = document.getElementById('attendanceChart').getContext('2d');
 const attendanceChart = new Chart(ctx, {
     type: 'line',
@@ -214,25 +257,67 @@ const attendanceChart = new Chart(ctx, {
             data: chartData.values,
             borderColor: 'rgb(var(--p))',
             backgroundColor: 'rgb(var(--p) / 0.1)',
-            tension: 0.3,
-            fill: true
+            tension: 0.4,
+            fill: true,
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+            duration: 2000,
+            easing: 'easeInOutQuart'
+        },
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
         plugins: {
             legend: {
                 display: false
+            },
+            tooltip: {
+                backgroundColor: 'rgb(var(--b1))',
+                titleColor: 'rgb(var(--bc))',
+                bodyColor: 'rgb(var(--bc))',
+                borderColor: 'rgb(var(--p))',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false,
+                callbacks: {
+                    label: function(context) {
+                        return `Attendance: ${context.parsed.y}%`;
+                    }
+                }
             }
         },
         scales: {
             y: {
                 beginAtZero: true,
                 max: 100,
+                grid: {
+                    display: true,
+                    color: 'rgb(var(--bc) / 0.1)'
+                },
                 ticks: {
                     callback: function(value) {
                         return value + '%';
+                    },
+                    font: {
+                        size: 11
+                    }
+                }
+            },
+            x: {
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    font: {
+                        size: 11
                     }
                 }
             }

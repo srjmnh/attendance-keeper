@@ -13,15 +13,15 @@ class ChatUI {
     setupEventListeners() {
         // Toggle chat window
         this.toggleBtn.addEventListener('click', () => {
-            this.chatWindow.classList.toggle('hidden');
-            if (!this.chatWindow.classList.contains('hidden')) {
+            this.chatWindow.style.display = this.chatWindow.style.display === 'none' || !this.chatWindow.style.display ? 'flex' : 'none';
+            if (this.chatWindow.style.display === 'flex') {
                 this.chatInput.focus();
             }
         });
         
         // Close chat window
         this.chatCloseBtn.addEventListener('click', () => {
-            this.chatWindow.classList.add('hidden');
+            this.chatWindow.style.display = 'none';
         });
         
         // Send message on button click
