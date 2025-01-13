@@ -110,4 +110,40 @@ When suggesting navigation, use the exact commands (e.g., "#show-register") as t
             if command in message:
                 return tab
         
-        return None 
+        return None
+
+    async def get_system_message(self, event_type, context=None):
+        """Generate contextual responses for system events"""
+        try:
+            # Build event context
+            event_prompt = f"""As an AI assistant for the attendance system, generate a natural, friendly response for this event:
+            Event: {event_type}
+            Context: {context if context else 'No additional context'}
+            
+            The response should be conversational and helpful. Include relevant details from the context if provided.
+            Keep the response concise (1-2 sentences) and friendly."""
+            
+            # Call Gemini API
+            response = self.model.generate_content(event_prompt)
+            
+            if not response.text:
+                return self._get_fallback_message(event_type)
+            
+            return response.text.strip()
+            
+        except Exception as e:
+            current_app.logger.error(f"Error generating system message: {str(e)}")
+            return self._get_fallback_message(event_type)
+    
+    def _get_fallback_message(self, event_type):
+        """Get fallback message if AI generation fails"""
+        fallback_messages = {
+            'camera_start': "Camera activated and ready for face detection.",
+            'camera_stop': "Camera stopped.",
+            'faces_detected': "Detected faces in frame.",
+            'attendance_marked': "Attendance has been marked successfully.",
+            'attendance_error': "Failed to mark attendance. Please try again.",
+            'no_faces': "No faces detected in frame.",
+            'processing': "Processing faces, please wait..."
+        }
+        return fallback_messages.get(event_type, "Operation completed.") 

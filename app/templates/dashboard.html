@@ -109,7 +109,7 @@
                             <i class="ri-image-add-line"></i>
                             Upload Image
                             <input type="file" id="imageUpload" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
-                        </label>
+                            </label>
                         
                         <div class="divider text-xs opacity-50 my-1">OR</div>
                         
@@ -261,20 +261,87 @@ let processingFrame = false;
 let lastProcessedTime = 0;
 const PROCESS_INTERVAL = 1000; // Process every 1 second
 let animationFrameId = null;
+let lastMessageTime = 0;
+let lastFaceCount = 0;
+const MESSAGE_COOLDOWN = 2000; // 2 seconds between messages
 
-function showMessage(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50 animate-fade-in`;
-    toast.innerHTML = `
-        <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
-        <span>${message}</span>
-    `;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('opacity-0');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+async function showSystemMessage(message, context = null) {
+    const chatbotBtn = document.getElementById('chatbotToggle');
+    const container = document.getElementById('toastContainer');
+    
+    // Start the chatbot icon animation
+    chatbotBtn.querySelector('i').style.animation = 'spin 0.5s linear infinite';
+    
+    try {
+        // Get AI response for the message
+        const response = await fetch('/chat/system/message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ 
+                event_type: message,
+                context: context
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to get AI response');
+        }
+        
+        const data = await response.json();
+        const aiMessage = data.message;
+        
+        // Create the message element
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message bg-white shadow-lg rounded-3xl px-4 py-3 flex items-center gap-3 max-w-[280px] transform-gpu';
+        messageDiv.style.animation = 'slideInFromBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                <i class="ri-robot-line text-white"></i>
+            </div>
+            <p class="text-sm text-gray-700">${aiMessage}</p>
+        `;
+        
+        container.appendChild(messageDiv);
+        
+        // Remove the message and stop the animation
+        setTimeout(() => {
+            messageDiv.style.animation = 'slideOutToBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+            setTimeout(() => {
+                messageDiv.remove();
+                chatbotBtn.querySelector('i').style.animation = '';
+            }, 300);
+        }, 3000);
+        
+    } catch (error) {
+        console.error('Error getting AI response:', error);
+        // Fallback to original message if AI fails
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message bg-white shadow-lg rounded-3xl px-4 py-3 flex items-center gap-3 max-w-[280px] transform-gpu';
+        messageDiv.style.animation = 'slideInFromBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                <i class="ri-robot-line text-white"></i>
+            </div>
+            <p class="text-sm text-gray-700">${message}</p>
+        `;
+        
+        container.appendChild(messageDiv);
+        
+        setTimeout(() => {
+            messageDiv.style.animation = 'slideOutToBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+            setTimeout(() => {
+                messageDiv.remove();
+                chatbotBtn.querySelector('i').style.animation = '';
+            }, 300);
+        }, 3000);
+    }
 }
+
+// Replace all showNotification calls with showSystemMessage
+window.showNotification = showSystemMessage;
 
 function updateStatus(message, type = 'info') {
     const status = document.getElementById('status');
@@ -354,11 +421,26 @@ function updateDetectedFaces(faces) {
     const uniqueFaces = detectedStudents.size;
     count.textContent = uniqueFaces;
     
-    if (uniqueFaces > 0) {
+    // Only show messages if:
+    // 1. It's been at least 2 seconds since the last message
+    // 2. The number of faces has changed
+    const now = Date.now();
+    if (uniqueFaces > 0 && (now - lastMessageTime > MESSAGE_COOLDOWN) && uniqueFaces !== lastFaceCount) {
+        const studentNames = Array.from(detectedStudents.values())
+            .map(student => student.name)
+            .join(', ');
+        showSystemMessage('faces_detected', `Detected ${uniqueFaces} student${uniqueFaces > 1 ? 's' : ''}: ${studentNames}`);
+        lastMessageTime = now;
+        lastFaceCount = uniqueFaces;
+        
         confirmBtn.classList.remove('opacity-50', 'pointer-events-none');
         confirmBtn.disabled = false;
         updateStatus(`${uniqueFaces} student${uniqueFaces > 1 ? 's' : ''} detected`, 'success');
-    } else {
+    } else if (uniqueFaces === 0 && (now - lastMessageTime > MESSAGE_COOLDOWN) && uniqueFaces !== lastFaceCount) {
+        showSystemMessage('no_faces', 'No students detected in frame. Please ensure students are visible and well-lit');
+        lastMessageTime = now;
+        lastFaceCount = uniqueFaces;
+        
         confirmBtn.classList.add('opacity-50', 'pointer-events-none');
         confirmBtn.disabled = true;
         updateStatus('Position students to detect faces');
@@ -401,17 +483,18 @@ async function startup() {
                     
                     // Start face detection
                     detectFaces();
+                    
+                    // Only show message once when camera starts
+                    showSystemMessage('camera_start', 'Camera initialized and ready for face detection');
                 }
             }, false);
-            
-            showMessage('Camera started successfully', 'success');
         })
         .catch(function(err) {
-            showMessage('Failed to access camera: ' + err.message, 'error');
+            showSystemMessage('camera_error', 'Failed to access camera: ' + err.message);
             document.getElementById('cameraModal').showModal();
         });
     } catch (err) {
-        showMessage('Failed to access camera: ' + err.message, 'error');
+        showSystemMessage('camera_error', 'Failed to access camera: ' + err.message);
         document.getElementById('cameraModal').showModal();
     }
 }
@@ -441,7 +524,7 @@ function stopCamera() {
         
         // Reset status message
         updateStatus('Camera stopped', 'info');
-        showMessage('Camera stopped', 'info');
+        showSystemMessage('camera_stop', 'Camera has been stopped and resources cleaned up');
         
         // Reset video element and canvas
         const ctx = canvas.getContext('2d');
@@ -481,9 +564,9 @@ async function switchCamera() {
                 audio: false
             });
             video.srcObject = stream;
-            showMessage('Camera switched', 'success');
+            showSystemMessage('Camera switched');
         } catch (err) {
-            showMessage('Failed to switch camera: ' + err.message, 'error');
+            showSystemMessage('Failed to switch camera: ' + err.message);
         }
     }
 }
@@ -560,7 +643,7 @@ function showConfirmationModal() {
             </div>
             <div class="badge ${student.alreadyMarked ? 'badge-warning' : 'badge-success'}">
                 ${student.alreadyMarked ? 'Already Marked' : 'Present'}
-            </div>
+                </div>
         `;
         studentsList.appendChild(item);
     });
@@ -576,6 +659,9 @@ async function confirmAttendance() {
     const studentIds = Array.from(detectedStudents.keys());
     
     try {
+        const studentNames = Array.from(detectedStudents.values())
+            .map(student => student.name)
+            .join(', ');
         const response = await fetch('/mark_classroom_attendance', {
             method: 'POST',
             headers: {
@@ -588,7 +674,7 @@ async function confirmAttendance() {
         });
         
         if (response.ok) {
-            showMessage('Attendance marked successfully', 'success');
+            showSystemMessage('attendance_marked', `Successfully marked attendance for: ${studentNames}`);
             closeConfirmationModal();
             // Clear everything
             clearImagePreview();
@@ -599,7 +685,7 @@ async function confirmAttendance() {
             throw new Error('Failed to mark attendance');
         }
     } catch (err) {
-        showMessage('Failed to mark attendance: ' + err.message, 'error');
+        showSystemMessage('attendance_error', `Failed to mark attendance: ${err.message}`);
     }
 }
 
@@ -747,5 +833,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     new Chart(ctx, config);
 });
+
+// Add new animations to the style section
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInFromBot {
+        0% {
+            opacity: 0;
+            transform: translate(50px, 50px) scale(0.5);
+        }
+        100% {
+            opacity: 1;
+            transform: translate(0, 0) scale(1);
+        }
+    }
+    
+    @keyframes slideOutToBot {
+        0% {
+            opacity: 1;
+            transform: translate(0, 0) scale(1);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(50px, 50px) scale(0.5);
+        }
+    }
+    
+    #toastContainer {
+        position: fixed;
+        bottom: 100px;
+        right: 24px;
+        z-index: 50;
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+        pointer-events: none;
+    }
+    
+    .chat-message {
+        transform-origin: bottom right;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %} 

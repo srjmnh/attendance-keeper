@@ -66,6 +66,75 @@
                 transform: rotate(360deg);
             }
         }
+        
+        /* Toast animations and styling */
+        @keyframes slideInFromBot {
+            0% {
+                opacity: 0;
+                transform: translate(30px, 30px) scale(0.3);
+                transform-origin: bottom right;
+            }
+            15% {
+                opacity: 1;
+                transform: translate(-10px, 0) scale(1.1);
+            }
+            25% {
+                transform: translate(0, 0) scale(1);
+            }
+            85% {
+                opacity: 1;
+                transform: translate(0, 0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(30px, 30px) scale(0.3);
+            }
+        }
+        
+        .toast-message {
+            animation: slideInFromBot 3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            max-width: 300px;
+            transform-origin: bottom right;
+            position: relative;
+        }
+        
+        .toast-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--p);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            flex-shrink: 0;
+            animation: spin 1s linear infinite;
+        }
+        
+        .toast-content {
+            font-size: 0.875rem;
+            color: #1f2937;
+            line-height: 1.25rem;
+        }
+
+        #toastContainer {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 50;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: flex-end;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -187,7 +256,7 @@
     </main>
 
     <!-- Toast Container -->
-    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+    <div id="toastContainer" class="fixed bottom-24 right-6 z-50 space-y-2 pointer-events-none"></div>
 
     <!-- Chatbot Toggle Button -->
     <button id="chatbotToggle" class="btn btn-circle bg-primary hover:bg-primary-focus border-0 fixed bottom-6 right-6 shadow-xl z-50 transition-all duration-300 hover:scale-110">
@@ -221,6 +290,36 @@
     
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Add this before other scripts
+        function showToast(message) {
+            const container = document.getElementById('toastContainer');
+            const chatbotBtn = document.getElementById('chatbotToggle');
+            const toast = document.createElement('div');
+            
+            // Start rotating the chatbot icon faster
+            chatbotBtn.querySelector('i').style.animation = 'spin 0.5s linear infinite';
+            
+            toast.className = 'toast-message';
+            toast.innerHTML = `
+                <div class="toast-icon">
+                    <i class="ri-robot-line text-sm"></i>
+                </div>
+                <div class="toast-content">${message}</div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Remove the toast and reset chatbot icon animation
+            setTimeout(() => {
+                toast.remove();
+                chatbotBtn.querySelector('i').style.animation = '';
+            }, 3000);
+        }
+        
+        window.showNotification = showToast;
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>
