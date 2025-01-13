@@ -16,10 +16,9 @@ def dashboard():
         'attendance_trend': 'No change'
     }
     
-    attendance_data = {
-        'labels': [],
-        'values': []
-    }
+    dates = []
+    present_counts = []
+    absent_counts = []
     
     try:
         # Get date range for attendance data
@@ -38,7 +37,9 @@ def dashboard():
             if not teacher_classes:
                 return render_template('dashboard.html',
                                     stats=stats,
-                                    attendance_data=attendance_data,
+                                    dates=[],
+                                    present_counts=[],
+                                    absent_counts=[],
                                     attendance_records=[],
                                     error="No classes assigned to your account.")
             
@@ -102,7 +103,7 @@ def dashboard():
             
             # Initialize counters for this date
             if date not in daily_attendance:
-                daily_attendance[date] = {'present': 0, 'total': 0}
+                daily_attendance[date] = {'present': 0, 'absent': 0}
             if date not in total_students:
                 total_students[date] = set()
             
@@ -112,6 +113,8 @@ def dashboard():
                 total_students[date].add(student_id)
                 if status == 'PRESENT':
                     daily_attendance[date]['present'] += 1
+                else:
+                    daily_attendance[date]['absent'] += 1
         
         # Calculate today's attendance percentage
         if today_str in daily_attendance and total_students.get(today_str):
@@ -130,13 +133,11 @@ def dashboard():
             elif diff < 0:
                 stats['attendance_trend'] = f"↓ {abs(round(diff))}% decrease"
         
-        # Calculate attendance percentage for each day
+        # Prepare data for the chart
         for date in sorted(daily_attendance.keys()):
-            attendance_data['labels'].append(str(date))
-            total = len(total_students[date])
-            present = daily_attendance[date]['present']
-            percentage = round((present / total * 100) if total > 0 else 0, 2)
-            attendance_data['values'].append(float(percentage))
+            dates.append(str(date))
+            present_counts.append(daily_attendance[date]['present'])
+            absent_counts.append(daily_attendance[date]['absent'])
         
         # Get recent attendance records
         recent_query = current_app.db.collection('attendance').order_by('timestamp', direction='DESCENDING').limit(5)
@@ -178,12 +179,16 @@ def dashboard():
         
         return render_template('dashboard.html',
                             stats=stats,
-                            attendance_data=attendance_data,
+                            dates=dates,
+                            present_counts=present_counts,
+                            absent_counts=absent_counts,
                             attendance_records=recent_records)
                             
     except Exception as e:
         current_app.logger.error(f"Error loading dashboard: {str(e)}")
         return render_template('dashboard.html',
                             stats=stats,
-                            attendance_data=attendance_data,
+                            dates=[],
+                            present_counts=[],
+                            absent_counts=[],
                             attendance_records=[])

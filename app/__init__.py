@@ -1,5 +1,5 @@
 import os
-from flask import Flask, g
+from flask import Flask, g, session, request, current_app
 from flask_login import LoginManager
 from firebase_admin import credentials, initialize_app, firestore
 from flask_wtf.csrf import CSRFProtect, generate_csrf
@@ -14,6 +14,7 @@ from app.services.cache_service import init_cache
 from app.utils.rate_limit import init_limiter
 from app.utils.monitoring import monitoring_bp
 from app.utils.filters import init_filters
+from app.routes.recognition import mark_all_absent
 
 login_manager = LoginManager()
 csrf = CSRFProtect()
@@ -109,9 +110,29 @@ def create_app(config_name=None):
     
     @app.before_request
     def before_request():
-        """Set up request context"""
+        """Set up request context and check daily tasks"""
         if not hasattr(g, 'db_service'):
             g.db_service = DatabaseService()
+        
+        # Only run attendance check for attendance-related routes
+        if request.endpoint and any(x in request.endpoint for x in ['attendance', 'recognition']):
+            # Check if we need to mark attendance for today
+            today = datetime.now().strftime('%Y-%m-%d')
+            if 'last_attendance_date' not in session or session['last_attendance_date'] != today:
+                # Check if we've already marked attendance today
+                attendance_ref = current_app.db.collection('attendance').where(
+                    filter=('date', '==', today)
+                ).where(filter=('marked_by', '==', 'system')).limit(1).get()
+                
+                if not list(attendance_ref):
+                    current_app.logger.info(f"Marking all students absent for {today}")
+                    if mark_all_absent(today):
+                        current_app.logger.info("Successfully marked all students as absent")
+                    else:
+                        current_app.logger.error("Failed to mark all students as absent")
+                
+                # Update session to prevent checking again today
+                session['last_attendance_date'] = today
     
     # Set up logging
     if not app.debug and not app.testing:
@@ -146,5 +167,8 @@ def create_app(config_name=None):
         for header, value in app.config.get('SECURITY_HEADERS', {}).items():
             response.headers[header] = value
         return response
+    
+    with app.app_context():
+        pass
     
     return app 

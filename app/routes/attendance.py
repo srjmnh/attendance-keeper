@@ -44,12 +44,15 @@ def view_attendance():
                     
             records.append(record)
             
+        # Sort records by status (PRESENT first) and then by student name
+        records.sort(key=lambda x: (x.get('status') != 'PRESENT', x.get('student_name', '')))
+            
         current_app.logger.info(f"Found {len(records)} attendance records for date {date}")
         return render_template('attendance/view.html', 
                              records=records, 
                              date=date,
                              user_role=current_user.role)
-        
+                             
     except Exception as e:
         current_app.logger.error(f"Error viewing attendance: {str(e)}")
         return render_template('attendance/view.html', 

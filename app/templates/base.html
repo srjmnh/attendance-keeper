@@ -52,6 +52,20 @@
                 @apply px-3 py-2;
             }
         }
+        
+        /* Chatbot animations */
+        .animate-spin-slow {
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -176,38 +190,26 @@
     <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
     <!-- Chatbot Toggle Button -->
-    <button id="chatbotToggle" class="btn btn-circle btn-primary fixed bottom-6 right-6 text-2xl shadow-lg z-40">
-        <i class="ri-message-3-line"></i>
+    <button id="chatbotToggle" class="btn btn-circle bg-primary hover:bg-primary-focus border-0 fixed bottom-6 right-6 shadow-xl z-50 transition-all duration-300 hover:scale-110">
+        <i class="ri-message-3-line text-lg"></i>
     </button>
 
     <!-- Chatbot Window -->
-    <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100 z-40">
-        <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <i class="ri-robot-line"></i>
-                <span class="font-bold">AI Assistant</span>
+    <div id="chatbotWindow" class="fixed bottom-24 right-6 w-[360px] md:w-[400px] bg-white rounded-[28px] shadow-2xl border-0 flex flex-col hidden z-50 transition-all duration-300">
+        <div class="px-6 py-4 bg-primary text-primary-content flex justify-between items-center rounded-t-[28px]">
+            <div class="flex items-center gap-3">
+                <i class="ri-robot-line text-xl"></i>
+                <span class="font-medium text-lg">AI Assistant</span>
             </div>
-            <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle">×</button>
+            <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle hover:bg-primary-focus">
+                <i class="ri-close-line text-lg"></i>
+            </button>
         </div>
-        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
-            <!-- Welcome Message -->
-            <div class="chat chat-start">
-                <div class="chat-bubble chat-bubble-primary">
-                    👋 Hi! I'm your AI assistant. I can help you with:
-                    <ul class="list-disc list-inside mt-2">
-                        <li>Taking attendance with face recognition</li>
-                        <li>Managing attendance records</li>
-                        <li>Student registration</li>
-                        <li>Navigating the system</li>
-                    </ul>
-                    How can I help you today?
-                </div>
-            </div>
-        </div>
-        <div class="card-footer p-4 border-t">
-            <div class="join w-full">
-                <input type="text" id="chatInput" class="join-item input input-bordered w-full" placeholder="Type your message...">
-                <button id="chatSendBtn" class="join-item btn btn-primary">
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-6 space-y-4 min-h-[360px] max-h-[480px] scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"></div>
+        <div class="p-4 border-t border-gray-100">
+            <div class="flex gap-2 items-center">
+                <input type="text" id="chatInput" class="flex-1 input bg-gray-50 hover:bg-gray-100 focus:bg-white border border-gray-200 rounded-full px-6 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors" placeholder="Message AttendanceAI...">
+                <button id="chatSendBtn" class="btn btn-circle btn-primary">
                     <i class="ri-send-plane-line"></i>
                 </button>
             </div>
@@ -216,6 +218,9 @@
 
     <!-- Load chat.js -->
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     {% block extra_js %}{% endblock %}
 </body>

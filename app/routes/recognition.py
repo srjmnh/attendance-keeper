@@ -239,9 +239,16 @@ def recognize():
         # Decode base64 image
         image_bytes = base64.b64decode(image_data)
         
+        # Enhance image before detection
+        pil_image = Image.open(io.BytesIO(image_bytes))
+        enhanced_image = enhance_image(pil_image)
+        buffered = io.BytesIO()
+        enhanced_image.save(buffered, format="JPEG")
+        enhanced_image_bytes = buffered.getvalue()
+        
         # Use AWS Rekognition to detect faces
         rekognition_service = RekognitionService()
-        faces = rekognition_service.detect_faces(image_bytes)
+        faces = rekognition_service.detect_faces(enhanced_image_bytes)
         
         if not faces:
             return jsonify({
@@ -263,7 +270,7 @@ def recognize():
         identified_people = []
         for face in faces:
             try:
-                match = rekognition_service.search_face(face, image_bytes)
+                match = rekognition_service.search_face(face, enhanced_image_bytes)
                 if match:
                     student_id = match['student_id']
                     confidence = match['confidence']
@@ -483,11 +490,18 @@ def detect_faces():
         # Decode base64 image
         image_bytes = base64.b64decode(image_data)
         
+        # Enhance image before detection
+        pil_image = Image.open(io.BytesIO(image_bytes))
+        enhanced_image = enhance_image(pil_image)
+        buffered = io.BytesIO()
+        enhanced_image.save(buffered, format="JPEG")
+        enhanced_image_bytes = buffered.getvalue()
+        
         # Initialize Rekognition service
         rekognition_service = RekognitionService()
         
         # Detect faces using the service
-        faces = rekognition_service.detect_faces(image_bytes)
+        faces = rekognition_service.detect_faces(enhanced_image_bytes)
         if not faces:
             return jsonify({'faces': []})
 
@@ -512,7 +526,7 @@ def detect_faces():
             }
             
             # Search for this specific face
-            match = rekognition_service.search_face(face, image_bytes)
+            match = rekognition_service.search_face(face, enhanced_image_bytes)
             if match:
                 student_id = match['student_id']
                 # Only process if we haven't seen this student yet
@@ -542,6 +556,49 @@ def detect_faces():
         current_app.logger.error(f"Error in detect_faces: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+def mark_all_absent(date_str=None):
+    """Mark all students as absent for a given date."""
+    try:
+        # Get current timestamp if date not provided
+        now = datetime.now()
+        date_str = date_str or now.strftime('%Y-%m-%d')
+        
+        # Get all students in the system
+        all_students = current_app.db.collection('users').where('role', '==', 'student').get()
+        
+        for student_doc in all_students:
+            student_data = student_doc.to_dict()
+            student_id = student_data.get('student_id')
+            
+            if not student_id:
+                continue
+                
+            attendance_data = {
+                'student_id': student_id,
+                'student_name': student_data.get('name', ''),
+                'class': student_data.get('class', ''),
+                'division': student_data.get('division', ''),
+                'class_id': f"{student_data.get('class')}-{student_data.get('division')}",
+                'status': 'ABSENT',
+                'date': date_str,
+                'timestamp': now.isoformat(),
+                'marked_by': 'system',
+                'method': 'auto'
+            }
+            
+            # Check if attendance already exists for the date
+            existing_attendance = current_app.db.collection('attendance').where(
+                'student_id', '==', student_id
+            ).where('date', '==', date_str).get()
+            
+            if not existing_attendance:  # Only create if no record exists
+                current_app.db.collection('attendance').add(attendance_data)
+
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Error marking all absent: {str(e)}")
+        return False
+
 @recognition_bp.route('/mark_classroom_attendance', methods=['POST'])
 def mark_classroom_attendance():
     """Mark attendance for multiple students detected in classroom mode."""
@@ -558,42 +615,23 @@ def mark_classroom_attendance():
         now = datetime.now()
         today_str = now.strftime('%Y-%m-%d')
 
+        # Ensure all students have an absent record for today
+        mark_all_absent(today_str)
+
+        # Update detected students as present
         marked_count = 0
         for student in students:
             student_id = student.get('student_id')
             if not student_id:
                 continue
 
-            # Get student details
-            student_ref = current_app.db.collection('users').where('student_id', '==', student_id).limit(1).get()
-            student_docs = list(student_ref)
-            if not student_docs:
-                continue
-
-            student_data = student_docs[0].to_dict()
-            
-            # Create attendance data
-            attendance_data = {
-                'student_id': student_id,
-                'student_name': student_data.get('name', ''),
-                'class': student_data.get('class', ''),
-                'division': student_data.get('division', ''),
-                'class_id': f"{student_data.get('class')}-{student_data.get('division')}",
-                'status': 'PRESENT',
-                'date': today_str,
-                'timestamp': now.isoformat(),
-                'marked_by': current_user.email,
-                'confidence': student.get('confidence', 0),
-                'method': 'classroom'
-            }
-
-            # Check if attendance already exists for today
+            # Get attendance record for today
             existing_attendance = current_app.db.collection('attendance').where(
                 'student_id', '==', student_id
             ).where('date', '==', today_str).get()
-
+            
             if existing_attendance:
-                # Update existing attendance
+                # Update to present
                 doc = existing_attendance[0]
                 doc.reference.update({
                     'status': 'PRESENT',
@@ -602,17 +640,30 @@ def mark_classroom_attendance():
                     'confidence': student.get('confidence', 0),
                     'method': 'classroom'
                 })
-            else:
-                # Add new attendance record
-                current_app.db.collection('attendance').add(attendance_data)
-            
-            marked_count += 1
+                marked_count += 1
 
         return jsonify({
-            'message': f'Successfully marked attendance for {marked_count} students',
+            'message': f'Successfully marked {marked_count} students as present',
             'marked_count': marked_count
         })
 
     except Exception as e:
         current_app.logger.error(f"Error in mark_classroom_attendance: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Add this route to manually trigger marking all absent (for testing or manual runs)
+@recognition_bp.route('/mark_all_absent', methods=['POST'])
+@login_required
+@role_required(['admin'])
+def mark_all_absent_route():
+    """Admin route to manually mark all students as absent for a date."""
+    try:
+        data = request.get_json()
+        date_str = data.get('date') if data else None
+        
+        if mark_all_absent(date_str):
+            return jsonify({'message': 'Successfully marked all students as absent'})
+        else:
+            return jsonify({'error': 'Failed to mark students as absent'}), 500
+    except Exception as e:
         return jsonify({'error': str(e)}), 500 
