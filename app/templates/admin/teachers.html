@@ -187,12 +187,18 @@ async function handleTeacherSubmit(event) {
             throw new Error(result.error || 'Failed to save teacher');
         }
         
-        showToast('Teacher saved successfully', 'success');
+        showSystemMessage('Teacher saved successfully', { 
+            action: 'update_teacher_status',
+            status: 'active'
+        });
         document.getElementById('addTeacherModal').close();
-        window.location.reload();
+        setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
         console.error('Error saving teacher:', error);
-        showToast(error.message, 'error');
+        showSystemMessage('An error occurred while saving teacher', {
+            action: 'update_teacher_status',
+            error: error.message
+        });
     }
 }
 
@@ -211,28 +217,50 @@ async function deleteTeacher(id) {
             throw new Error(error.error || 'Failed to delete teacher');
         }
         
-        showToast('Teacher deleted successfully', 'success');
-        window.location.reload();
+        showSystemMessage('Teacher deleted successfully', { 
+            action: 'update_teacher_status',
+            status: 'deleted'
+        });
+        setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
         console.error('Error deleting teacher:', error);
-        showToast(error.message, 'error');
+        showSystemMessage('An error occurred while deleting teacher', {
+            action: 'update_teacher_status',
+            error: error.message
+        });
     }
 }
 
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
-    toast.innerHTML = `
-        <i class="ri-${type === 'success' ? 'checkbox-circle' : 
-                     type === 'error' ? 'error-warning' : 
-                     'information'}-line"></i>
-        <span>${message}</span>
-    `;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
+function updateTeacherStatus(teacherId, newStatus) {
+    fetch(`/admin/api/teachers/${teacherId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({ status: newStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSystemMessage('Teacher status updated successfully', { 
+                action: 'update_teacher_status',
+                status: newStatus
+            });
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showSystemMessage('Failed to update teacher status', {
+                action: 'update_teacher_status',
+                error: data.error
+            });
+        }
+    })
+    .catch(error => {
+        showSystemMessage('An error occurred while updating teacher status', {
+            action: 'update_teacher_status',
+            error: error.message
+        });
+    });
 }
 </script>
 {% endblock %} 

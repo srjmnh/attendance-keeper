@@ -205,6 +205,13 @@ function getBase64(file) {
 }
 
 function showResult(elementId, message, type = 'info') {
+    showSystemMessage(message, {
+        action: 'face_registration',
+        type: type,
+        elementId: elementId
+    });
+    
+    // Also update the UI element for immediate feedback
     const element = document.getElementById(elementId);
     element.className = `alert alert-${type} mt-4`;
     element.querySelector('.message').textContent = message;

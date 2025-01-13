@@ -328,12 +328,20 @@ async function handleStudentSubmit(event) {
             throw new Error(result.error || 'Failed to save student');
         }
         
-        showToast('Student saved successfully', 'success');
+        showSystemMessage('Student saved successfully', {
+            action: 'student_action',
+            type: 'save',
+            studentId: studentId
+        });
         document.getElementById('addStudentModal').close();
-        window.location.reload();
+        setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
         console.error('Error saving student:', error);
-        showToast(error.message, 'error');
+        showSystemMessage(error.message, {
+            action: 'student_action',
+            type: 'save',
+            error: error.message
+        });
     }
 }
 
@@ -352,18 +360,26 @@ async function deleteStudent(id) {
             throw new Error(error.error || 'Failed to delete student');
         }
         
-        showToast('Student deleted successfully', 'success');
-        window.location.reload();
+        showSystemMessage('Student deleted successfully', {
+            action: 'student_action',
+            type: 'delete',
+            studentId: id
+        });
+        setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
         console.error('Error deleting student:', error);
-        showToast(error.message, 'error');
+        showSystemMessage(error.message, {
+            action: 'student_action',
+            type: 'delete',
+            error: error.message
+        });
     }
 }
 
 async function uploadStudents() {
     const file = document.getElementById('uploadFile').files[0];
     if (!file) {
-        showToast('Please select a file', 'warning');
+        showSystemMessage('Please select a file', 'warning');
         return;
     }
     
@@ -379,32 +395,24 @@ async function uploadStudents() {
         const result = await response.json();
         
         if (response.ok) {
-            showToast(`Upload successful: ${result.success_count} students added`, 'success');
+            showSystemMessage(`Upload successful: ${result.success_count} students added`, {
+                action: 'student_action',
+                type: 'upload',
+                success_count: result.success_count
+            });
             document.getElementById('uploadModal').close();
-            window.location.reload();
+            setTimeout(() => window.location.reload(), 1000);
         } else {
             throw new Error(result.error || 'Upload failed');
         }
     } catch (error) {
         console.error('Error uploading students:', error);
-        showToast(error.message, 'error');
+        showSystemMessage(error.message, {
+            action: 'student_action',
+            type: 'upload',
+            error: error.message
+        });
     }
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
-    toast.innerHTML = `
-        <i class="ri-${type === 'success' ? 'checkbox-circle' : 
-                     type === 'error' ? 'error-warning' : 
-                     'information'}-line"></i>
-        <span>${message}</span>
-    `;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
 }
 
 function createPortalAccount(studentId, name, studentNumber) {
@@ -441,12 +449,54 @@ async function handlePortalAccountSubmit(event) {
             throw new Error(result.error || 'Failed to create portal account');
         }
         
-        showToast('Portal account created successfully', 'success');
+        showSystemMessage('Portal account created successfully', {
+            action: 'student_action',
+            type: 'create_portal_account',
+            studentId: document.getElementById('portalStudentId').value
+        });
         document.getElementById('portalAccountModal').close();
-        window.location.reload();
+        setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
         console.error('Error creating portal account:', error);
-        showToast(error.message, 'error');
+        showSystemMessage(error.message, {
+            action: 'student_action',
+            type: 'create_portal_account',
+            error: error.message
+        });
+    }
+}
+
+async function handleStudentAction(action, studentId, message) {
+    try {
+        const response = await fetch(`/admin/api/students/${studentId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            showSystemMessage(message, {
+                action: 'student_action',
+                type: action,
+                studentId: studentId
+            });
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showSystemMessage(`Failed to ${action} student: ${data.error}`, {
+                action: 'student_action',
+                type: action,
+                error: data.error
+            });
+        }
+    } catch (error) {
+        showSystemMessage(`An error occurred while ${action} student`, {
+            action: 'student_action',
+            type: action,
+            error: error.message
+        });
     }
 }
 </script>

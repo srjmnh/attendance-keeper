@@ -155,41 +155,62 @@ async function confirmDelete() {
         
         const data = await response.json();
         if (response.ok) {
-            showToast('Subject deleted successfully', 'success');
+            showSystemMessage('Subject deleted successfully', {
+                action: 'subject_action',
+                type: 'delete',
+                subjectId: subjectToDelete
+            });
             setTimeout(() => window.location.reload(), 1000);
         } else {
-            showToast(data.error || 'Failed to delete subject', 'error');
+            showSystemMessage(`Failed to delete subject: ${data.error}`, {
+                action: 'subject_action',
+                type: 'delete',
+                error: data.error
+            });
         }
     } catch (error) {
-        console.error('Error:', error);
-        showToast('Error deleting subject', 'error');
+        showSystemMessage('An error occurred while deleting subject', {
+            action: 'subject_action',
+            type: 'delete',
+            error: error.message
+        });
     }
     
     closeDeleteModal();
 }
 
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} shadow-lg max-w-sm animate-fade-in fixed bottom-4 right-4 z-50`;
-    
-    const icon = document.createElement('span');
-    icon.className = 'material-icons-round';
-    icon.textContent = type === 'success' ? 'check_circle' :
-                      type === 'error' ? 'error' :
-                      type === 'warning' ? 'warning' :
-                      'info';
-    
-    const text = document.createElement('span');
-    text.textContent = message;
-    
-    toast.appendChild(icon);
-    toast.appendChild(text);
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+async function handleSubjectAction(action, subjectId, message) {
+    try {
+        const response = await fetch(`/admin/api/subjects/${subjectId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            showSystemMessage(message, {
+                action: 'subject_action',
+                type: action,
+                subjectId: subjectId
+            });
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showSystemMessage(`Failed to ${action} subject: ${data.error}`, {
+                action: 'subject_action',
+                type: action,
+                error: data.error
+            });
+        }
+    } catch (error) {
+        showSystemMessage(`An error occurred while ${action} subject`, {
+            action: 'subject_action',
+            type: action,
+            error: error.message
+        });
+    }
 }
 </script>
 {% endblock %}

@@ -292,33 +292,137 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
-        // Add this before other scripts
-        function showToast(message) {
-            const container = document.getElementById('toastContainer');
+        async function showSystemMessage(message, context = null) {
             const chatbotBtn = document.getElementById('chatbotToggle');
-            const toast = document.createElement('div');
+            const container = document.getElementById('toastContainer');
             
-            // Start rotating the chatbot icon faster
+            // Start the chatbot icon animation
             chatbotBtn.querySelector('i').style.animation = 'spin 0.5s linear infinite';
             
-            toast.className = 'toast-message';
-            toast.innerHTML = `
-                <div class="toast-icon">
-                    <i class="ri-robot-line text-sm"></i>
-                </div>
-                <div class="toast-content">${message}</div>
-            `;
-            
-            container.appendChild(toast);
-            
-            // Remove the toast and reset chatbot icon animation
-            setTimeout(() => {
-                toast.remove();
-                chatbotBtn.querySelector('i').style.animation = '';
-            }, 3000);
+            try {
+                // Get AI response for the message
+                const response = await fetch('/chat/system/message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ 
+                        event_type: message,
+                        context: context
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get AI response');
+                }
+                
+                const data = await response.json();
+                const aiMessage = data.message;
+                
+                // Create the message element
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message bg-white shadow-lg rounded-3xl px-4 py-3 flex items-center gap-3 max-w-[280px] transform-gpu';
+                messageDiv.style.animation = 'slideInFromBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+                messageDiv.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <i class="ri-robot-line text-white"></i>
+                    </div>
+                    <p class="text-sm text-gray-700">${aiMessage}</p>
+                `;
+                
+                container.appendChild(messageDiv);
+                
+                // Remove the message and stop the animation
+                setTimeout(() => {
+                    messageDiv.style.animation = 'slideOutToBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+                    setTimeout(() => {
+                        messageDiv.remove();
+                        chatbotBtn.querySelector('i').style.animation = '';
+                    }, 300);
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error getting AI response:', error);
+                // Fallback to original message if AI fails
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message bg-white shadow-lg rounded-3xl px-4 py-3 flex items-center gap-3 max-w-[280px] transform-gpu';
+                messageDiv.style.animation = 'slideInFromBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+                messageDiv.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <i class="ri-robot-line text-white"></i>
+                    </div>
+                    <p class="text-sm text-gray-700">${message}</p>
+                `;
+                
+                container.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    messageDiv.style.animation = 'slideOutToBot 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards';
+                    setTimeout(() => {
+                        messageDiv.remove();
+                        chatbotBtn.querySelector('i').style.animation = '';
+                    }, 300);
+                }, 3000);
+            }
         }
-        
-        window.showNotification = showToast;
+
+        // Replace all notification functions with showSystemMessage
+        window.showNotification = showSystemMessage;
+        window.showToast = showSystemMessage;
+        window.showMessage = showSystemMessage;
+
+        // Add animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInFromBot {
+                0% {
+                    opacity: 0;
+                    transform: translate(50px, 50px) scale(0.5);
+                }
+                100% {
+                    opacity: 1;
+                    transform: translate(0, 0) scale(1);
+                }
+            }
+            
+            @keyframes slideOutToBot {
+                0% {
+                    opacity: 1;
+                    transform: translate(0, 0) scale(1);
+                }
+                100% {
+                    opacity: 0;
+                    transform: translate(50px, 50px) scale(0.5);
+                }
+            }
+            
+            @keyframes spin {
+                from {
+                    transform: rotate(0deg);
+                }
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+            
+            #toastContainer {
+                position: fixed;
+                bottom: 100px;
+                right: 24px;
+                z-index: 50;
+                display: flex;
+                flex-direction: column-reverse;
+                gap: 8px;
+                pointer-events: none;
+            }
+            
+            .chat-message {
+                transform-origin: bottom right;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 
     {% block extra_js %}{% endblock %}

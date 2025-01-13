@@ -153,20 +153,21 @@ let lastProcessedTime = 0;
 const PROCESS_INTERVAL = 1000; // Process every 1 second
 
 function showMessage(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50 animate-fade-in`;
-    toast.innerHTML = `
-        <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
-        <span>${message}</span>
-    `;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('opacity-0');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    showSystemMessage(message, {
+        action: 'classroom_mode',
+        type: type,
+        context: 'notification'
+    });
 }
 
 function updateStatus(message, type = 'info') {
+    showSystemMessage(message, {
+        action: 'classroom_mode',
+        type: type,
+        context: 'status'
+    });
+    
+    // Also update the status UI element
     const status = document.getElementById('status');
     status.className = `alert bg-black/50 text-white border-${type} shadow-lg py-2 backdrop-blur-sm animate-fade-in`;
     status.innerHTML = `<i class="ri-information-line"></i><span>${message}</span>`;
