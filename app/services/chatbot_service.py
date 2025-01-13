@@ -1,7 +1,8 @@
 import os
 import google.generativeai as genai
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import current_app, request
+from google.cloud.firestore import FieldFilter
 
 class ChatbotService:
     """Service for handling chatbot interactions using Google's Gemini API"""
@@ -25,7 +26,10 @@ class ChatbotService:
         self.actions = {
             'update_attendance': self._update_attendance_status,
             'update_student': self._update_student_details,
-            'update_teacher': self._update_teacher_details
+            'update_teacher': self._update_teacher_details,
+            'get_attendance': self._get_attendance_info,
+            'get_student': self._get_student_info,
+            'get_analytics': self._get_attendance_analytics
         }
 
     def _get_page_context(self):
@@ -162,6 +166,110 @@ class ChatbotService:
             current_app.logger.error(f"Error updating teacher: {str(e)}")
             return "Failed to update teacher details."
 
+    async def _get_attendance_info(self, student_id, date=None):
+        """Get attendance information for a student"""
+        try:
+            # Use today's date if not specified
+            if not date:
+                date = datetime.now().strftime('%Y-%m-%d')
+                
+            # Get attendance record
+            attendance_ref = current_app.db.collection('attendance')
+            query = attendance_ref.where(filter=FieldFilter('student_id', '==', student_id))
+            query = query.where(filter=FieldFilter('date', '==', date))
+            records = query.get()
+            
+            if not records:
+                # Get student name for better response
+                student = await self._get_student_info(student_id)
+                student_name = student['name'] if student else f"Student {student_id}"
+                return f"No attendance record found for {student_name} on {date}."
+                
+            record = records[0].to_dict()
+            student = await self._get_student_info(student_id)
+            student_name = student['name'] if student else f"Student {student_id}"
+            
+            return f"{student_name} was marked {record['status']} on {date}."
+            
+        except Exception as e:
+            current_app.logger.error(f"Error getting attendance: {str(e)}")
+            return "Sorry, I couldn't fetch the attendance information right now."
+
+    async def _get_student_info(self, student_id):
+        """Get student information"""
+        try:
+            users_ref = current_app.db.collection('users')
+            query = users_ref.where(filter=FieldFilter('student_id', '==', student_id))
+            query = query.where(filter=FieldFilter('role', '==', 'student'))
+            students = query.get()
+            
+            if not students:
+                return None
+                
+            student = students[0].to_dict()
+            return student
+            
+        except Exception as e:
+            current_app.logger.error(f"Error getting student info: {str(e)}")
+            return None
+
+    async def _get_attendance_analytics(self, student_id=None, date=None, period=None):
+        """Get attendance analytics"""
+        try:
+            attendance_ref = current_app.db.collection('attendance')
+            
+            # Initialize query
+            query = attendance_ref
+            
+            # Add filters
+            if student_id:
+                query = query.where(filter=FieldFilter('student_id', '==', student_id))
+            if date:
+                query = query.where(filter=FieldFilter('date', '==', date))
+            elif period == 'today':
+                today = datetime.now().strftime('%Y-%m-%d')
+                query = query.where(filter=FieldFilter('date', '==', today))
+            elif period == 'week':
+                week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                query = query.where(filter=FieldFilter('date', '>=', week_ago))
+            
+            records = query.get()
+            
+            if not records:
+                return "No attendance records found for the specified criteria."
+            
+            # Analyze records
+            total = len(records)
+            present = sum(1 for r in records if r.to_dict()['status'] == 'present')
+            absent = total - present
+            
+            # Get student name if student_id provided
+            student_info = ""
+            if student_id:
+                student = await self._get_student_info(student_id)
+                if student:
+                    student_info = f"for {student['name']} "
+            
+            # Format time period
+            time_info = ""
+            if date:
+                time_info = f"on {date}"
+            elif period == 'today':
+                time_info = "today"
+            elif period == 'week':
+                time_info = "this week"
+            
+            response = f"Attendance Analytics {student_info}{time_info}:\n"
+            response += f"Total Records: {total}\n"
+            response += f"Present: {present} ({(present/total*100):.1f}%)\n"
+            response += f"Absent: {absent} ({(absent/total*100):.1f}%)"
+            
+            return response
+            
+        except Exception as e:
+            current_app.logger.error(f"Error getting analytics: {str(e)}")
+            return "Sorry, I couldn't generate the analytics right now."
+
     async def _extract_action_request(self, message):
         """Extract action request from message"""
         try:
@@ -182,11 +290,17 @@ class ChatbotService:
                - "update student 210 name to John" -> {{"action": "update_student", "params": {{"student_id": "210", "updates": {{"name": "John"}}}}}}
                - "change class of student 350 to 4A" -> {{"action": "update_student", "params": {{"student_id": "350", "updates": {{"class": "4", "division": "A"}}}}}}
             
-            3. Update teacher details:
-               Format: {{"action": "update_teacher", "params": {{"teacher_id": "123", "updates": {{"name": "New Name", "subjects": ["Math", "Science"]}}}}}}
+            3. Get attendance information:
+               Format: {{"action": "get_attendance", "params": {{"student_id": "123", "date": "YYYY-MM-DD"}}}}
                Examples:
-               - "update teacher T001 name to Sarah" -> {{"action": "update_teacher", "params": {{"teacher_id": "T001", "updates": {{"name": "Sarah"}}}}}}
-               - "set teacher T002 subjects to Math and Science" -> {{"action": "update_teacher", "params": {{"teacher_id": "T002", "updates": {{"subjects": ["Math", "Science"]}}}}}}
+               - "was student 210 present today?" -> {{"action": "get_attendance", "params": {{"student_id": "210"}}}}
+               - "check attendance for 350 on 2025-01-10" -> {{"action": "get_attendance", "params": {{"student_id": "350", "date": "2025-01-10"}}}}
+            
+            4. Get attendance analytics:
+               Format: {{"action": "get_analytics", "params": {{"student_id": "123", "period": "today/week"}}}}
+               Examples:
+               - "show attendance stats for today" -> {{"action": "get_analytics", "params": {{"period": "today"}}}}
+               - "get attendance report for student 210 this week" -> {{"action": "get_analytics", "params": {{"student_id": "210", "period": "week"}}}}
             
             If the message matches any of these patterns, return the corresponding action format.
             If no match is found or the message is unclear, return null.
@@ -211,18 +325,6 @@ class ChatbotService:
                 if action_request['action'] not in self.actions:
                     return None
                     
-                # Validate parameters based on action type
-                params = action_request['params']
-                if action_request['action'] == 'update_attendance':
-                    if not all(k in params for k in ['student_id', 'date', 'status']):
-                        return None
-                elif action_request['action'] == 'update_student':
-                    if not all(k in params for k in ['student_id', 'updates']):
-                        return None
-                elif action_request['action'] == 'update_teacher':
-                    if not all(k in params for k in ['teacher_id', 'updates']):
-                        return None
-                        
                 return action_request
                 
             except Exception as e:
