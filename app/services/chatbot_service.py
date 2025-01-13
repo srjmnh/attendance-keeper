@@ -185,6 +185,8 @@ class ChatbotService:
             attendance_ref = current_app.db.collection('attendance')
             query = attendance_ref.where(filter=FieldFilter('student_id', '==', student_id))
             query = query.where(filter=FieldFilter('date', '==', date))
+            # Order by timestamp to get latest record
+            query = query.order_by('timestamp', direction='DESCENDING').limit(1)
             records = query.get()
             
             if not records:
@@ -197,7 +199,11 @@ class ChatbotService:
             student = await self._get_student_info(student_id)
             student_name = student['name'] if student else f"Student {student_id}"
             
-            return f"{student_name} was marked {record['status']} on {date}."
+            # Add timestamp info for context
+            record_time = record.get('timestamp', '').strftime('%I:%M %p') if record.get('timestamp') else ''
+            time_info = f" at {record_time}" if record_time else ""
+            
+            return f"{student_name} was marked {record['status']}{time_info} on {date}."
             
         except Exception as e:
             current_app.logger.error(f"Error getting attendance: {str(e)}")
@@ -249,14 +255,25 @@ class ChatbotService:
                 week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
                 query = query.where(filter=FieldFilter('date', '>=', week_ago))
             
+            # Order by timestamp to get latest records
+            query = query.order_by('timestamp', direction='DESCENDING')
             records = query.get()
             
             if not records:
                 return "No attendance records found for the specified criteria."
             
-            # Analyze records
-            total = len(records)
-            present = sum(1 for r in records if r.to_dict()['status'] == 'present')
+            # Process records to keep only latest status per student per day
+            latest_records = {}
+            for record in records:
+                data = record.to_dict()
+                key = f"{data['student_id']}_{data['date']}"
+                if key not in latest_records:
+                    latest_records[key] = data
+            
+            # Use unique records for analytics
+            unique_records = list(latest_records.values())
+            total = len(unique_records)
+            present = sum(1 for r in unique_records if r['status'] == 'present')
             absent = total - present
             
             # Get student name if student_id provided
@@ -279,6 +296,12 @@ class ChatbotService:
             response += f"Total Records: {total}\n"
             response += f"Present: {present} ({(present/total*100):.1f}%)\n"
             response += f"Absent: {absent} ({(absent/total*100):.1f}%)"
+            
+            # Add timestamp of last update if available
+            if unique_records:
+                latest = max(unique_records, key=lambda x: x.get('timestamp', datetime.min))
+                if 'timestamp' in latest:
+                    response += f"\n\nLast updated at: {latest['timestamp'].strftime('%I:%M %p')}"
             
             return response
             
