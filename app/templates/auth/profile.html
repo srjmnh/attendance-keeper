@@ -7,64 +7,75 @@
     <div class="max-w-2xl w-full space-y-8">
         <!-- Header -->
         <div class="text-center">
-            <h2 class="text-3xl font-bold text-gray-900">Profile Settings</h2>
-            <p class="mt-2 text-sm text-gray-600">Manage your account information</p>
+            <h2 class="text-3xl font-bold mb-2">Profile Settings</h2>
+            <p class="text-base-content/60">Manage your account information and preferences</p>
         </div>
 
         <!-- Profile Information -->
-        <div class="bg-white shadow-sm rounded-lg divide-y divide-gray-200">
+        <div class="bg-base-100 shadow-lg rounded-2xl divide-y divide-base-200">
+            <!-- Profile Picture Section -->
+            <div class="p-8 flex flex-col items-center gap-6">
+                <div class="relative group">
+                    <div class="w-32 h-32 rounded-full bg-primary text-primary-content flex items-center justify-center overflow-hidden group-hover:shadow-lg transition-shadow">
+                        {% if current_user.avatar_url %}
+                            <img src="{{ current_user.avatar_url }}" alt="Profile" class="w-full h-full object-cover">
+                        {% else %}
+                            <span class="text-5xl">{{ current_user.name[0] if current_user.name else current_user.email[0] | upper }}</span>
+                        {% endif %}
+                    </div>
+                    <label class="absolute bottom-0 right-0 btn btn-circle btn-primary btn-sm">
+                        <i class="ri-camera-line"></i>
+                        <input type="file" id="avatar" name="avatar" class="hidden" accept="image/*">
+                    </label>
+                    <!-- Upload Progress -->
+                    <div id="uploadProgress" class="absolute inset-0 bg-base-100/80 rounded-full flex items-center justify-center opacity-0 transition-opacity">
+                        <div class="loading loading-spinner loading-lg text-primary"></div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <h3 class="text-xl font-bold">{{ current_user.name }}</h3>
+                    <p class="text-base-content/60">{{ current_user.role.title() }}</p>
+                </div>
+            </div>
+
             <!-- Basic Information Section -->
-            <div class="p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+            <div class="p-8">
+                <h3 class="text-lg font-medium mb-6">Basic Information</h3>
                 <form method="POST" action="{{ url_for('auth.update_profile') }}" class="space-y-6">
                     {{ form.csrf_token }}
                     
-                    <!-- Profile Picture -->
-                    <div class="flex items-center space-x-6">
-                        <div class="flex-shrink-0">
-                            <div class="relative">
-                                <img class="h-16 w-16 rounded-full" 
-                                     src="{{ current_user.avatar_url or url_for('static', filename='images/default-avatar.png') }}" 
-                                     alt="Profile picture">
-                                <label for="avatar" 
-                                       class="absolute bottom-0 right-0 bg-white rounded-full p-1 shadow-sm cursor-pointer">
-                                    <span class="material-icons text-gray-600 text-sm">photo_camera</span>
-                                    <input type="file" id="avatar" name="avatar" class="hidden" accept="image/*">
-                                </label>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900">{{ current_user.name }}</h3>
-                            <p class="text-sm text-gray-500">{{ current_user.role.capitalize() }}</p>
-                        </div>
-                    </div>
-
                     <!-- Name Field -->
-                    <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                        <div class="mt-1">
-                            <input type="text" id="name" name="name" value="{{ current_user.name }}" required
-                                   class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-                                          placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Full Name</span>
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none opacity-60">
+                                <i class="ri-user-line"></i>
+                            </span>
+                            <input type="text" name="name" value="{{ current_user.name }}" required
+                                   class="input input-bordered w-full pl-10 focus:input-primary transition-all">
                         </div>
                     </div>
 
                     <!-- Email Field -->
-                    <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
-                        <div class="mt-1">
-                            <input type="email" id="email" name="email" value="{{ current_user.email }}" required
-                                   class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-                                          placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium">Email Address</span>
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none opacity-60">
+                                <i class="ri-mail-line"></i>
+                            </span>
+                            <input type="email" name="email" value="{{ current_user.email }}" required
+                                   class="input input-bordered w-full pl-10 focus:input-primary transition-all">
                         </div>
                     </div>
 
                     <!-- Save Button -->
-                    <div class="flex justify-end">
-                        <button type="submit" 
-                                class="flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm 
-                                       font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 
-                                       focus:ring-offset-2 focus:ring-indigo-500">
+                    <div class="pt-4">
+                        <button type="submit" class="btn btn-primary w-full gap-2">
+                            <i class="ri-save-line"></i>
                             Save Changes
                         </button>
                     </div>
@@ -72,71 +83,43 @@
             </div>
 
             <!-- Security Section -->
-            <div class="p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Security</h3>
-                <div class="space-y-4">
+            <div class="p-8">
+                <h3 class="text-lg font-medium mb-6">Security</h3>
+                <div class="space-y-6">
                     <!-- Change Password -->
                     <div class="flex items-center justify-between">
                         <div>
-                            <h4 class="text-sm font-medium text-gray-900">Password</h4>
-                            <p class="text-sm text-gray-500">Update your password regularly to keep your account secure</p>
+                            <h4 class="font-medium">Password</h4>
+                            <p class="text-sm text-base-content/60">Update your password regularly</p>
                         </div>
-                        <a href="{{ url_for('auth.change_password') }}" 
-                           class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                        <a href="{{ url_for('auth.change_password') }}" class="btn btn-outline btn-primary btn-sm gap-2">
+                            <i class="ri-lock-password-line"></i>
                             Change Password
-                            <span class="material-icons ml-1 text-sm">arrow_forward</span>
                         </a>
-                    </div>
-
-                    <!-- Two-Factor Authentication -->
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h4 class="text-sm font-medium text-gray-900">Two-Factor Authentication</h4>
-                            <p class="text-sm text-gray-500">Add an extra layer of security to your account</p>
-                        </div>
-                        <button type="button" 
-                                class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                            Set up
-                            <span class="material-icons ml-1 text-sm">arrow_forward</span>
-                        </button>
                     </div>
                 </div>
             </div>
 
             <!-- Preferences Section -->
-            <div class="p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Preferences</h3>
-                <div class="space-y-4">
-                    <!-- Email Notifications -->
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h4 class="text-sm font-medium text-gray-900">Email Notifications</h4>
-                            <p class="text-sm text-gray-500">Receive email updates about your attendance</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer" checked>
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 
-                                        rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white 
-                                        after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white 
-                                        after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 
-                                        after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                    </div>
-
+            <div class="p-8">
+                <h3 class="text-lg font-medium mb-6">Preferences</h3>
+                <div class="space-y-6">
                     <!-- Dark Mode -->
                     <div class="flex items-center justify-between">
                         <div>
-                            <h4 class="text-sm font-medium text-gray-900">Dark Mode</h4>
-                            <p class="text-sm text-gray-500">Switch between light and dark themes</p>
+                            <h4 class="font-medium">Dark Mode</h4>
+                            <p class="text-sm text-base-content/60">Switch between light and dark themes</p>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 
-                                        rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white 
-                                        after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white 
-                                        after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 
-                                        after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
+                        <input type="checkbox" class="toggle toggle-primary" id="darkModeToggle">
+                    </div>
+
+                    <!-- Email Notifications -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-medium">Email Notifications</h4>
+                            <p class="text-sm text-base-content/60">Receive email updates about attendance</p>
+                        </div>
+                        <input type="checkbox" class="toggle toggle-primary" checked>
                     </div>
                 </div>
             </div>
@@ -153,8 +136,8 @@ document.getElementById('avatar').addEventListener('change', async function(e) {
     if (!file) return;
     
     // Show loading state
-    const img = e.target.parentElement.parentElement.querySelector('img');
-    img.classList.add('opacity-50');
+    const progress = document.getElementById('uploadProgress');
+    progress.classList.remove('opacity-0');
     
     try {
         const formData = new FormData();
@@ -167,29 +150,97 @@ document.getElementById('avatar').addEventListener('change', async function(e) {
         
         if (response.ok) {
             const data = await response.json();
-            img.src = data.avatar_url;
+            // Update all instances of the user's avatar
+            document.querySelectorAll('img[alt="Profile"]').forEach(img => {
+                img.src = data.avatar_url;
+            });
+            // Show success toast
+            showToast('Profile picture updated successfully!', 'success');
         } else {
             throw new Error('Failed to upload avatar');
         }
     } catch (error) {
         console.error('Error uploading avatar:', error);
-        alert('Failed to upload avatar. Please try again.');
+        showToast('Failed to upload profile picture. Please try again.', 'error');
     } finally {
-        img.classList.remove('opacity-50');
+        progress.classList.add('opacity-0');
     }
 });
 
 // Handle dark mode toggle
-const darkModeToggle = document.querySelector('input[type="checkbox"]:last-of-type');
+const darkModeToggle = document.getElementById('darkModeToggle');
+darkModeToggle.checked = document.documentElement.classList.contains('dark');
 darkModeToggle.addEventListener('change', function() {
-    document.documentElement.classList.toggle('dark');
+    document.documentElement.classList.toggle('dark', this.checked);
     localStorage.setItem('darkMode', this.checked);
+    showToast(`${this.checked ? 'Dark' : 'Light'} mode activated!`, 'info');
 });
 
-// Check for saved dark mode preference
-if (localStorage.getItem('darkMode') === 'true') {
-    darkModeToggle.checked = true;
-    document.documentElement.classList.add('dark');
+// Toast notification function
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} shadow-lg max-w-sm animate-fade-in`;
+    toast.innerHTML = `
+        <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
+        <span>${message}</span>
+    `;
+    
+    const container = document.getElementById('toastContainer');
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.replace('animate-fade-in', 'animate-fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
+
+// Theme toggle functionality
+const themeToggle = document.getElementById('themeToggle');
+const html = document.documentElement;
+
+// Set initial state based on current theme
+themeToggle.checked = html.getAttribute('data-theme') === 'dark';
+
+// Handle theme toggle
+themeToggle.addEventListener('change', function() {
+    const newTheme = this.checked ? 'dark' : 'light';
+    html.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    showToast(`${newTheme.charAt(0).toUpperCase() + newTheme.slice(1)} mode activated!`, 'info');
+});
 </script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(1rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(1rem);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-fade-out {
+    animation: fade-out 0.3s ease-out forwards;
+}
+</style>
 {% endblock %} 

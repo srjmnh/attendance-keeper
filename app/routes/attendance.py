@@ -26,8 +26,11 @@ def view_attendance():
         if current_user.role == 'student':
             query = query.where('student_id', '==', current_user.student_id)
             
+        # Order by timestamp to get latest records first
+        query = query.order_by('timestamp', direction='DESCENDING')
+            
         # Execute query
-        records = []
+        latest_records = {}  # Dictionary to store latest record per student
         for doc in query.stream():
             record = doc.to_dict()
             record['doc_id'] = doc.id
@@ -41,13 +44,19 @@ def view_attendance():
                 class_division = f"{record.get('class', '')}-{record.get('division', '')}"
                 if class_division not in current_user.classes:
                     continue
-                    
-            records.append(record)
+            
+            # Only keep the latest record for each student (first one due to descending order)
+            student_id = record.get('student_id')
+            if student_id not in latest_records:
+                latest_records[student_id] = record
+            
+        # Convert dictionary to list
+        records = list(latest_records.values())
             
         # Sort records by status (PRESENT first) and then by student name
         records.sort(key=lambda x: (x.get('status') != 'PRESENT', x.get('student_name', '')))
-            
-        current_app.logger.info(f"Found {len(records)} attendance records for date {date}")
+        
+        current_app.logger.info(f"Found {len(records)} unique attendance records for date {date}")
         return render_template('attendance/view.html', 
                              records=records, 
                              date=date,
@@ -177,59 +186,41 @@ def update_attendance(record_id):
 @attendance_bp.route('/api/attendance')
 @login_required
 def get_attendance():
-    """Get attendance records with filters"""
     try:
+        # Get filter parameters
         date_range = request.args.get('date_range', 'today')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         status = request.args.get('status')
-        search = request.args.get('search')
-
-        # Build query
+        search = request.args.get('search', '').lower()
+        
+        # Base query
         query = current_app.db.collection('attendance')
         
+        # Apply date filters
+        today = datetime.now().strftime('%Y-%m-%d')
+        if date_range == 'today':
+            query = query.where('date', '==', today)
+        elif date_range == 'week':
+            week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            query = query.where('date', '>=', week_ago)
+        elif date_range == 'month':
+            month_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            query = query.where('date', '>=', month_ago)
+        elif date_range == 'custom' and date_from and date_to:
+            query = query.where('date', '>=', date_from)
+            query = query.where('date', '<=', date_to)
+            
         # For students, only show their own records
         if current_user.role == 'student':
             query = query.where('student_id', '==', current_user.student_id)
-        
-        # Apply filters
-        if status:
-            query = query.where('status', '==', status)
-
-        # Date range filter
-        today = datetime.now().date()
-        if date_range == 'today':
-            query = query.where('date', '==', today.strftime('%Y-%m-%d'))
-        elif date_range == 'week':
-            start_of_week = today - timedelta(days=today.weekday())
-            end_of_week = start_of_week + timedelta(days=7)
-            query = query.where('date', '>=', start_of_week.strftime('%Y-%m-%d'))
-            query = query.where('date', '<', end_of_week.strftime('%Y-%m-%d'))
-        elif date_range == 'month':
-            start_of_month = today.replace(day=1)
-            if today.month == 12:
-                end_of_month = today.replace(year=today.year + 1, month=1, day=1)
-            else:
-                end_of_month = today.replace(month=today.month + 1, day=1)
-            query = query.where('date', '>=', start_of_month.strftime('%Y-%m-%d'))
-            query = query.where('date', '<', end_of_month.strftime('%Y-%m-%d'))
-        elif date_range == 'custom' and date_from and date_to:
-            try:
-                from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-                to_date = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
-                query = query.where('date', '>=', from_date.strftime('%Y-%m-%d'))
-                query = query.where('date', '<', to_date.strftime('%Y-%m-%d'))
-            except ValueError:
-                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-        elif date_range != 'all':  # Default to today if no valid date range is specified
-            query = query.where('date', '==', today.strftime('%Y-%m-%d'))
-
+            
         # Always order by date and timestamp
         query = query.order_by('date', direction='DESCENDING')
         query = query.order_by('timestamp', direction='DESCENDING')
         
         # Execute query and format results
-        records = []
+        latest_records = {}  # Dictionary to store latest record per student per date
         docs = list(query.stream())
         current_app.logger.info(f"Found {len(docs)} records before filtering")
 
@@ -247,7 +238,25 @@ def get_attendance():
                 if class_division not in current_user.classes:
                     continue
             
-            records.append(record)
+            # Apply status filter if specified
+            if status and record.get('status') != status:
+                continue
+                
+            # Apply search filter if specified
+            if search:
+                student_name = record.get('student_name', '').lower()
+                student_id = str(record.get('student_id', '')).lower()
+                if search not in student_name and search not in student_id:
+                    continue
+            
+            # Only keep the latest record for each student for each date
+            key = f"{record['student_id']}_{record['date']}"
+            if key not in latest_records:
+                latest_records[key] = record
+        
+        # Convert dictionary to list and sort
+        records = list(latest_records.values())
+        records.sort(key=lambda x: (x['date'], x.get('student_name', '')), reverse=True)
         
         current_app.logger.info(f"Returning {len(records)} records after all filters")
         return jsonify(records)

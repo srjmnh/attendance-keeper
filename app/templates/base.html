@@ -6,9 +6,43 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}AttendanceAI{% endblock %}</title>
     
+    <!-- Theme initialization -->
+    <script>
+        // Load saved theme or default to light
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    
     <!-- Tailwind and DaisyUI -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: ['class', '[data-theme="dark"]'],
+            theme: {
+                extend: {}
+            },
+            daisyui: {
+                themes: [
+                    {
+                        light: {
+                            ...require("daisyui/src/theming/themes")["light"],
+                            "primary": "#0284c7",
+                            "primary-focus": "#0369a1",
+                        },
+                        dark: {
+                            ...require("daisyui/src/theming/themes")["dark"],
+                            "primary": "#0284c7",
+                            "primary-focus": "#0369a1",
+                            "base-100": "#1f2937",
+                            "base-200": "#111827",
+                            "base-300": "#374151",
+                        }
+                    }
+                ]
+            }
+        }
+    </script>
     
     <!-- Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -19,8 +53,32 @@
     <style>
         body {
             font-family: 'Google Sans', sans-serif;
-            background-color: #f8f9fa;
         }
+        
+        /* Dark mode adjustments */
+        [data-theme="dark"] {
+            background-color: hsl(var(--b1));
+            color: hsl(var(--bc));
+        }
+        
+        [data-theme="dark"] .bg-base-100 {
+            background-color: hsl(var(--b1));
+        }
+        
+        [data-theme="dark"] .toast-message {
+            background-color: hsl(var(--b2));
+            color: hsl(var(--bc));
+        }
+        
+        [data-theme="dark"] .chat-message {
+            background-color: hsl(var(--b2));
+        }
+        
+        [data-theme="dark"] .chat-message p {
+            color: hsl(var(--bc));
+        }
+        
+        /* Keep existing animations */
         .animate-fade-in {
             animation: fadeIn 0.3s ease-in-out;
         }
@@ -190,13 +248,45 @@
 
                 <!-- User Menu -->
                 <div class="dropdown dropdown-end">
-                    <label tabindex="0" class="btn btn-ghost btn-circle avatar">
-                        <div class="w-10 rounded-full bg-neutral text-neutral-content flex items-center justify-center">
-                            <span class="text-xl">{{ current_user.name[0] if current_user.name else current_user.email[0] | upper }}</span>
+                    <label tabindex="0" class="btn btn-ghost btn-circle avatar group relative">
+                        <div class="w-10 h-10 rounded-full bg-primary text-primary-content flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
+                            {% if current_user.avatar_url %}
+                                <img src="{{ current_user.avatar_url }}" alt="Profile" class="w-full h-full object-cover">
+                            {% else %}
+                                <span class="text-xl animate-fade-in">{{ current_user.name[0] if current_user.name else current_user.email[0] | upper }}</span>
+                            {% endif %}
+                        </div>
+                        <!-- Animated Name Display -->
+                        <div class="absolute right-full mr-3 bg-base-200 px-3 py-1.5 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap shadow-lg">
+                            <div class="font-medium text-sm">{{ current_user.name }}</div>
+                            <div class="text-xs opacity-60">{{ current_user.role.title() }}</div>
                         </div>
                     </label>
-                    <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
-                        <li><a href="{{ url_for('auth.logout') }}">Logout</a></li>
+                    <ul tabindex="0" class="mt-3 z-[1] p-2 shadow-lg menu menu-sm dropdown-content bg-base-100 rounded-box w-60 animate-fade-in">
+                        <li class="menu-title px-4 py-2">
+                            <div class="font-medium">{{ current_user.name }}</div>
+                            <div class="text-xs opacity-60">{{ current_user.email }}</div>
+                        </li>
+                        <div class="divider my-1"></div>
+                        <li>
+                            <a href="{{ url_for('auth.profile') }}" class="flex items-center gap-3">
+                                <i class="ri-user-settings-line"></i>
+                                Edit Profile
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('auth.change_password') }}" class="flex items-center gap-3">
+                                <i class="ri-lock-password-line"></i>
+                                Change Password
+                            </a>
+                        </li>
+                        <div class="divider my-1"></div>
+                        <li>
+                            <a href="{{ url_for('auth.logout') }}" class="flex items-center gap-3 text-error">
+                                <i class="ri-logout-box-line"></i>
+                                Logout
+                            </a>
+                        </li>
                     </ul>
                 </div>
 

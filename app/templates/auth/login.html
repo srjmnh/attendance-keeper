@@ -3,58 +3,67 @@
 {% block title %}Login - AttendanceAI{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex">
+<div class="min-h-screen w-full flex overflow-hidden">
     <!-- Left Section - Branding -->
-    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-primary-focus items-center justify-center p-12">
-        <div class="max-w-lg">
-            <div class="flex items-center gap-3 mb-12">
-                <div class="w-12 h-12 bg-white text-primary rounded-xl flex items-center justify-center">
-                    <span class="text-2xl font-bold">A</span>
+    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary-focus to-secondary items-center justify-center relative overflow-hidden">
+        <!-- Background Pattern -->
+        <div class="absolute inset-0 bg-gradient-to-b from-black/10 to-black/30"></div>
+        <!-- Animated Circles -->
+        <div class="absolute inset-0 overflow-hidden">
+            <div class="absolute -top-20 -left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-blob"></div>
+            <div class="absolute top-1/2 -right-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
+            <div class="absolute -bottom-20 left-1/2 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
+        </div>
+        <!-- Content -->
+        <div class="relative max-w-lg animate-fade-in px-12 py-8">
+            <div class="flex items-center gap-4 mb-12">
+                <div class="w-16 h-16 bg-white text-primary rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-110 transition-transform">
+                    <span class="text-3xl font-bold">A</span>
                 </div>
                 <div class="text-white">
-                    <h1 class="text-2xl font-bold">AttendanceAI</h1>
-                    <p class="opacity-80">Smart Attendance System</p>
+                    <h1 class="text-3xl font-bold">AttendanceAI</h1>
+                    <p class="text-lg opacity-90">Smart Attendance System</p>
                 </div>
             </div>
-            <h2 class="text-4xl font-bold text-white mb-6">Transform Your Attendance Management</h2>
-            <p class="text-lg text-white/80 mb-8">
-                Streamline attendance tracking with facial recognition technology. Fast, accurate, and effortless.
+            <h2 class="text-4xl font-bold text-white mb-6 leading-tight">Transform Your <br>Attendance Management</h2>
+            <p class="text-lg text-white/90 mb-12 leading-relaxed">
+                Experience the future of attendance tracking with our AI-powered system. Fast, accurate, and effortless.
             </p>
             <div class="grid grid-cols-2 gap-6">
-                <div class="bg-white/10 backdrop-blur-lg rounded-xl p-4">
-                    <i class="ri-face-recognition-line text-2xl text-white mb-2"></i>
-                    <h3 class="text-white font-medium mb-1">Face Recognition</h3>
-                    <p class="text-sm text-white/70">Instant and accurate student identification</p>
+                <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 hover:bg-white/20 transition-all transform hover:scale-105">
+                    <i class="ri-face-recognition-line text-3xl text-white mb-4"></i>
+                    <h3 class="text-lg text-white font-medium mb-2">Face Recognition</h3>
+                    <p class="text-sm text-white/80">Instant and accurate student identification</p>
                 </div>
-                <div class="bg-white/10 backdrop-blur-lg rounded-xl p-4">
-                    <i class="ri-time-line text-2xl text-white mb-2"></i>
-                    <h3 class="text-white font-medium mb-1">Real-time Tracking</h3>
-                    <p class="text-sm text-white/70">Monitor attendance as it happens</p>
+                <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 hover:bg-white/20 transition-all transform hover:scale-105">
+                    <i class="ri-time-line text-3xl text-white mb-4"></i>
+                    <h3 class="text-lg text-white font-medium mb-2">Real-time Tracking</h3>
+                    <p class="text-sm text-white/80">Monitor attendance as it happens</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Right Section - Login Form -->
-    <div class="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div class="w-full max-w-md space-y-8">
+    <div class="w-full lg:w-1/2 flex items-center justify-center bg-base-100">
+        <div class="w-full max-w-md px-8 py-12 animate-fade-in" style="--index: 1;">
             <!-- Login Form -->
-            <div class="text-center mb-8">
-                <h2 class="text-3xl font-bold mb-2">Welcome Back</h2>
-                <p class="text-base-content/60">Sign in to your account</p>
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold mb-3">Welcome Back! 👋</h2>
+                <p class="text-base text-base-content/70">Sign in to your account</p>
             </div>
 
             <form class="space-y-6" method="POST" action="{{ url_for('auth.login') }}">
                 {{ form.csrf_token }}
                 
                 <!-- Email Field -->
-                <div class="form-control">
+                <div class="form-control" style="--index: 2;">
                     {{ form.email.label(class="label font-medium") }}
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none opacity-60">
+                    <div class="relative group">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none opacity-60 group-focus-within:text-primary transition-colors">
                             <i class="ri-mail-line"></i>
                         </span>
-                        {{ form.email(class="input input-bordered w-full pl-10", placeholder="Enter your email") }}
+                        {{ form.email(class="input input-bordered w-full pl-12 h-12 focus:input-primary transition-all", placeholder="Enter your email") }}
                     </div>
                     {% if form.email.errors %}
                         {% for error in form.email.errors %}
@@ -64,13 +73,13 @@
                 </div>
 
                 <!-- Password Field -->
-                <div class="form-control">
+                <div class="form-control" style="--index: 3;">
                     {{ form.password.label(class="label font-medium") }}
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none opacity-60">
+                    <div class="relative group">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none opacity-60 group-focus-within:text-primary transition-colors">
                             <i class="ri-lock-line"></i>
                         </span>
-                        {{ form.password(class="input input-bordered w-full pl-10", placeholder="Enter your password") }}
+                        {{ form.password(class="input input-bordered w-full pl-12 h-12 focus:input-primary transition-all", placeholder="Enter your password") }}
                     </div>
                     {% if form.password.errors %}
                         {% for error in form.password.errors %}
@@ -80,10 +89,10 @@
                 </div>
 
                 <!-- Remember Me -->
-                <div class="flex items-center justify-between">
-                    <label class="flex items-center gap-2 cursor-pointer">
+                <div class="flex items-center justify-between" style="--index: 4;">
+                    <label class="flex items-center gap-2 cursor-pointer group">
                         <input type="checkbox" name="remember_me" class="checkbox checkbox-sm checkbox-primary">
-                        <span class="text-sm">Remember me</span>
+                        <span class="text-sm group-hover:text-primary transition-colors">Remember me</span>
                     </label>
 
                     <a href="#" class="text-sm text-primary hover:text-primary-focus transition-colors">
@@ -92,12 +101,12 @@
                 </div>
 
                 <!-- Submit Button -->
-                {{ form.submit(class="btn btn-primary w-full") }}
+                {{ form.submit(class="btn btn-primary w-full h-12 font-medium hover:scale-[1.02] active:scale-[0.98] transition-transform", style="--index: 5;") }}
             </form>
 
             <!-- Additional Info -->
-            <div class="text-center">
-                <div class="divider">Need help?</div>
+            <div class="text-center mt-8 space-y-3" style="--index: 6;">
+                <div class="divider text-sm">Need help?</div>
                 <p class="text-sm text-base-content/60">
                     Contact your administrator for account access
                 </p>
@@ -112,7 +121,7 @@
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(20px);
     }
     to {
         opacity: 1;
@@ -120,13 +129,56 @@
     }
 }
 
+@keyframes blob {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+    33% {
+        transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+        transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+}
+
+.animate-blob {
+    animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+    animation-delay: 4s;
+}
+
 .animate-fade-in {
-    animation: fadeIn 0.6s ease-out forwards;
+    opacity: 0;
+    animation: fadeIn 0.8s ease-out forwards;
+    animation-delay: calc(var(--index, 0) * 0.1s);
 }
 
 .form-control {
-    animation: fadeIn 0.6s ease-out forwards;
+    opacity: 0;
+    animation: fadeIn 0.8s ease-out forwards;
     animation-delay: calc(var(--index, 0) * 0.1s);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.1;
+    }
+    50% {
+        opacity: 0.2;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 4s ease-in-out infinite;
 }
 </style>
 {% endblock %} 

@@ -29,48 +29,51 @@ class ChatbotService:
             'update_teacher': self._update_teacher_details,
             'get_attendance': self._get_attendance_info,
             'get_student': self._get_student_info,
-            'get_analytics': self._get_attendance_analytics
+            'get_analytics': self._get_attendance_analytics,
+            'control_camera': self._control_camera,
+            'navigate': self._navigate_to_page
         }
 
     def _get_page_context(self):
         """Get context information for current page"""
         page_contexts = {
-            'dashboard': """You are on the Dashboard page. Here you can:
-- View overall attendance statistics
-- Access quick navigation to all features
-- See recent attendance records
-- Start face recognition""",
-            
-            'attendance/view': """You are on the Attendance View page. Current context:
-- Viewing attendance records
-- Can filter by date, student, or subject
-- Can modify attendance status
-- Total records: {record_count}
-- Current date: {current_date}""",
-            
-            'admin/manage/students': """You are on the Student Management page. Current context:
-- Managing student records
-- Total students: {student_count}
-- Can add/edit/delete students
-- Can update student details (name, ID, class, division)""",
-            
-            'admin/manage/teachers': """You are on the Teacher Management page. Current context:
-- Managing teacher records
-- Total teachers: {teacher_count}
-- Can add/edit/delete teachers
-- Can assign subjects and classes""",
-            
-            'recognition/classroom': """You are on the Face Recognition page. Current context:
-- Camera is {camera_status}
-- Face detection is {detection_status}
-- Processing interval: 2-3 seconds
-- Can mark attendance in real-time""",
-            
-            'recognition/register': """You are on the Student Registration page. Here you can:
-- Register new students with photos
-- Required fields: Name, Student ID, Class, Division
-- System will index face for recognition
-- Photos should have clear face visibility"""
+            'dashboard': """You are on the Dashboard page. Available actions:
+- Navigate to any page using "go to [page]" or "take me to [page]"
+- View attendance records: "show me attendance records"
+- Start face recognition: "start camera" or "open camera"
+- Register new student: "register new student"
+- Manage students/teachers: "manage students" or "manage teachers"
+""",
+            'recognition/classroom': """You are on the Face Recognition page. Available actions:
+- Control camera: "turn camera on/off" or "start/stop camera"
+- Mark attendance: "mark attendance" or "record attendance"
+- Check camera status: "is camera on?" or "camera status"
+- View attendance: "show attendance records"
+Current camera status: {camera_status}
+Detection status: {detection_status}
+""",
+            'attendance/view': """You are on the Attendance View page. Available actions:
+- Filter records: "show records for [date/week/month]"
+- Search students: "find student [name/ID]"
+- Export data: "export attendance records"
+- Update status: "mark student [ID] as [present/absent]"
+Total records: {record_count}
+Current date: {current_date}
+""",
+            'admin/manage/students': """You are on the Student Management page. Available actions:
+- Add student: "add new student"
+- Update details: "update student [ID] details"
+- Search: "find student [name/ID]"
+- Delete: "remove student [ID]"
+Total students: {student_count}
+""",
+            'admin/manage/teachers': """You are on the Teacher Management page. Available actions:
+- Add teacher: "add new teacher"
+- Update details: "update teacher [ID] details"
+- Search: "find teacher [name/ID]"
+- Delete: "remove teacher [ID]"
+Total teachers: {teacher_count}
+"""
         }
         
         # Get current page from request
@@ -351,27 +354,32 @@ class ChatbotService:
             Message: {message}
             
             Valid actions and formats:
-            1. Update attendance status:
+            1. Camera control:
+               Format: {{"action": "control_camera", "params": {{"action": "on/off"}}}}
+               Examples:
+               - "turn camera on" -> {{"action": "control_camera", "params": {{"action": "on"}}}}
+               - "stop camera" -> {{"action": "control_camera", "params": {{"action": "off"}}}}
+               
+            2. Navigation:
+               Format: {{"action": "navigate", "params": {{"target": "page_name"}}}}
+               Examples:
+               - "go to attendance page" -> {{"action": "navigate", "params": {{"target": "attendance"}}}}
+               - "take me to recognition" -> {{"action": "navigate", "params": {{"target": "recognition"}}}}
+               - "show me student management" -> {{"action": "navigate", "params": {{"target": "students"}}}}
+            
+            3. Update attendance status:
                Format: {{"action": "update_attendance", "params": {{"student_id": "123", "date": "YYYY-MM-DD", "status": "present/absent"}}}}
                Examples: 
                - "mark student 210 as present today" -> {{"action": "update_attendance", "params": {{"student_id": "210", "date": "2025-01-13", "status": "present"}}}}
-               - "change attendance for 350 to absent" -> {{"action": "update_attendance", "params": {{"student_id": "350", "date": "2025-01-13", "status": "absent"}}}}
             
-            2. Update student details:
-               Format: {{"action": "update_student", "params": {{"student_id": "123", "updates": {{"name": "New Name", "class": "4", "division": "A"}}}}}}
-               Examples:
-               - "update student 210 name to John" -> {{"action": "update_student", "params": {{"student_id": "210", "updates": {{"name": "John"}}}}}}
-               - "change class of student 350 to 4A" -> {{"action": "update_student", "params": {{"student_id": "350", "updates": {{"class": "4", "division": "A"}}}}}}
-            
-            3. Get attendance information:
+            4. Get attendance information:
                Format: {{"action": "get_attendance", "params": {{"student_id": "123", "date": "YYYY-MM-DD"}}}} or {{"action": "get_attendance", "params": {{"name": "John"}}}}
                Examples:
                - "was student 210 present today?" -> {{"action": "get_attendance", "params": {{"student_id": "210"}}}}
                - "check attendance for John" -> {{"action": "get_attendance", "params": {{"name": "John"}}}}
-               - "is Sarah here today?" -> {{"action": "get_attendance", "params": {{"name": "Sarah"}}}}
             
-            4. Get attendance analytics:
-               Format: {{"action": "get_analytics", "params": {{"student_id": "123", "period": "today/week"}}}} or {{"action": "get_analytics", "params": {{"name": "John", "period": "week"}}}}
+            5. Get attendance analytics:
+               Format: {{"action": "get_analytics", "params": {{"student_id": "123", "period": "today/week"}}}}
                Examples:
                - "show attendance stats for today" -> {{"action": "get_analytics", "params": {{"period": "today"}}}}
                - "get attendance report for John this week" -> {{"action": "get_analytics", "params": {{"name": "John", "period": "week"}}}}
@@ -424,6 +432,10 @@ class ChatbotService:
                 # Update last action
                 self.last_action = f"{action_request['action']}: {action_request['params']}"
                 
+                # Handle navigation responses
+                if isinstance(action_result, dict) and 'navigation' in action_result:
+                    return action_result
+                
                 # Add confirmation and next steps
                 response = f"{action_result}\n\nIs there anything else you'd like me to help you with?"
                 
@@ -435,7 +447,7 @@ class ChatbotService:
             # Get current page context
             page_context = self._get_page_context()
             
-            # Build conversation with page context and clearer action instructions
+            # Build conversation with page context
             conv_str = f"""System: You are an AI assistant for the AttendanceAI system.
 
 Current Context:
@@ -443,12 +455,13 @@ Current Context:
 
 Last Action: {self.last_action if self.last_action else 'No recent action'}
 
-Available Actions:
-1. Update attendance: "mark student [ID] as [present/absent] [today/date]"
-2. Update student: "update student [ID] [name/class/division] to [value]"
-3. Update teacher: "update teacher [ID] [name/subjects] to [value]"
+You can help users with:
+1. Navigation: "go to [page]" or "take me to [page]"
+2. Camera control: "turn camera on/off" (in recognition page)
+3. Attendance management: marking attendance, viewing records
+4. Student/Teacher management: adding, updating, or viewing details
 
-Your role is to help with the current page and context. For administrative actions, please use the exact formats above.
+Your role is to help with the current page and context. Be proactive in suggesting relevant actions.
 """
             
             # Add recent conversation history (limit to last 5 messages)
@@ -465,7 +478,7 @@ Your role is to help with the current page and context. For administrative actio
             
             if not response.text:
                 return {
-                    "message": "I'm having trouble understanding. Could you please rephrase your request using one of the formats shown above?",
+                    "message": "I'm having trouble understanding. Could you please rephrase your request?",
                     "navigation": None
                 }
             
@@ -518,7 +531,7 @@ Your role is to help with the current page and context. For administrative actio
             if command in message:
                 return tab
         
-        return None
+        return None 
 
     async def get_system_message(self, event_type, context=None):
         """Generate natural, context-aware system event responses"""
@@ -594,3 +607,81 @@ Your role is to help with the current page and context. For administrative actio
             }
             
         return fallback_messages.get(event_type, "Done! What would you like to do next?") 
+
+    async def _control_camera(self, action):
+        """Control camera state"""
+        try:
+            if self.current_page != 'recognition/classroom':
+                return "Please go to the face recognition page to control the camera. Would you like me to take you there?"
+            
+            if action not in ['on', 'off']:
+                return "Invalid camera action. Please specify 'on' or 'off'."
+            
+            # Emit camera control event via Flask-SocketIO
+            from flask_socketio import emit
+            event = 'startCamera' if action == 'on' else 'stopCamera'
+            emit(event)
+            
+            self.page_data['camera_status'] = 'active' if action == 'on' else 'inactive'
+            return f"Camera turned {action} successfully!"
+            
+        except Exception as e:
+            current_app.logger.error(f"Error controlling camera: {str(e)}")
+            return "Sorry, I couldn't control the camera right now."
+
+    async def _navigate_to_page(self, target):
+        """Navigate to specified page"""
+        try:
+            # Map common phrases to actual routes
+            page_routes = {
+                'dashboard': '/',
+                'home': '/',
+                'attendance': '/attendance/view',
+                'view attendance': '/attendance/view',
+                'records': '/attendance/view',
+                'recognition': '/recognition/classroom',
+                'camera': '/recognition/classroom',
+                'face recognition': '/recognition/classroom',
+                'register': '/recognition/register',
+                'registration': '/recognition/register',
+                'students': '/admin/manage/students',
+                'manage students': '/admin/manage/students',
+                'teachers': '/admin/manage/teachers',
+                'manage teachers': '/admin/manage/teachers',
+                'subjects': '/admin/manage/subjects',
+                'manage subjects': '/admin/manage/subjects'
+            }
+            
+            # Try to find the closest matching route
+            target = target.lower().strip()
+            if target in page_routes:
+                route = page_routes[target]
+                return {
+                    "message": f"Taking you to the {target} page...",
+                    "navigation": route
+                }
+            
+            # If no exact match, try to find the most similar one
+            matches = []
+            for key in page_routes:
+                if target in key or key in target:
+                    matches.append(key)
+            
+            if matches:
+                route = page_routes[matches[0]]
+                return {
+                    "message": f"I'll take you to the {matches[0]} page. Is that what you were looking for?",
+                    "navigation": route
+                }
+            
+            return {
+                "message": "I'm not sure which page you want to go to. Could you be more specific?",
+                "navigation": None
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"Error navigating: {str(e)}")
+            return {
+                "message": "Sorry, I couldn't navigate to that page right now.",
+                "navigation": None
+            } 
