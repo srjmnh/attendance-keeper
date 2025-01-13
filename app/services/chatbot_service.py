@@ -166,9 +166,17 @@ class ChatbotService:
             current_app.logger.error(f"Error updating teacher: {str(e)}")
             return "Failed to update teacher details."
 
-    async def _get_attendance_info(self, student_id, date=None):
+    async def _get_attendance_info(self, student_id=None, date=None, name=None):
         """Get attendance information for a student"""
         try:
+            # Resolve by name if provided
+            if name and not student_id:
+                student, message = await self._resolve_student_by_name(name)
+                if message:
+                    return message
+                if student:
+                    student_id = student['student_id']
+            
             # Use today's date if not specified
             if not date:
                 date = datetime.now().strftime('%Y-%m-%d')
@@ -213,9 +221,17 @@ class ChatbotService:
             current_app.logger.error(f"Error getting student info: {str(e)}")
             return None
 
-    async def _get_attendance_analytics(self, student_id=None, date=None, period=None):
+    async def _get_attendance_analytics(self, student_id=None, date=None, period=None, name=None):
         """Get attendance analytics"""
         try:
+            # Resolve by name if provided
+            if name and not student_id:
+                student, message = await self._resolve_student_by_name(name)
+                if message:
+                    return message
+                if student:
+                    student_id = student['student_id']
+            
             attendance_ref = current_app.db.collection('attendance')
             
             # Initialize query
@@ -270,6 +286,40 @@ class ChatbotService:
             current_app.logger.error(f"Error getting analytics: {str(e)}")
             return "Sorry, I couldn't generate the analytics right now."
 
+    async def _resolve_student_by_name(self, name):
+        """Resolve student by name, handling ambiguous cases"""
+        try:
+            users_ref = current_app.db.collection('users')
+            # Case-insensitive name search
+            query = users_ref.where(filter=FieldFilter('role', '==', 'student'))
+            students = query.get()
+            
+            matches = []
+            for student in students:
+                student_data = student.to_dict()
+                if name.lower() in student_data.get('name', '').lower():
+                    matches.append(student_data)
+            
+            if not matches:
+                return None, "No student found with that name."
+            elif len(matches) == 1:
+                return matches[0], None
+            else:
+                # Format ambiguous matches
+                options = []
+                for student in matches:
+                    class_info = f"{student.get('class', '')}{student.get('division', '')}"
+                    options.append(f"- {student['name']} (ID: {student['student_id']}, Class: {class_info})")
+                
+                message = f"I found multiple students with that name. Who do you mean?\n"
+                message += "\n".join(options)
+                message += "\n\nPlease specify using their student ID."
+                return None, message
+            
+        except Exception as e:
+            current_app.logger.error(f"Error resolving student name: {str(e)}")
+            return None, "Sorry, I had trouble looking up that name."
+
     async def _extract_action_request(self, message):
         """Extract action request from message"""
         try:
@@ -291,20 +341,22 @@ class ChatbotService:
                - "change class of student 350 to 4A" -> {{"action": "update_student", "params": {{"student_id": "350", "updates": {{"class": "4", "division": "A"}}}}}}
             
             3. Get attendance information:
-               Format: {{"action": "get_attendance", "params": {{"student_id": "123", "date": "YYYY-MM-DD"}}}}
+               Format: {{"action": "get_attendance", "params": {{"student_id": "123", "date": "YYYY-MM-DD"}}}} or {{"action": "get_attendance", "params": {{"name": "John"}}}}
                Examples:
                - "was student 210 present today?" -> {{"action": "get_attendance", "params": {{"student_id": "210"}}}}
-               - "check attendance for 350 on 2025-01-10" -> {{"action": "get_attendance", "params": {{"student_id": "350", "date": "2025-01-10"}}}}
+               - "check attendance for John" -> {{"action": "get_attendance", "params": {{"name": "John"}}}}
+               - "is Sarah here today?" -> {{"action": "get_attendance", "params": {{"name": "Sarah"}}}}
             
             4. Get attendance analytics:
-               Format: {{"action": "get_analytics", "params": {{"student_id": "123", "period": "today/week"}}}}
+               Format: {{"action": "get_analytics", "params": {{"student_id": "123", "period": "today/week"}}}} or {{"action": "get_analytics", "params": {{"name": "John", "period": "week"}}}}
                Examples:
                - "show attendance stats for today" -> {{"action": "get_analytics", "params": {{"period": "today"}}}}
-               - "get attendance report for student 210 this week" -> {{"action": "get_analytics", "params": {{"student_id": "210", "period": "week"}}}}
+               - "get attendance report for John this week" -> {{"action": "get_analytics", "params": {{"name": "John", "period": "week"}}}}
             
             If the message matches any of these patterns, return the corresponding action format.
             If no match is found or the message is unclear, return null.
-            Use today's date (2025-01-13) for attendance if no date is specified."""
+            Use today's date (2025-01-13) for attendance if no date is specified.
+            Extract names from the message when student_id is not explicitly mentioned."""
             
             response = self.model.generate_content(prompt)
             if not response.text:
