@@ -3,76 +3,102 @@
 {% block title %}Login - AttendanceAI{% endblock %}
 
 {% block content %}
-<div class="min-h-[80vh] flex items-center justify-center">
-    <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-sm animate-fadeInUp">
-        <!-- Header -->
-        <div class="text-center">
-            <h2 class="text-3xl font-bold text-gray-900">Welcome Back</h2>
-            <p class="mt-2 text-sm text-gray-600">Sign in to your account</p>
+<div class="min-h-screen flex">
+    <!-- Left Section - Branding -->
+    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-primary-focus items-center justify-center p-12">
+        <div class="max-w-lg">
+            <div class="flex items-center gap-3 mb-12">
+                <div class="w-12 h-12 bg-white text-primary rounded-xl flex items-center justify-center">
+                    <span class="text-2xl font-bold">A</span>
+                </div>
+                <div class="text-white">
+                    <h1 class="text-2xl font-bold">AttendanceAI</h1>
+                    <p class="opacity-80">Smart Attendance System</p>
+                </div>
+            </div>
+            <h2 class="text-4xl font-bold text-white mb-6">Transform Your Attendance Management</h2>
+            <p class="text-lg text-white/80 mb-8">
+                Streamline attendance tracking with facial recognition technology. Fast, accurate, and effortless.
+            </p>
+            <div class="grid grid-cols-2 gap-6">
+                <div class="bg-white/10 backdrop-blur-lg rounded-xl p-4">
+                    <i class="ri-face-recognition-line text-2xl text-white mb-2"></i>
+                    <h3 class="text-white font-medium mb-1">Face Recognition</h3>
+                    <p class="text-sm text-white/70">Instant and accurate student identification</p>
+                </div>
+                <div class="bg-white/10 backdrop-blur-lg rounded-xl p-4">
+                    <i class="ri-time-line text-2xl text-white mb-2"></i>
+                    <h3 class="text-white font-medium mb-1">Real-time Tracking</h3>
+                    <p class="text-sm text-white/70">Monitor attendance as it happens</p>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <!-- Login Form -->
-        <form class="mt-8 space-y-6" method="POST" action="{{ url_for('auth.login') }}">
-            {{ form.csrf_token }}
-            
-            <!-- Email Field -->
-            <div>
-                {{ form.email.label(class="block text-sm font-medium text-gray-700") }}
-                <div class="mt-1">
-                    {{ form.email(class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500") }}
+    <!-- Right Section - Login Form -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div class="w-full max-w-md space-y-8">
+            <!-- Login Form -->
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold mb-2">Welcome Back</h2>
+                <p class="text-base-content/60">Sign in to your account</p>
+            </div>
+
+            <form class="space-y-6" method="POST" action="{{ url_for('auth.login') }}">
+                {{ form.csrf_token }}
+                
+                <!-- Email Field -->
+                <div class="form-control">
+                    {{ form.email.label(class="label font-medium") }}
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none opacity-60">
+                            <i class="ri-mail-line"></i>
+                        </span>
+                        {{ form.email(class="input input-bordered w-full pl-10", placeholder="Enter your email") }}
+                    </div>
                     {% if form.email.errors %}
                         {% for error in form.email.errors %}
-                            <span class="text-sm text-red-600">{{ error }}</span>
+                            <label class="label text-error">{{ error }}</label>
                         {% endfor %}
                     {% endif %}
                 </div>
-            </div>
 
-            <!-- Password Field -->
-            <div>
-                {{ form.password.label(class="block text-sm font-medium text-gray-700") }}
-                <div class="mt-1">
-                    {{ form.password(class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500") }}
+                <!-- Password Field -->
+                <div class="form-control">
+                    {{ form.password.label(class="label font-medium") }}
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none opacity-60">
+                            <i class="ri-lock-line"></i>
+                        </span>
+                        {{ form.password(class="input input-bordered w-full pl-10", placeholder="Enter your password") }}
+                    </div>
                     {% if form.password.errors %}
                         {% for error in form.password.errors %}
-                            <span class="text-sm text-red-600">{{ error }}</span>
+                            <label class="label text-error">{{ error }}</label>
                         {% endfor %}
                     {% endif %}
                 </div>
-            </div>
 
-            <!-- Remember Me -->
-            <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <input id="remember_me" name="remember_me" type="checkbox" 
-                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                    <label for="remember_me" class="ml-2 block text-sm text-gray-900">Remember me</label>
+                <!-- Remember Me -->
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="remember_me" class="checkbox checkbox-sm checkbox-primary">
+                        <span class="text-sm">Remember me</span>
+                    </label>
+
+                    <a href="#" class="text-sm text-primary hover:text-primary-focus transition-colors">
+                        Forgot password?
+                    </a>
                 </div>
 
-                <div class="text-sm">
-                    <a href="#" class="font-medium text-indigo-600 hover:text-indigo-500">Forgot your password?</a>
-                </div>
-            </div>
+                <!-- Submit Button -->
+                {{ form.submit(class="btn btn-primary w-full") }}
+            </form>
 
-            <!-- Submit Button -->
-            <div>
-                {{ form.submit(class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors") }}
-            </div>
-        </form>
-
-        <!-- Additional Links -->
-        <div class="mt-6">
-            <div class="relative">
-                <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t border-gray-300"></div>
-                </div>
-                <div class="relative flex justify-center text-sm">
-                    <span class="px-2 bg-white text-gray-500">Need help?</span>
-                </div>
-            </div>
-
-            <div class="mt-6 text-center text-sm">
-                <p class="text-gray-600">
+            <!-- Additional Info -->
+            <div class="text-center">
+                <div class="divider">Need help?</div>
+                <p class="text-sm text-base-content/60">
                     Contact your administrator for account access
                 </p>
             </div>
@@ -83,19 +109,10 @@
 
 {% block extra_css %}
 <style>
-.login-bg {
-    background-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.form-container {
-    backdrop-filter: blur(10px);
-    background: rgba(255, 255, 255, 0.95);
-}
-
-@keyframes fadeInUp {
+@keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(10px);
     }
     to {
         opacity: 1;
@@ -103,8 +120,13 @@
     }
 }
 
-.animate-fadeInUp {
-    animation: fadeInUp 0.5s ease-out;
+.animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+}
+
+.form-control {
+    animation: fadeIn 0.6s ease-out forwards;
+    animation-delay: calc(var(--index, 0) * 0.1s);
 }
 </style>
 {% endblock %} 

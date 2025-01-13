@@ -10,15 +10,16 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
     
     <!-- Icons -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.0.1/fonts/remixicon.css" rel="stylesheet">
     
     <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Google Sans', sans-serif;
+            background-color: #f8f9fa;
         }
         .animate-fade-in {
             animation: fadeIn 0.3s ease-in-out;
@@ -31,186 +32,187 @@
             to { opacity: 1; }
         }
         @keyframes slideDown {
-            from { transform: translateY(-10px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from { 
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .nav-link {
+            @apply px-4 py-2 rounded-full hover:bg-base-200 transition-colors duration-200;
+        }
+        .nav-link.active {
+            @apply bg-primary text-primary-content hover:bg-primary;
+        }
+        @media (max-width: 768px) {
+            .nav-link {
+                @apply px-3 py-2;
+            }
         }
     </style>
-    
     {% block extra_css %}{% endblock %}
 </head>
-
-<body class="min-h-screen bg-base-200">
-    <div class="drawer lg:drawer-open">
-        <input id="drawer-toggle" type="checkbox" class="drawer-toggle" />
-        
-        <!-- Main Content -->
-        <main class="pl-64 min-h-screen bg-base-200">
-            <div class="container mx-auto p-4">
-                {% block content %}{% endblock %}
-            </div>
-        </main>
-
-        <!-- Toast Container -->
-        <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
-
-        <!-- Chatbot Toggle Button -->
-        <button id="chatbotToggle" class="btn btn-circle btn-primary fixed bottom-6 right-6 text-2xl shadow-lg">
-            <i class="ri-message-3-line"></i>
-        </button>
-
-        <!-- Chatbot Window -->
-        <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100">
-            <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <i class="ri-robot-line"></i>
-                    <span class="font-bold">AI Assistant</span>
-                </div>
-                <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle">×</button>
-            </div>
-            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
-                <!-- Welcome Message -->
-                <div class="chat chat-start">
-                    <div class="chat-bubble chat-bubble-primary">
-                        👋 Hi! I'm your AI assistant. I can help you with:
-                        <ul class="list-disc list-inside mt-2">
-                            <li>Taking attendance with face recognition</li>
-                            <li>Managing attendance records</li>
-                            <li>Student registration</li>
-                            <li>Navigating the system</li>
-                        </ul>
-                        How can I help you today?
+<body>
+    {% if current_user.is_authenticated %}
+    <!-- Top Navigation -->
+    <nav class="bg-base-100 border-b sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-primary text-primary-content rounded-full flex items-center justify-center">
+                        <span class="text-lg font-bold">A</span>
                     </div>
+                    <span class="font-bold text-lg hidden md:inline">AttendanceAI</span>
+                </a>
+
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center gap-2">
+                    <a href="{{ url_for('main.dashboard') }}" 
+                       class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                        <i class="ri-dashboard-line mr-2"></i>Dashboard
+                    </a>
+                    <a href="{{ url_for('attendance.view_attendance') }}" 
+                       class="nav-link {% if request.endpoint == 'attendance.view_attendance' %}active{% endif %}">
+                        <i class="ri-calendar-check-line mr-2"></i>Attendance
+                    </a>
+                    {% if current_user.role == 'admin' %}
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="nav-link cursor-pointer">
+                            <i class="ri-settings-3-line mr-2"></i>Admin
+                        </label>
+                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                            <li>
+                                <a href="{{ url_for('admin.manage_teachers') }}" class="{% if request.endpoint == 'admin.manage_teachers' %}active{% endif %}">
+                                    <i class="ri-team-line"></i>Manage Teachers
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{{ url_for('admin.manage_students') }}" class="{% if request.endpoint == 'admin.manage_students' %}active{% endif %}">
+                                    <i class="ri-user-settings-line"></i>Manage Students
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{{ url_for('admin.manage_subjects') }}" class="{% if request.endpoint == 'admin.manage_subjects' %}active{% endif %}">
+                                    <i class="ri-book-open-line"></i>Manage Subjects
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- User Menu -->
+                <div class="dropdown dropdown-end">
+                    <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+                        <div class="w-10 rounded-full bg-neutral text-neutral-content flex items-center justify-center">
+                            <span class="text-xl">{{ current_user.name[0] if current_user.name else current_user.email[0] | upper }}</span>
+                        </div>
+                    </label>
+                    <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+                        <li><a href="{{ url_for('auth.logout') }}">Logout</a></li>
+                    </ul>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <button class="btn btn-ghost btn-circle md:hidden" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')">
+                    <i class="ri-menu-line text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden border-t">
+            <div class="px-2 pt-2 pb-3 space-y-1">
+                <a href="{{ url_for('main.dashboard') }}" 
+                   class="nav-link block {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                    <i class="ri-dashboard-line mr-2"></i>Dashboard
+                </a>
+                <a href="{{ url_for('attendance.view_attendance') }}" 
+                   class="nav-link block {% if request.endpoint == 'attendance.view_attendance' %}active{% endif %}">
+                    <i class="ri-calendar-check-line mr-2"></i>Attendance
+                </a>
+                {% if current_user.role == 'admin' %}
+                <div class="px-4 py-2">
+                    <p class="text-xs font-medium opacity-60 uppercase">Administration</p>
+                </div>
+                <a href="{{ url_for('admin.manage_teachers') }}" 
+                   class="nav-link block {% if request.endpoint == 'admin.manage_teachers' %}active{% endif %}">
+                    <i class="ri-team-line mr-2"></i>Manage Teachers
+                </a>
+                <a href="{{ url_for('admin.manage_students') }}" 
+                   class="nav-link block {% if request.endpoint == 'admin.manage_students' %}active{% endif %}">
+                    <i class="ri-user-settings-line mr-2"></i>Manage Students
+                </a>
+                <a href="{{ url_for('admin.manage_subjects') }}" 
+                   class="nav-link block {% if request.endpoint == 'admin.manage_subjects' %}active{% endif %}">
+                    <i class="ri-book-open-line mr-2"></i>Manage Subjects
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} mb-4 animate-slide-down">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Chatbot Toggle Button -->
+    <button id="chatbotToggle" class="btn btn-circle btn-primary fixed bottom-6 right-6 text-2xl shadow-lg z-40">
+        <i class="ri-message-3-line"></i>
+    </button>
+
+    <!-- Chatbot Window -->
+    <div id="chatbotWindow" class="card fixed bottom-24 right-6 w-96 max-h-[500px] shadow-xl hidden flex-col bg-base-100 z-40">
+        <div class="card-header px-4 py-3 bg-primary text-primary-content flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="ri-robot-line"></i>
+                <span class="font-bold">AI Assistant</span>
+            </div>
+            <button id="chatCloseBtn" class="btn btn-ghost btn-sm btn-circle">×</button>
+        </div>
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Welcome Message -->
+            <div class="chat chat-start">
+                <div class="chat-bubble chat-bubble-primary">
+                    👋 Hi! I'm your AI assistant. I can help you with:
+                    <ul class="list-disc list-inside mt-2">
+                        <li>Taking attendance with face recognition</li>
+                        <li>Managing attendance records</li>
+                        <li>Student registration</li>
+                        <li>Navigating the system</li>
+                    </ul>
+                    How can I help you today?
                 </div>
             </div>
-            <div class="card-footer p-4 border-t">
-                <div class="join w-full">
-                    <input type="text" id="chatInput" class="join-item input input-bordered w-full" placeholder="Type your message...">
-                    <button id="chatSendBtn" class="join-item btn btn-primary">
-                        <i class="ri-send-plane-line"></i>
-                    </button>
-                </div>
+        </div>
+        <div class="card-footer p-4 border-t">
+            <div class="join w-full">
+                <input type="text" id="chatInput" class="join-item input input-bordered w-full" placeholder="Type your message...">
+                <button id="chatSendBtn" class="join-item btn btn-primary">
+                    <i class="ri-send-plane-line"></i>
+                </button>
             </div>
         </div>
     </div>
-
-    <!-- Sidebar -->
-    <aside id="sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen bg-base-100 border-r">
-        <!-- Logo -->
-        <div class="px-4 py-3 border-b">
-            <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2">
-                <div class="w-10 h-10 bg-primary text-primary-content rounded-lg flex items-center justify-center">
-                    <span class="text-xl font-bold">A</span>
-                </div>
-                <div>
-                    <h1 class="text-lg font-bold">AttendanceAI</h1>
-                    <p class="text-xs opacity-60">Smart Attendance System</p>
-                </div>
-            </a>
-        </div>
-
-        <!-- Navigation -->
-        <nav class="py-4">
-            <ul class="space-y-1 px-3">
-                <!-- Dashboard -->
-                <li>
-                    <a href="{{ url_for('main.dashboard') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'main.dashboard' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                        <i class="ri-dashboard-line text-lg"></i>
-                        <span>Dashboard</span>
-                    </a>
-                </li>
-
-                <!-- View Attendance -->
-                <li>
-                    <a href="{{ url_for('attendance.view_attendance') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'attendance.view_attendance' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                        <i class="ri-calendar-check-line text-lg"></i>
-                        <span>View Attendance</span>
-                    </a>
-                </li>
-
-                {% if current_user.role == 'admin' %}
-                <!-- Admin Links -->
-                <li class="pt-4">
-                    <div class="px-3 pb-2">
-                        <p class="text-xs font-medium opacity-60 uppercase">Administration</p>
-                    </div>
-                    <ul class="space-y-1">
-                        <!-- Manage Teachers -->
-                        <li>
-                            <a href="{{ url_for('admin.manage_teachers') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_teachers' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                <i class="ri-team-line text-lg"></i>
-                                <span>Manage Teachers</span>
-                            </a>
-                        </li>
-
-                        <!-- Manage Students -->
-                        <li>
-                            <a href="{{ url_for('admin.manage_students') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_students' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                <i class="ri-user-settings-line text-lg"></i>
-                                <span>Manage Students</span>
-                            </a>
-                        </li>
-
-                        <!-- Manage Subjects -->
-                        <li>
-                            <a href="{{ url_for('admin.manage_subjects') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-base-200 {% if request.endpoint == 'admin.manage_subjects' %}bg-primary text-primary-content hover:bg-primary{% endif %}">
-                                <i class="ri-book-open-line text-lg"></i>
-                                <span>Manage Subjects</span>
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-                {% endif %}
-            </ul>
-        </nav>
-
-        <!-- User Menu -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 border-t">
-            <div class="dropdown dropdown-top w-full">
-                <label tabindex="0" class="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 cursor-pointer">
-                    <div class="avatar placeholder">
-                        <div class="w-10 h-10 rounded-full bg-neutral text-neutral-content">
-                            {% if current_user.is_authenticated and current_user.name %}
-                                <span class="text-xl">{{ current_user.name[0] | upper }}</span>
-                            {% else %}
-                                <span class="text-xl"><i class="ri-user-line"></i></span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-medium truncate">{{ current_user.name }}</p>
-                        <p class="text-sm opacity-60 capitalize">{{ current_user.role }}</p>
-                    </div>
-                    <i class="ri-arrow-up-s-line opacity-60"></i>
-                </label>
-                <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-lg w-full">
-                    <li>
-                        <a href="{{ url_for('auth.logout') }}" class="gap-2 text-error">
-                            <i class="ri-logout-box-line"></i>
-                            Logout
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Theme Toggle Script -->
-    <script>
-        const themeToggle = document.getElementById('theme-toggle');
-        const html = document.documentElement;
-        
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        html.setAttribute('data-theme', savedTheme);
-        themeToggle.checked = savedTheme === 'dark';
-        
-        // Theme toggle handler
-        themeToggle.addEventListener('change', function() {
-            const theme = this.checked ? 'dark' : 'light';
-            html.setAttribute('data-theme', theme);
-            localStorage.setItem('theme', theme);
-        });
-    </script>
 
     <!-- Load chat.js -->
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>

@@ -92,7 +92,7 @@ class ChatUI {
             this.scrollToBottom();
             
             // Send message to server
-            const response = await fetch('/chat/ai/chat', {
+            const response = await fetch('/chat/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

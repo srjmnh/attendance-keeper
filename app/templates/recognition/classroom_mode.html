@@ -1,54 +1,77 @@
-{% extends "base.html" %}
-
-{% block title %}Classroom Mode - AttendanceAI{% endblock %}
-
-{% block content %}
-<div class="fixed inset-0 bg-black flex flex-col">
-    <!-- Header -->
-    <div class="bg-black/50 backdrop-blur-sm z-10 border-b border-white/10">
-        <div class="container mx-auto px-4 py-2">
-            <div class="flex items-center justify-between">
-                <div class="text-white">
-                    <h1 class="text-xl font-bold">Classroom Mode</h1>
-                    <p class="text-sm opacity-60">Real-time attendance tracking</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="stats bg-black/50 text-white border border-white/10">
-                        <div class="stat py-2">
-                            <div class="stat-title text-sm opacity-60">Faces Detected</div>
-                            <div class="stat-value text-2xl" id="faceCounter">0</div>
-                        </div>
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+    <title>Classroom Mode - AttendanceAI</title>
+    
+    <!-- Tailwind and DaisyUI -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.0.1/fonts/remixicon.css" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: black;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="fixed inset-0 bg-black">
+        <!-- Minimal Header -->
+        <div class="absolute top-0 left-0 right-0 z-10 bg-black/50 backdrop-blur-sm border-b border-white/10">
+            <div class="container mx-auto px-4 py-2">
+                <div class="flex items-center justify-between">
+                    <div class="text-white">
+                        <h1 class="text-xl font-bold">Classroom Mode</h1>
                     </div>
-                    <button id="switchCamera" class="btn btn-circle btn-sm btn-outline border-white/20 text-white hover:bg-white/10">
-                        <i class="ri-camera-switch-line"></i>
-                    </button>
-                    <button onclick="confirmAttendance()" class="btn btn-success btn-sm gap-2">
-                        <i class="ri-check-double-line"></i>
-                        Confirm
-                    </button>
-                    <button onclick="toggleFullscreen()" class="btn btn-circle btn-sm btn-outline border-white/20 text-white hover:bg-white/10">
-                        <i class="ri-fullscreen-line" id="fullscreenIcon"></i>
-                    </button>
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm gap-2 text-white hover:bg-white/10">
-                        <i class="ri-close-line"></i>
-                        Exit
-                    </a>
+                    <div class="flex items-center gap-2">
+                        <div class="stats bg-black/50 text-white border border-white/10">
+                            <div class="stat py-2">
+                                <div class="stat-title text-sm opacity-60">Unique Faces</div>
+                                <div class="stat-value text-2xl" id="faceCounter">0</div>
+                            </div>
+                        </div>
+                        <button id="switchCamera" class="btn btn-circle btn-sm btn-outline border-white/20 text-white hover:bg-white/10">
+                            <i class="ri-camera-switch-line"></i>
+                        </button>
+                        <button onclick="confirmAttendance()" id="confirmBtn" class="btn btn-success btn-sm gap-2 opacity-50 pointer-events-none" disabled>
+                            <i class="ri-check-double-line"></i>
+                            Confirm Attendance
+                        </button>
+                        <button onclick="toggleFullscreen()" class="btn btn-circle btn-sm btn-outline border-white/20 text-white hover:bg-white/10">
+                            <i class="ri-fullscreen-line" id="fullscreenIcon"></i>
+                        </button>
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm gap-2 text-white hover:bg-white/10">
+                            <i class="ri-close-line"></i>
+                            Exit
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Main Content -->
-    <div class="flex-1 relative">
-        <!-- Camera Feed -->
-        <div class="absolute inset-0 flex items-center justify-center bg-black">
+        <!-- Main Content -->
+        <div class="absolute inset-0 flex items-center justify-center">
+            <!-- Camera Feed -->
             <video id="video" class="max-h-full w-auto object-contain" autoplay playsinline></video>
             <canvas id="canvas" class="hidden"></canvas>
-        </div>
-        
-        <!-- Face Detection Overlay -->
-        <div id="faceOverlay" class="absolute inset-0 pointer-events-none">
-            <!-- Face boxes will be drawn here -->
+            
+            <!-- Face Detection Overlay -->
+            <div id="faceOverlay" class="absolute inset-0 pointer-events-none"></div>
         </div>
         
         <!-- Status Messages -->
@@ -56,7 +79,7 @@
             <div class="space-y-2">
                 <div id="status" class="alert bg-black/50 text-white border border-white/10 shadow-lg py-2 backdrop-blur-sm">
                     <i class="ri-information-line"></i>
-                    <span>Position students' faces in the camera view</span>
+                    <span>Position students to detect faces</span>
                 </div>
                 <div id="detectedFaces" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-black/50 backdrop-blur-sm rounded-lg border border-white/10">
                     <!-- Detected faces will be shown here -->
@@ -64,10 +87,7 @@
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
 let width = 1280;
 let height = 0;
@@ -84,18 +104,21 @@ const PROCESS_INTERVAL = 1000; // Process every 1 second
 
 function showMessage(message, type = 'info') {
     const toast = document.createElement('div');
-    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50`;
+    toast.className = `alert alert-${type} fixed bottom-4 right-4 w-auto max-w-sm z-50 animate-fade-in`;
     toast.innerHTML = `
         <i class="ri-${type === 'success' ? 'checkbox-circle' : type === 'error' ? 'error-warning' : 'information'}-line"></i>
         <span>${message}</span>
     `;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 function updateStatus(message, type = 'info') {
     const status = document.getElementById('status');
-    status.className = `alert alert-${type}`;
+    status.className = `alert bg-black/50 text-white border-${type} shadow-lg py-2 backdrop-blur-sm animate-fade-in`;
     status.innerHTML = `<i class="ri-information-line"></i><span>${message}</span>`;
 }
 
@@ -106,7 +129,7 @@ function drawFaceBox(face) {
     
     // Change border color based on match status
     const borderColor = face.match ? (face.match.alreadyMarked ? 'border-warning' : 'border-success') : 'border-error';
-    box.className = `absolute border-2 ${borderColor} rounded-lg transition-all duration-200 shadow-lg`;
+    box.className = `absolute border-2 ${borderColor} rounded-lg transition-all duration-200 shadow-lg animate-fade-in`;
     box.style.left = `${x}px`;
     box.style.top = `${y}px`;
     box.style.width = `${w}px`;
@@ -137,7 +160,7 @@ function clearFaceBoxes() {
 
 function updateDetectedFaces(faces) {
     const count = document.getElementById('faceCounter');
-    if (count) count.textContent = faces.length;
+    const confirmBtn = document.getElementById('confirmBtn');
     
     // Clear previous faces
     detectedStudents.clear();
@@ -153,13 +176,27 @@ function updateDetectedFaces(faces) {
         // Draw face box
         drawFaceBox(face);
     });
+    
+    // Update counter and confirm button state
+    const uniqueFaces = detectedStudents.size;
+    count.textContent = uniqueFaces;
+    
+    if (uniqueFaces > 0) {
+        confirmBtn.classList.remove('opacity-50', 'pointer-events-none');
+        confirmBtn.disabled = false;
+        updateStatus(`${uniqueFaces} student${uniqueFaces > 1 ? 's' : ''} detected`, 'success');
+    } else {
+        confirmBtn.classList.add('opacity-50', 'pointer-events-none');
+        confirmBtn.disabled = true;
+        updateStatus('Position students to detect faces');
+    }
 }
 
 async function startup() {
     video = document.getElementById('video');
     canvas = document.getElementById('canvas');
     switchCameraButton = document.getElementById('switchCamera');
-    confirmButton = document.getElementById('confirmAttendance');
+    confirmButton = document.getElementById('confirmBtn');
 
     try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -172,6 +209,17 @@ async function startup() {
         });
         video.srcObject = stream;
         video.play();
+        
+        // Request fullscreen on startup
+        const container = document.documentElement;
+        if (container.requestFullscreen) {
+            container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+            container.msRequestFullscreen();
+        }
+        document.getElementById('fullscreenIcon').className = 'ri-fullscreen-exit-line';
     } catch (err) {
         showMessage('Error accessing camera: ' + err.message, 'error');
         console.error("An error occurred: " + err);
@@ -192,7 +240,6 @@ async function startup() {
     }, false);
 
     switchCameraButton.addEventListener('click', switchCamera);
-    confirmButton.addEventListener('click', confirmAttendance);
 }
 
 async function switchCamera() {
@@ -218,7 +265,6 @@ async function switchCamera() {
     }
 }
 
-// Add CSRF token handling
 function getCSRFToken() {
     return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 }
@@ -260,15 +306,8 @@ async function detectFaces() {
             
             if (result.faces && result.faces.length > 0) {
                 updateDetectedFaces(result.faces);
-                
-                // Update status message
-                if (result.faces.some(face => face.match)) {
-                    updateStatus('Faces detected and identified', 'success');
-                } else {
-                    updateStatus('Faces detected but not recognized', 'warning');
-                }
             } else {
-                updateStatus('Position students\' faces in the camera view');
+                updateStatus('Position students to detect faces');
             }
         }
     } catch (error) {
@@ -286,12 +325,16 @@ async function confirmAttendance() {
         return;
     }
 
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i>Processing...';
+
     try {
         const response = await fetch('/mark_classroom_attendance', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({
                 students: Array.from(detectedStudents.values())
@@ -303,76 +346,26 @@ async function confirmAttendance() {
             showMessage(`${data.message}`, 'success');
             // Clear detected students after marking attendance
             detectedStudents.clear();
+            // Reset UI
+            clearFaceBoxes();
+            document.getElementById('faceCounter').textContent = '0';
+            updateStatus('Attendance marked successfully! Position new students to detect faces.', 'success');
         } else {
-            showMessage(data.error || 'Failed to mark attendance', 'error');
+            throw new Error(data.error || 'Failed to mark attendance');
         }
     } catch (error) {
         console.error('Error marking attendance:', error);
         showMessage('Failed to mark attendance. Please try again.', 'error');
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="ri-check-double-line"></i>Confirm Attendance';
     }
 }
 
-// Update styles for fullscreen mode with smooth transitions
-const style = document.createElement('style');
-style.textContent = `
-    /* Base layout */
-    .fixed.inset-0 {
-        padding-left: 16rem; /* Width of sidebar */
-        transition: padding-left 0.3s ease-out;
-    }
-    
-    /* Fullscreen mode */
-    :fullscreen .fixed.inset-0 {
-        padding-left: 0;
-    }
-    
-    /* Sidebar transitions */
-    #sidebar {
-        transform: translateX(0);
-        transition: transform 0.3s ease-out;
-    }
-    
-    :fullscreen #sidebar {
-        transform: translateX(-100%);
-    }
-    
-    /* Hide navigation elements in fullscreen */
-    :fullscreen .drawer-side,
-    :fullscreen .navbar {
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
-    }
-    
-    /* Video container */
-    #video {
-        max-height: calc(100vh - 64px); /* Subtract header height */
-        transition: max-height 0.3s ease-out;
-    }
-    
-    :fullscreen #video {
-        max-height: 100vh;
-    }
-    
-    /* Face detection boxes */
-    #faceOverlay {
-        pointer-events: none;
-        z-index: 20;
-    }
-    
-    /* Status messages */
-    .bottom-4 {
-        z-index: 30;
-    }
-`;
-document.head.appendChild(style);
-
-// Update fullscreen toggle function
+// Fullscreen handling
 function toggleFullscreen() {
     const container = document.documentElement;
     const icon = document.getElementById('fullscreenIcon');
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.querySelector('main');
     
     if (!document.fullscreenElement) {
         if (container.requestFullscreen) {
@@ -383,14 +376,6 @@ function toggleFullscreen() {
             container.msRequestFullscreen();
         }
         icon.className = 'ri-fullscreen-exit-line';
-        
-        // Add transitions
-        if (sidebar) {
-            sidebar.style.transform = 'translateX(-100%)';
-        }
-        if (mainContent) {
-            mainContent.classList.add('fullscreen-mode');
-        }
     } else {
         if (document.exitFullscreen) {
             document.exitFullscreen();
@@ -400,42 +385,17 @@ function toggleFullscreen() {
             document.msExitFullscreen();
         }
         icon.className = 'ri-fullscreen-line';
-        
-        // Reset transitions
-        if (sidebar) {
-            sidebar.style.transform = 'translateX(0)';
-        }
-        if (mainContent) {
-            mainContent.classList.remove('fullscreen-mode');
-        }
     }
 }
 
-// Update fullscreen change event handler
+// Handle fullscreen change event
 document.addEventListener('fullscreenchange', function() {
     const icon = document.getElementById('fullscreenIcon');
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.querySelector('main');
-    
-    if (document.fullscreenElement) {
-        icon.className = 'ri-fullscreen-exit-line';
-        if (sidebar) {
-            sidebar.style.transform = 'translateX(-100%)';
-        }
-        if (mainContent) {
-            mainContent.classList.add('fullscreen-mode');
-        }
-    } else {
-        icon.className = 'ri-fullscreen-line';
-        if (sidebar) {
-            sidebar.style.transform = 'translateX(0)';
-        }
-        if (mainContent) {
-            mainContent.classList.remove('fullscreen-mode');
-        }
-    }
+    icon.className = document.fullscreenElement ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line';
 });
 
+// Start in fullscreen mode
 window.addEventListener('load', startup, false);
 </script>
-{% endblock %} 
+</body>
+</html> 
